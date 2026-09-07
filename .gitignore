@@ -1,0 +1,10 @@
+# MNCS build and local state
+build/
+dist/
+target/
+.mncs/
+*.tmp
+*.log
+.DS_Store
+.vscode/
+.idea/
