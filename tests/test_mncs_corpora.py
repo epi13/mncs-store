@@ -94,10 +94,6 @@ EXPECTED_REFUSALS = {
 }
 
 
-def corpus_id(suite):
-    return suite[1].split("/")[-1]
-
-
 def suite_backends(suite_backends):
     if suite_backends is None:
         return backends_to_test()
