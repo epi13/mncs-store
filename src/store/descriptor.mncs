@@ -1,0 +1,257 @@
+mncs 0.10;
+
+// store.descriptor — Phase 1 native representation descriptors (RFC 0003).
+//
+// A descriptor is a 16-byte canonical big-endian record:
+//
+//   offset  size  field
+//   0       2     magic "MD" (0x4D 0x44)
+//   2       1     representation version (1)
+//   3       1     type_tag: 1 U32 scalar, 2 U64 scalar,
+//                         3 BYTE_SEQ (fixed bytes), 4 U32_PAIR
+//   4       1     scalar_tag: 1 BYTE, 2 U16, 3 U32, 4 U64
+//   5       1     rank: 0 scalar, 1 vector
+//   6       2     dim0 (u16 BE element count; 1 for scalars, 2 for pairs,
+//                 0..32 byte count for BYTE_SEQ)
+//   8       4     byte_len (u32 BE exact payload bytes)
+//   12      1     alignment (1, 2, 4, 8)
+//   13      1     layout (0 = tightly packed big-endian bytes)
+//   14      1     endianness (1 = big-endian canonical)
+//   15      1     reserved (0)
+//
+// Phase-1 validity rows (strict; version 1 admits nothing else):
+//   U32:      scalar U32, rank 0, dim 1, len 4, align 4
+//   U64:      scalar U64, rank 0, dim 1, len 8, align 8
+//   BYTE_SEQ: scalar BYTE, rank 1, dim 0..32, len == dim, align 1
+//   U32_PAIR: scalar U32, rank 0, dim 2, len 8, align 4
+//
+// Narrow argument types make `encode` total without truncation: every field
+// width is exactly representable, so construction cannot fabricate bytes.
+// Validation returns explicit u64 status codes (total, no traps):
+//   0 OK, 1 BAD_VIEW_LEN, 2 BAD_MAGIC, 3 BAD_VERSION, 4 BAD_TYPE_TAG,
+//   5 BAD_SCALAR_TAG, 6 BAD_RANK, 7 BAD_DIM, 8 BAD_ALIGN, 9 BAD_LAYOUT,
+//   10 BAD_ENDIAN, 11 BAD_RESERVED, 12 LEN_MISMATCH, 13 ROW_MISMATCH
+// Descriptors arriving from disk or peers are untrusted input: validate
+// before interpreting (invariant 22).
+module store.descriptor.v1;
+
+fn encode(
+    type_tag: byte,
+    scalar_tag: byte,
+    rank: byte,
+    dim0: u16,
+    byte_len: u32,
+    alignment: byte
+) -> (result: [byte; 16]) {
+    let d0h: byte = (dim0 / 256) as byte;
+    let d0l: byte = (dim0 % 256) as byte;
+    let l0: byte = (byte_len / 16777216) as byte;
+    let lr0: u32 = byte_len % 16777216;
+    let l1: byte = (lr0 / 65536) as byte;
+    let lr1: u32 = lr0 % 65536;
+    let l2: byte = (lr1 / 256) as byte;
+    let l3: byte = (lr1 % 256) as byte;
+    return [77, 68, 1, type_tag, scalar_tag, rank, d0h, d0l,
+        l0, l1, l2, l3, alignment, 0, 1, 0];
+}
+
+// Canonical length law for a valid (type_tag, scalar_tag, dim0) triple.
+// Returns 0 for unknown tags; 0 is never a valid scalar/pair length, and
+// BYTE_SEQ callers must establish tag validity via `validate` first.
+fn expected_len(type_tag: byte, scalar_tag: byte, dim0: u16) -> (result: u32) {
+    if type_tag == 1 {
+        return 4;
+    }
+    if type_tag == 2 {
+        return 8;
+    }
+    if type_tag == 3 {
+        return dim0 as u32;
+    }
+    if type_tag == 4 {
+        return 8;
+    }
+    return 0;
+}
+
+fn desc_type(view: [byte; up_to 16]) -> (result: u32) {
+    return view[3] as u32;
+}
+
+fn desc_scalar(view: [byte; up_to 16]) -> (result: u32) {
+    return view[4] as u32;
+}
+
+fn desc_rank(view: [byte; up_to 16]) -> (result: u32) {
+    return view[5] as u32;
+}
+
+fn desc_dim(view: [byte; up_to 16]) -> (result: u32) {
+    return ((view[6] as u32) *% 256) + (view[7] as u32);
+}
+
+fn desc_len(view: [byte; up_to 16]) -> (result: u32) {
+    // Wrapping operators are exact here (see store.identity.object_namespace
+    // and pressure P1-B01): the true value always fits u32. This matters
+    // because adversarial length bytes must DECODE (so `validate` can reject
+    // them with a code) rather than trap inside the decoder.
+    let high: u32 = ((view[8] as u32) *% 16777216)
+        +% ((view[9] as u32) *% 65536)
+        +% ((view[10] as u32) *% 256);
+    return high +% (view[11] as u32);
+}
+
+fn desc_alignment(view: [byte; up_to 16]) -> (result: u32) {
+    return view[12] as u32;
+}
+
+// Total validation over an untrusted view. The length gate comes first so
+// no projection below can trap: every index is valid when view.len == 16.
+fn validate(view: [byte; up_to 16]) -> (result: u64) {
+    if view.len != 16 {
+        return 1;
+    }
+    if view[0] != 77 || view[1] != 68 {
+        return 2;
+    }
+    if view[2] != 1 {
+        return 3;
+    }
+    let type_tag: byte = view[3];
+    let scalar_tag: byte = view[4];
+    let rank: byte = view[5];
+    // Gate magic, version, and tag vocabulary BEFORE decoding multi-byte
+    // fields, so structurally invalid descriptors report their structural
+    // code rather than depending on decoder behavior for garbage bytes.
+    if type_tag != 1 && type_tag != 2 && type_tag != 3 && type_tag != 4 {
+        return 4;
+    }
+    if scalar_tag != 1 && scalar_tag != 2 && scalar_tag != 3 && scalar_tag != 4 {
+        return 5;
+    }
+    if rank != 0 && rank != 1 {
+        return 6;
+    }
+    let dim0: u16 = (((view[6] as u16) *% 256) + (view[7] as u16)) as u16;
+    let byte_len: u32 = desc_len(view);
+    let alignment: byte = view[12];
+    if type_tag == 1 {
+        if scalar_tag != 3 || rank != 0 || dim0 != 1 {
+            return 13;
+        }
+        if alignment != 4 {
+            return 8;
+        }
+        if byte_len != 4 {
+            return 12;
+        }
+    }
+    if type_tag == 2 {
+        if scalar_tag != 4 || rank != 0 || dim0 != 1 {
+            return 13;
+        }
+        if alignment != 8 {
+            return 8;
+        }
+        if byte_len != 8 {
+            return 12;
+        }
+    }
+    if type_tag == 3 {
+        if scalar_tag != 1 || rank != 1 {
+            return 13;
+        }
+        if (dim0 as u32) > 32 {
+            return 7;
+        }
+        if alignment != 1 {
+            return 8;
+        }
+        if byte_len != dim0 as u32 {
+            return 12;
+        }
+    }
+    if type_tag == 4 {
+        if scalar_tag != 3 || rank != 0 || dim0 != 2 {
+            return 13;
+        }
+        if alignment != 4 {
+            return 8;
+        }
+        if byte_len != 8 {
+            return 12;
+        }
+    }
+    if view[13] != 0 {
+        return 9;
+    }
+    if view[14] != 1 {
+        return 10;
+    }
+    if view[15] != 0 {
+        return 11;
+    }
+    return 0;
+}
+
+// Round-trip law: a valid row encodes and validates clean.
+fn describe_u32() -> (result: [byte; 16]) {
+    return encode(1, 3, 0, 1, 4, 4);
+}
+
+fn describe_u64() -> (result: [byte; 16]) {
+    return encode(2, 4, 0, 1, 8, 8);
+}
+
+fn describe_pair() -> (result: [byte; 16]) {
+    return encode(4, 3, 0, 2, 8, 4);
+}
+
+fn describe_blob8() -> (result: [byte; 16]) {
+    return encode(3, 1, 1, 8, 8, 1);
+}
+
+fn describe_blob16() -> (result: [byte; 16]) {
+    return encode(3, 1, 1, 16, 16, 1);
+}
+
+fn describe_blob32() -> (result: [byte; 16]) {
+    return encode(3, 1, 1, 32, 32, 1);
+}
+
+fn describe_empty() -> (result: [byte; 16]) {
+    return encode(3, 1, 1, 0, 0, 1);
+}
+
+// Value-class to descriptor mapping used by the put path. The host names a
+// (type_tag, dim) class; the canonical descriptor bytes always come from
+// here. There is no silent fallback: an unsupported combination encodes to
+// bytes that `validate` rejects, so the put path fails explicitly instead
+// of storing a substituted meaning. BYTE_SEQ dims 0..32 are all valid
+// descriptors; dims without a Phase-1a frame width fail later at chunking
+// with an explicit unsupported-width error.
+fn describe_for_put(type_tag: byte, dim: u16) -> (result: [byte; 16]) {
+    if type_tag == 1 {
+        return describe_u32();
+    }
+    if type_tag == 2 {
+        return describe_u64();
+    }
+    if type_tag == 4 {
+        return describe_pair();
+    }
+    return encode(3, 1, 1, dim, dim as u32, 1);
+}
+
+fn row_roundtrip(
+    type_tag: byte,
+    scalar_tag: byte,
+    rank: byte,
+    dim0: u16,
+    byte_len: u32,
+    alignment: byte
+) -> (result: bool) {
+    let encoded: [byte; 16] = encode(type_tag, scalar_tag, rank, dim0, byte_len, alignment);
+    let view: [byte; up_to 16] = encoded[0..16];
+    return validate(view) == 0;
+}

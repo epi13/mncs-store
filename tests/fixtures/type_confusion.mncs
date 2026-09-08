@@ -1,0 +1,12 @@
+mncs 0.10;
+
+// Negative fixture: logical identity bytes must not flow into a content
+// identity position. This program MUST fail elaboration: `[byte; 12]` is
+// not `[byte; 32]`, and no conversion function exists between them.
+module store.negative_type_confusion;
+
+use store.identity;
+
+fn confuse_object_with_content(id: [byte; 12]) -> (result: bool) {
+    return store.identity.content_is_zero(id);
+}
