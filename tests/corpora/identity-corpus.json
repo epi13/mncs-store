@@ -1,0 +1,6082 @@
+{
+ "schema_version": "0.1",
+ "name": "identity-corpus",
+ "cases": [
+  {
+   "id": "encode-basic",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_encode"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 7,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-zero",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_encode"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_encode"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 4294967295,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 18446744073709551615,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       },
+       {
+        "byte": {
+         "value": 255
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-pattern",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_encode"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 361984551142689548,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 9
+        }
+       },
+       {
+        "byte": {
+         "value": 10
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 12
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "namespace-basic",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_namespace"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 1,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "namespace-pattern",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_namespace"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16909060,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "serial-basic",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_serial"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 7,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "serial-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_serial"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 18446744073709551615,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "serial-high-bit",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_serial"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 128
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 9223372036854775808,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "roundtrip-basic",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 7,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "roundtrip-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 4294967295,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 18446744073709551615,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "roundtrip-zero",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "equal-same",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_equal"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "equal-diff-serial",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_equal"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "equal-diff-namespace",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_equal"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "is-zero-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_is_zero"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "is-zero-false",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "object_is_zero"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-equal-same",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_equal"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-equal-diff",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_equal"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 99
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-is-zero-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_is_zero"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-is-zero-false",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_is_zero"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-less-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_less"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-less-reverse",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_less"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-less-equal",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_less"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-less-first-byte-decides",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_less"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        },
+        {
+         "byte": {
+          "value": 255
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-matches-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "digest_matches"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-matches-short",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "digest_matches"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-matches-long",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "digest_matches"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-matches-diff",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "digest_matches"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 99
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "logical-roundtrip",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "logical_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 9,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 72623859790382856,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "content-roundtrip",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "content_roundtrip"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "chunk-roundtrip",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "chunk_roundtrip"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "root-roundtrip",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.identity.v1",
+     "function": "root_roundtrip"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  }
+ ]
+}

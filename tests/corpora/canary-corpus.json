@@ -1,0 +1,94 @@
+{
+ "schema_version": "0.1",
+ "name": "canary",
+ "cases": [
+  {
+   "id": "decode-plain-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.canary_checked_arith",
+     "function": "decode_u32_plain"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 255
+      }
+     },
+     {
+      "byte": {
+       "value": 255
+      }
+     },
+     {
+      "byte": {
+       "value": 255
+      }
+     },
+     {
+      "byte": {
+       "value": 254
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4294967294,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "decode-plain-small",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.canary_checked_arith",
+     "function": "decode_u32_plain"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "byte": {
+       "value": 7
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 7,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

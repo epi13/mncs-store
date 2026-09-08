@@ -1,0 +1,228 @@
+{
+ "schema_version": "0.1",
+ "name": "effects-probe",
+ "cases": [
+  {
+   "id": "sha256-empty-frame",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.effects_probe",
+     "function": "digest_empty"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 84
+        }
+       },
+       {
+        "byte": {
+         "value": 199
+        }
+       },
+       {
+        "byte": {
+         "value": 57
+        }
+       },
+       {
+        "byte": {
+         "value": 187
+        }
+       },
+       {
+        "byte": {
+         "value": 60
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 115
+        }
+       },
+       {
+        "byte": {
+         "value": 139
+        }
+       },
+       {
+        "byte": {
+         "value": 237
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 122
+        }
+       },
+       {
+        "byte": {
+         "value": 202
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 57
+        }
+       },
+       {
+        "byte": {
+         "value": 142
+        }
+       },
+       {
+        "byte": {
+         "value": 34
+        }
+       },
+       {
+        "byte": {
+         "value": 99
+        }
+       },
+       {
+        "byte": {
+         "value": 82
+        }
+       },
+       {
+        "byte": {
+         "value": 126
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       },
+       {
+        "byte": {
+         "value": 110
+        }
+       },
+       {
+        "byte": {
+         "value": 141
+        }
+       },
+       {
+        "byte": {
+         "value": 239
+        }
+       },
+       {
+        "byte": {
+         "value": 124
+        }
+       },
+       {
+        "byte": {
+         "value": 106
+        }
+       },
+       {
+        "byte": {
+         "value": 239
+        }
+       },
+       {
+        "byte": {
+         "value": 190
+        }
+       },
+       {
+        "byte": {
+         "value": 37
+        }
+       },
+       {
+        "byte": {
+         "value": 243
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "hostread-len",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.effects_probe",
+     "function": "granted_len"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "hostread-first",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.effects_probe",
+     "function": "granted_first"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "byte": {
+      "value": 0
+     }
+    }
+   ]
+  }
+ ]
+}
