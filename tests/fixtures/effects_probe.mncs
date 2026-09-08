@@ -1,0 +1,41 @@
+mncs 0.10;
+
+// Effect-realizability probe for pressure P1-B02. This tiny program asks
+// each backend two questions: can you realize `sha256_digest`, and can
+// you realize `host_read`? It exists so the suite pins per-backend effect
+// support CHEAPLY (small program, fast compile) instead of recompiling
+// the full store modules on backends that refuse effects.
+//
+// Expected 2026-09-08: research-bytecode realizes both; every compiled
+// backend refuses `sha256_digest` (exit 1, compilation-result shape, no
+// cases, silent stderr). `host_read` support is probed, not assumed — see
+// tests/corpora/effects-corpus.json handling in test_mncs_corpora.py.
+module store.effects_probe;
+
+fn digest_empty() -> (result: [byte; up_to 64])
+    capability probe_crypto
+    effect sha256_digest authorized_by probe_crypto
+{
+    let frame: [byte; 4] = [67, 1, 0, 0];
+    let view: [byte; up_to 4] = frame[0..4];
+    return sha256_digest(view);
+}
+
+fn granted_len() -> (result: u64)
+    capability probe_reader
+    effect host_read authorized_by probe_reader
+{
+    let blob: [byte; up_to 64] = host_read();
+    return blob.len;
+}
+
+fn granted_first() -> (result: byte)
+    capability probe_reader
+    effect host_read authorized_by probe_reader
+{
+    let blob: [byte; up_to 64] = host_read();
+    if blob.len == 0 {
+        return 255;
+    }
+    return blob[0];
+}

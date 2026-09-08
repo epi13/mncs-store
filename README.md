@@ -2,7 +2,14 @@
 
 Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.
 
-> **Status:** architecture-first bootstrap. The repository currently defines the storage model, invariants, ecosystem boundaries, RFCs, and implementation roadmap. It intentionally does not claim a production storage engine yet.
+> **Status:** Phase 1a object-core proof complete (2026-09-08). Typed
+> persist → close → reopen → verify → typed-read works for u32, u64,
+> u32-pair, fixed blobs (8/16/32), and empty values, with all canonical
+> bytes produced by mncs-language executions. Lifecycle mechanics
+> (files, fsync, rename) are host-driven pending language I/O effects;
+> multi-chunk objects and arbitrary sizes are explicitly deferred. See
+> [ROADMAP.md](ROADMAP.md), [RFC 0016](rfcs/0016-phase1-canonical-encodings.md),
+> and [pressure/PHASE1-PRESSURE-SUMMARY.md](pressure/PHASE1-PRESSURE-SUMMARY.md).
 
 ## Why this exists
 
@@ -117,6 +124,21 @@ See [docs/invariants.md](docs/invariants.md) for the normative form.
 | 0015 | Recovery, corruption detection, and verification |
 
 The RFCs are initial architectural decisions, not declarations that implementation is complete.
+
+## Implementation (Phase 1a)
+
+| Area | Where | Notes |
+|---|---|---|
+| Identity, descriptors, chunks, manifests | `src/store/*.mncs` | mncs-language, Source Profile 0.10, no stdlib imports |
+| Canonical encodings v1 | `rfcs/0016-phase1-canonical-encodings.md` | frozen byte layouts, codes, behaviors |
+| Lifecycle driver (host transport) | `tests/store_phase1a.py` | files/fsync/rename only; semantics always MNCS |
+| Semantic corpora (172 cases) | `tests/corpora/*.json` | independent oracles; pure suites all backends, hash suites bytecode (P1-B02) |
+| Lifecycle + corruption tests | `tests/test_lifecycle.py` | close/reopen, torn/corrupt rejection |
+| Language pressure (23 reports) | `pressure/` | blockers, majors, backend divergence |
+
+Run the suite: `cd tests && python3 -m pytest . -q`
+(`MNCS_BACKENDS` narrows the backend matrix; `MNCS_BIN` overrides the
+compiler path.)
 
 ## Initial proof target
 

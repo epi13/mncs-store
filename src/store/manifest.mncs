@@ -1,0 +1,214 @@
+mncs 0.10;
+
+// store.manifest — Phase 1 object root / manifest format (RFC 0004).
+//
+// A manifest v1 is a 64-byte canonical big-endian record. Phase 1a commits
+// single-chunk objects only; the count field reserves the multi-chunk
+// extension without pretending it is implemented (see RFC 0016).
+//
+//   offset  size  field
+//   0       2     magic "MR" (0x4D 0x52)
+//   2       1     manifest version (1)
+//   3       1     type_tag (mirrors the descriptor)
+//   4       1     chunk_count (1; anything else is rejected, code 5)
+//   5       1     reserved (0)
+//   6       16    representation descriptor (descriptor v1 bytes)
+//   22      4     total_len u32 BE (payload bytes)
+//   26      4     chunk_len u32 BE (framed payload bytes; equals total_len
+//                 for single-chunk Phase-1a objects)
+//   30      2     reserved2 (0, 0)
+//   32      32    chunk ContentId (SHA-256 of the canonical frame)
+//
+// RootId = SHA-256(manifest bytes). The 64-byte root fits exactly one hash
+// view, so no chaining construction is needed for single-chunk roots.
+// Multi-chunk roots cannot fit one view and are deferred (pressure P1-004).
+//
+// Validation codes (total, no traps): 0 OK, 1 BAD_VIEW_LEN, 2 BAD_MAGIC,
+// 3 BAD_VERSION, 4 BAD_TYPE, 5 BAD_COUNT, 6 BAD_RESERVED,
+// 7 BAD_DESCRIPTOR (embedded descriptor fails descriptor validation),
+// 8 LEN_MISMATCH (total_len != chunk_len), 9 DESC_LEN_MISMATCH
+// (descriptor byte_len != total_len).
+module store.manifest.v1;
+
+use store.descriptor;
+use store.identity;
+
+fn encode(
+    type_tag: byte,
+    desc: [byte; 16],
+    total_len: u32,
+    chunk_len: u32,
+    chunk_digest: [byte; 32]
+) -> (result: [byte; 64]) {
+    let t0: byte = (total_len / 16777216) as byte;
+    let tr0: u32 = total_len % 16777216;
+    let t1: byte = (tr0 / 65536) as byte;
+    let tr1: u32 = tr0 % 65536;
+    let t2: byte = (tr1 / 256) as byte;
+    let t3: byte = (tr1 % 256) as byte;
+    let c0: byte = (chunk_len / 16777216) as byte;
+    let cr0: u32 = chunk_len % 16777216;
+    let c1: byte = (cr0 / 65536) as byte;
+    let cr1: u32 = cr0 % 65536;
+    let c2: byte = (cr1 / 256) as byte;
+    let c3: byte = (cr1 % 256) as byte;
+    return [77, 82, 1, type_tag, 1, 0,
+        desc[0], desc[1], desc[2], desc[3], desc[4], desc[5], desc[6], desc[7],
+        desc[8], desc[9], desc[10], desc[11], desc[12], desc[13], desc[14], desc[15],
+        t0, t1, t2, t3, c0, c1, c2, c3, 0, 0,
+        chunk_digest[0], chunk_digest[1], chunk_digest[2], chunk_digest[3],
+        chunk_digest[4], chunk_digest[5], chunk_digest[6], chunk_digest[7],
+        chunk_digest[8], chunk_digest[9], chunk_digest[10], chunk_digest[11],
+        chunk_digest[12], chunk_digest[13], chunk_digest[14], chunk_digest[15],
+        chunk_digest[16], chunk_digest[17], chunk_digest[18], chunk_digest[19],
+        chunk_digest[20], chunk_digest[21], chunk_digest[22], chunk_digest[23],
+        chunk_digest[24], chunk_digest[25], chunk_digest[26], chunk_digest[27],
+        chunk_digest[28], chunk_digest[29], chunk_digest[30], chunk_digest[31]];
+}
+
+// Total validation over untrusted root bytes. The length gate comes first
+// so every projection below is in bounds.
+//
+// Note (pressure P1-E04): views cannot be sub-sliced, so the embedded
+// descriptor is re-checked field by field through descriptor accessors
+// over fixed offsets instead of delegating to `descriptor.validate` on a
+// sub-view. Any descriptor rule change must be mirrored here; the corpora
+// pin both paths to the same verdicts.
+fn validate(view: [byte; up_to 64]) -> (result: u64) {
+    if view.len != 64 {
+        return 1;
+    }
+    if view[0] != 77 || view[1] != 82 {
+        return 2;
+    }
+    if view[2] != 1 {
+        return 3;
+    }
+    let type_tag: byte = view[3];
+    if type_tag != 1 && type_tag != 2 && type_tag != 3 && type_tag != 4 {
+        return 4;
+    }
+    if view[4] != 1 {
+        return 5;
+    }
+    if view[5] != 0 {
+        return 6;
+    }
+    if view[30] != 0 || view[31] != 0 {
+        return 6;
+    }
+    let desc: [byte; 16] = [view[6], view[7], view[8], view[9],
+        view[10], view[11], view[12], view[13],
+        view[14], view[15], view[16], view[17],
+        view[18], view[19], view[20], view[21]];
+    let desc_view: [byte; up_to 16] = desc[0..16];
+    if store.descriptor.validate(desc_view) != 0 {
+        return 7;
+    }
+    if store.descriptor.desc_type(desc_view) != view[3] as u32 {
+        return 7;
+    }
+    // Wrapping operators are exact here (see store.identity.object_namespace
+    // and pressure P1-B01): adversarial lengths must decode so `validate`
+    // can reject them with a code rather than trap inside the decoder.
+    let total_len: u32 = (((view[22] as u32) *% 16777216)
+        +% ((view[23] as u32) *% 65536)
+        +% ((view[24] as u32) *% 256))
+        +% (view[25] as u32);
+    let chunk_len: u32 = (((view[26] as u32) *% 16777216)
+        +% ((view[27] as u32) *% 65536)
+        +% ((view[28] as u32) *% 256))
+        +% (view[29] as u32);
+    if total_len != chunk_len {
+        return 8;
+    }
+    if store.descriptor.desc_len(desc_view) != total_len {
+        return 9;
+    }
+    return 0;
+}
+
+// Content identity of the root itself: SHA-256 over all 64 bytes.
+fn root_id(root: [byte; 64]) -> (result: [byte; up_to 64])
+    capability store_manifest
+    effect sha256_digest authorized_by store_manifest
+{
+    let view: [byte; up_to 64] = root[0..64];
+    return sha256_digest(view);
+}
+
+// Verify a root against its expected identity: recompute and compare.
+// False covers mismatch AND wrong-length digests; never a trap.
+fn verify_root(root: [byte; 64], expected: [byte; 32]) -> (result: bool)
+    capability store_manifest
+    effect sha256_digest authorized_by store_manifest
+{
+    let view: [byte; up_to 64] = root[0..64];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+// Projectors over exact roots. Total by type.
+fn root_type(root: [byte; 64]) -> (result: u32) {
+    return root[3] as u32;
+}
+
+fn root_chunk_digest(root: [byte; 64]) -> (result: [byte; 32]) {
+    return [root[32], root[33], root[34], root[35],
+        root[36], root[37], root[38], root[39],
+        root[40], root[41], root[42], root[43],
+        root[44], root[45], root[46], root[47],
+        root[48], root[49], root[50], root[51],
+        root[52], root[53], root[54], root[55],
+        root[56], root[57], root[58], root[59],
+        root[60], root[61], root[62], root[63]];
+}
+
+fn root_descriptor(root: [byte; 64]) -> (result: [byte; 16]) {
+    return [root[6], root[7], root[8], root[9],
+        root[10], root[11], root[12], root[13],
+        root[14], root[15], root[16], root[17],
+        root[18], root[19], root[20], root[21]];
+}
+
+fn root_total_len(root: [byte; 64]) -> (result: u32) {
+    // Wrapping operators are exact here (see store.identity.object_namespace
+    // and pressure P1-B01).
+    let high: u32 = ((root[22] as u32) *% 16777216)
+        +% ((root[23] as u32) *% 65536)
+        +% ((root[24] as u32) *% 256);
+    return high +% (root[25] as u32);
+}
+
+// Generation record: one 44-byte staged/committed mapping entry,
+// `[object BE 12][root ContentId 32]`. The host lifecycle layer assembles
+// generation files from these records; record semantics (layout, split)
+// stay in-language so the file format has exactly one authority.
+fn gen_record(obj: [byte; 12], root: [byte; 32]) -> (result: [byte; 44]) {
+    return [obj[0], obj[1], obj[2], obj[3], obj[4], obj[5],
+        obj[6], obj[7], obj[8], obj[9], obj[10], obj[11],
+        root[0], root[1], root[2], root[3],
+        root[4], root[5], root[6], root[7],
+        root[8], root[9], root[10], root[11],
+        root[12], root[13], root[14], root[15],
+        root[16], root[17], root[18], root[19],
+        root[20], root[21], root[22], root[23],
+        root[24], root[25], root[26], root[27],
+        root[28], root[29], root[30], root[31]];
+}
+
+fn gen_record_obj(entry: [byte; 44]) -> (result: [byte; 12]) {
+    return [entry[0], entry[1], entry[2], entry[3], entry[4], entry[5],
+        entry[6], entry[7], entry[8], entry[9], entry[10], entry[11]];
+}
+
+fn gen_record_root(entry: [byte; 44]) -> (result: [byte; 32]) {
+    return [entry[12], entry[13], entry[14], entry[15],
+        entry[16], entry[17], entry[18], entry[19],
+        entry[20], entry[21], entry[22], entry[23],
+        entry[24], entry[25], entry[26], entry[27],
+        entry[28], entry[29], entry[30], entry[31],
+        entry[32], entry[33], entry[34], entry[35],
+        entry[36], entry[37], entry[38], entry[39],
+        entry[40], entry[41], entry[42], entry[43]];
+}

@@ -1,0 +1,4972 @@
+{
+ "schema_version": "0.1",
+ "name": "descriptor-corpus",
+ "cases": [
+  {
+   "id": "encode-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "encode"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 4,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "encode"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 2
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 8,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 8
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-bytes5",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "encode"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "integer": {
+       "value": 5,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 5,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "encode-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "encode"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 4
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 2,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 8,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bytes5",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-empty-view",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": []
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 1,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-truncated",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 1,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-magic",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 2,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-version",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 3,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-type",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-scalar",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 5,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-rank",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 6,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-scalar-dim0",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 13,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-len-mismatch",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 12,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-align",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 8,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-layout",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 9,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-endian",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 10,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bad-reserved",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 11,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bytes-dim33",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 33
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 33
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 7,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-bytes-len-ne-dim",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 12,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-type-scalar-mismatch",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 13,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate-pair-dim3",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 13,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 4,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 2
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 8,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 8
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-bytes",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "integer": {
+       "value": 5,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 5,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 4
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 2,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 8,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "expected-len-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "expected_len"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "expected-len-bytes",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "expected_len"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "integer": {
+       "value": 5,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 5,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "expected-len-unknown",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "expected_len"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 9
+      }
+     },
+     {
+      "byte": {
+       "value": 9
+      }
+     },
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "desc-type",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "desc_type"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 1,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "desc-dim",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "desc_dim"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 5,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "desc-len",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "desc_len"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 8,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "desc-alignment",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "desc_alignment"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_u32"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_u64"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_pair"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-blob8",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob8"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-blob16",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob16"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-blob32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob32"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 32
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 32
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-empty",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_empty"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_for_put"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_for_put"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 2
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_for_put"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 4
+      }
+     },
+     {
+      "integer": {
+       "value": 2,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-blob16",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_for_put"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "integer": {
+       "value": 16,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-blob33-bytes",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_for_put"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "integer": {
+       "value": 33,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 33
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 33
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "for-put-blob33-invalid",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 33
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 33
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 7,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

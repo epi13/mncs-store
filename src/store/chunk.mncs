@@ -1,0 +1,416 @@
+mncs 0.10;
+
+// store.chunk — Phase 1 content-addressed chunk substrate (RFC 0004).
+//
+// Chunk framing v1 (domain separation is part of the hashed bytes):
+//
+//   offset  size  field
+//   0       1     domain tag 0x43 ('C')
+//   1       1     frame version (1)
+//   2       2     payload length u16 BE
+//   4       N     payload bytes
+//
+// ChunkId = SHA-256(frame). Hashing stays behind the `sha256_digest`
+// capability boundary (`store_chunk`); no home-grown hash is implemented
+// here (see pressure P1-004 for the missing streaming/incremental API).
+//
+// Supported payload widths in Phase 1a are exact: 0, 4, 8, 16, 32 bytes.
+// Generic widths are refused explicitly (code 5) rather than approximated:
+// without a scatter-write primitive, variable framing cannot be built
+// soundly in-language (see pressure P1-006). Chunk FILES store framed
+// bytes, so read-path verification hashes file content directly without
+// rebuilding frames from views.
+//
+// Committed chunks are immutable: the lifecycle layer must never overwrite
+// an existing chunk file with different bytes (invariant 2); writing
+// identical content is idempotent by construction.
+module store.chunk.v1;
+
+use store.identity;
+
+// Scalar payload codecs: big-endian, total by type in both directions.
+fn u32_to_be(value: u32) -> (result: [byte; 4]) {
+    let b0: byte = (value / 16777216) as byte;
+    let r0: u32 = value % 16777216;
+    let b1: byte = (r0 / 65536) as byte;
+    let r1: u32 = r0 % 65536;
+    let b2: byte = (r1 / 256) as byte;
+    let b3: byte = (r1 % 256) as byte;
+    return [b0, b1, b2, b3];
+}
+
+fn u32_from_be(payload: [byte; 4]) -> (result: u32) {
+    // Wrapping operators are exact here (see store.identity.object_namespace
+    // and pressure P1-B01): the true value always fits u32.
+    let high: u32 = ((payload[0] as u32) *% 16777216)
+        +% ((payload[1] as u32) *% 65536)
+        +% ((payload[2] as u32) *% 256);
+    return high +% (payload[3] as u32);
+}
+
+fn u32_codec_roundtrip(value: u32) -> (result: bool) {
+    return u32_from_be(u32_to_be(value)) == value;
+}
+
+fn u64_to_be(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn u64_from_be(payload: [byte; 8]) -> (result: u64) {
+    let s0: u64 = (payload[0] as u64) *% 72057594037927936;
+    let s1: u64 = s0 +% ((payload[1] as u64) *% 281474976710656);
+    let s2: u64 = s1 +% ((payload[2] as u64) *% 1099511627776);
+    let s3: u64 = s2 +% ((payload[3] as u64) *% 4294967296);
+    let s4: u64 = s3 +% ((payload[4] as u64) *% 16777216);
+    let s5: u64 = s4 +% ((payload[5] as u64) *% 65536);
+    let s6: u64 = s5 +% ((payload[6] as u64) *% 256);
+    return s6 +% (payload[7] as u64);
+}
+
+fn u64_codec_roundtrip(value: u64) -> (result: bool) {
+    return u64_from_be(u64_to_be(value)) == value;
+}
+
+fn pair_to_be(first: u32, second: u32) -> (result: [byte; 8]) {
+    let a: [byte; 4] = u32_to_be(first);
+    let b: [byte; 4] = u32_to_be(second);
+    return [a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]];
+}
+
+fn pair_first(payload: [byte; 8]) -> (result: u32) {
+    let word: [byte; 4] = [payload[0], payload[1], payload[2], payload[3]];
+    return u32_from_be(word);
+}
+
+fn pair_second(payload: [byte; 8]) -> (result: u32) {
+    let word: [byte; 4] = [payload[4], payload[5], payload[6], payload[7]];
+    return u32_from_be(word);
+}
+
+// Pure framing constructors.
+fn frame4(payload: [byte; 4]) -> (result: [byte; 8]) {
+    return [67, 1, 0, 4, payload[0], payload[1], payload[2], payload[3]];
+}
+
+fn frame8(payload: [byte; 8]) -> (result: [byte; 12]) {
+    return [67, 1, 0, 8, payload[0], payload[1], payload[2], payload[3],
+        payload[4], payload[5], payload[6], payload[7]];
+}
+
+fn frame16(payload: [byte; 16]) -> (result: [byte; 20]) {
+    return [67, 1, 0, 16, payload[0], payload[1], payload[2], payload[3],
+        payload[4], payload[5], payload[6], payload[7], payload[8],
+        payload[9], payload[10], payload[11], payload[12], payload[13],
+        payload[14], payload[15]];
+}
+
+fn frame32(payload: [byte; 32]) -> (result: [byte; 36]) {
+    return [67, 1, 0, 32, payload[0], payload[1], payload[2], payload[3],
+        payload[4], payload[5], payload[6], payload[7], payload[8],
+        payload[9], payload[10], payload[11], payload[12], payload[13],
+        payload[14], payload[15], payload[16], payload[17], payload[18],
+        payload[19], payload[20], payload[21], payload[22], payload[23],
+        payload[24], payload[25], payload[26], payload[27], payload[28],
+        payload[29], payload[30], payload[31]];
+}
+
+fn frame_empty() -> (result: [byte; 4]) {
+    return [67, 1, 0, 0];
+}
+
+// Composed put-path constructors: the host passes VALUES, never bytes.
+// Every semantic byte (payload codec, framing, lengths) is produced here,
+// so the lifecycle layer transports opaque frames without interpreting them.
+fn frame_u32(value: u32) -> (result: [byte; 8]) {
+    return frame4(u32_to_be(value));
+}
+
+fn frame_u64(value: u64) -> (result: [byte; 12]) {
+    return frame8(u64_to_be(value));
+}
+
+fn frame_pair(first: u32, second: u32) -> (result: [byte; 12]) {
+    return frame8(pair_to_be(first, second));
+}
+
+fn digest_u32(value: u32) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    return digest4(u32_to_be(value));
+}
+
+fn digest_u64(value: u64) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    return digest8(u64_to_be(value));
+}
+
+fn digest_pair(first: u32, second: u32) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    return digest8(pair_to_be(first, second));
+}
+
+// Typed get-path over exact frame arrays. The caller must establish frame
+// validity and digest match first (see `verify_frame*`); these projectors
+// decode, they do not authorize.
+fn get_u32(frame: [byte; 8]) -> (result: u32) {
+    let word: [byte; 4] = [frame[4], frame[5], frame[6], frame[7]];
+    return u32_from_be(word);
+}
+
+fn get_u64(frame: [byte; 12]) -> (result: u64) {
+    let word: [byte; 8] = [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11]];
+    return u64_from_be(word);
+}
+
+fn get_pair_first(frame: [byte; 12]) -> (result: u32) {
+    return pair_first([frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11]]);
+}
+
+fn get_pair_second(frame: [byte; 12]) -> (result: u32) {
+    return pair_second([frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11]]);
+}
+
+fn payload8(frame: [byte; 12]) -> (result: [byte; 8]) {
+    return [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11]];
+}
+
+fn payload16(frame: [byte; 20]) -> (result: [byte; 16]) {
+    return [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11],
+        frame[12], frame[13], frame[14], frame[15],
+        frame[16], frame[17], frame[18], frame[19]];
+}
+
+fn payload32(frame: [byte; 36]) -> (result: [byte; 32]) {
+    return [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11],
+        frame[12], frame[13], frame[14], frame[15],
+        frame[16], frame[17], frame[18], frame[19],
+        frame[20], frame[21], frame[22], frame[23],
+        frame[24], frame[25], frame[26], frame[27],
+        frame[28], frame[29], frame[30], frame[31],
+        frame[32], frame[33], frame[34], frame[35]];
+}
+
+// Whole-frame verification over exact frame arrays: validate framing,
+// recompute the digest, compare. False covers every failure shape.
+fn verify_frame4(frame: [byte; 8], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    // Exact arrays carry their length in the type, so framing validity
+    // reduces to tag and declared-width checks (no view call needed).
+    if frame[0] != 67 || frame[1] != 1 || frame[2] != 0 || frame[3] != 4 {
+        return false;
+    }
+    let payload: [byte; 4] = [frame[4], frame[5], frame[6], frame[7]];
+    return verify4(payload, expected);
+}
+
+fn verify_frame8(frame: [byte; 12], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    if frame[0] != 67 || frame[1] != 1 || frame[2] != 0 || frame[3] != 8 {
+        return false;
+    }
+    let payload: [byte; 8] = [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11]];
+    return verify8(payload, expected);
+}
+
+fn verify_frame16(frame: [byte; 20], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    if frame[0] != 67 || frame[1] != 1 || frame[2] != 0 || frame[3] != 16 {
+        return false;
+    }
+    let payload: [byte; 16] = [frame[4], frame[5], frame[6], frame[7],
+        frame[8], frame[9], frame[10], frame[11],
+        frame[12], frame[13], frame[14], frame[15],
+        frame[16], frame[17], frame[18], frame[19]];
+    return verify16(payload, expected);
+}
+
+fn verify_frame32(frame: [byte; 36], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    if frame[0] != 67 || frame[1] != 1 || frame[2] != 0 || frame[3] != 32 {
+        return false;
+    }
+    return verify32(payload32(frame), expected);
+}
+
+fn verify_frame_empty(frame: [byte; 4], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    if frame[0] != 67 || frame[1] != 1 || frame[2] != 0 || frame[3] != 0 {
+        return false;
+    }
+    return verify_empty(expected);
+}
+
+// Content hashing. Each digest covers the full canonical frame, including
+// the domain tag, version, and declared length.
+fn digest4(payload: [byte; 4]) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 8] = frame4(payload);
+    let view: [byte; up_to 8] = frame[0..8];
+    return sha256_digest(view);
+}
+
+fn digest8(payload: [byte; 8]) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 12] = frame8(payload);
+    let view: [byte; up_to 12] = frame[0..12];
+    return sha256_digest(view);
+}
+
+fn digest16(payload: [byte; 16]) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 20] = frame16(payload);
+    let view: [byte; up_to 20] = frame[0..20];
+    return sha256_digest(view);
+}
+
+fn digest32(payload: [byte; 32]) -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 36] = frame32(payload);
+    let view: [byte; up_to 36] = frame[0..36];
+    return sha256_digest(view);
+}
+
+fn digest_empty() -> (result: [byte; up_to 64])
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 4] = frame_empty();
+    let view: [byte; up_to 4] = frame[0..4];
+    return sha256_digest(view);
+}
+
+// Verification recomputes the digest and compares; mismatch is false,
+// never a trap. Length confusion across widths cannot produce a false
+// accept: the width is part of the framed (hashed) bytes.
+fn verify4(payload: [byte; 4], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 8] = frame4(payload);
+    let view: [byte; up_to 8] = frame[0..8];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+fn verify8(payload: [byte; 8], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 12] = frame8(payload);
+    let view: [byte; up_to 12] = frame[0..12];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+fn verify16(payload: [byte; 16], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 20] = frame16(payload);
+    let view: [byte; up_to 20] = frame[0..20];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+fn verify32(payload: [byte; 32], expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 36] = frame32(payload);
+    let view: [byte; up_to 36] = frame[0..36];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+fn verify_empty(expected: [byte; 32]) -> (result: bool)
+    capability store_chunk
+    effect sha256_digest authorized_by store_chunk
+{
+    let frame: [byte; 4] = frame_empty();
+    let view: [byte; up_to 4] = frame[0..4];
+    let fresh: [byte; up_to 64] = sha256_digest(view);
+    return store.identity.digest_matches(expected, fresh);
+}
+
+// Validation of untrusted framed bytes (for example file content).
+// Codes: 0 OK, 1 TRUNCATED (fewer than 4 bytes), 2 BAD_DOMAIN,
+// 3 BAD_VERSION, 4 LENGTH_MISMATCH (declared length disagrees with the
+// runtime length, e.g. a torn or truncated file), 5 UNSUPPORTED_WIDTH
+// (well-formed framing for a payload width Phase 1a does not implement).
+//
+// Concrete `[byte; up_to 64]` on purpose: view widths do not subsume into
+// one another (see pressure P1-012), so a generic bound would force every
+// call site to instantiate explicitly — including host corpora, which
+// cannot name type arguments (see pressure P1-013). Exact-array callers
+// (see `verify_frame*`) check their type-known widths inline instead of
+// calling here.
+fn frame_valid(view: [byte; up_to 64]) -> (result: u64) {
+    if view.len < 4 {
+        return 1;
+    }
+    if view[0] != 67 {
+        return 2;
+    }
+    if view[1] != 1 {
+        return 3;
+    }
+    let declared: u64 = ((view[2] as u64) *% 256) + (view[3] as u64);
+    let framed: u64 = declared +% 4;
+    if view.len != framed {
+        return 4;
+    }
+    if declared != 0 && declared != 4 && declared != 8 && declared != 16 && declared != 32 {
+        return 5;
+    }
+    return 0;
+}
+
+// Declared payload length of a framed view. The caller must establish
+// `frame_valid(view) == 0` first; otherwise the declaration is untrusted.
+fn frame_payload_len(view: [byte; up_to 64]) -> (result: u32) {
+    return (((view[2] as u32) *% 256) + (view[3] as u32)) as u32;
+}

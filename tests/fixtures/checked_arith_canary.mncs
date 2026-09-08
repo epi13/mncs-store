@@ -1,0 +1,19 @@
+mncs 0.10;
+
+// Backend-divergence canary for pressure P1-B01. This fixture is NOT part
+// of the store's canonical semantics: it deliberately uses PLAIN checked
+// `*`/`+` over u32 with large-but-valid products (the pre-P1-B01 decoder
+// formulation). Research bytecode, portable WASM, LLVM IR, and Cranelift
+// return the exact value; the C11 backend traps at runtime (observed
+// 2026-09-08). Store decoders use wrapping operators where exactness is
+// provable, staying total on every backend. If the C11 case below starts
+// passing, P1-B01 is fixed upstream and the allowlist entry in
+// tests/test_mncs_corpora.py must be removed.
+module store.canary_checked_arith;
+
+fn decode_u32_plain(b0: byte, b1: byte, b2: byte, b3: byte) -> (result: u32) {
+    let high: u32 = ((b0 as u32) * 16777216)
+        + ((b1 as u32) * 65536)
+        + ((b2 as u32) * 256);
+    return high + (b3 as u32);
+}

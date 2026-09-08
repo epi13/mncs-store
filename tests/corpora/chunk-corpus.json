@@ -1,0 +1,8932 @@
+{
+ "schema_version": "0.1",
+ "name": "chunk-corpus",
+ "cases": [
+  {
+   "id": "u32-to-be",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u32_to_be"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "u32-from-be",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u32_from_be"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16909060,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "u32-codec-0",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u32_codec_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "u32-codec-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u32_codec_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 4294967295,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "u64-to-be",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u64_to_be"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 72623859790382856,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "u64-from-be",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u64_from_be"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 72623859790382856,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "u64-codec-0",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u64_codec_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "u64-codec-high-bit",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u64_codec_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 9223372036854775808,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "u64-codec-max",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "u64_codec_roundtrip"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 18446744073709551615,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "pair-to-be",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "pair_to_be"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 84281096,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pair-first",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "pair_first"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16909060,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "pair-second",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "pair_second"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 84281096,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame4",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame8",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame8"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame16",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame16"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 9
+        }
+       },
+       {
+        "byte": {
+         "value": 10
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 12
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 14
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 32
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 9
+        }
+       },
+       {
+        "byte": {
+         "value": 10
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 12
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 14
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 17
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 19
+        }
+       },
+       {
+        "byte": {
+         "value": 20
+        }
+       },
+       {
+        "byte": {
+         "value": 21
+        }
+       },
+       {
+        "byte": {
+         "value": 22
+        }
+       },
+       {
+        "byte": {
+         "value": 23
+        }
+       },
+       {
+        "byte": {
+         "value": 24
+        }
+       },
+       {
+        "byte": {
+         "value": 25
+        }
+       },
+       {
+        "byte": {
+         "value": 26
+        }
+       },
+       {
+        "byte": {
+         "value": 27
+        }
+       },
+       {
+        "byte": {
+         "value": 28
+        }
+       },
+       {
+        "byte": {
+         "value": 29
+        }
+       },
+       {
+        "byte": {
+         "value": 30
+        }
+       },
+       {
+        "byte": {
+         "value": 31
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-empty",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_empty"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest4",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 152
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 207
+        }
+       },
+       {
+        "byte": {
+         "value": 196
+        }
+       },
+       {
+        "byte": {
+         "value": 193
+        }
+       },
+       {
+        "byte": {
+         "value": 247
+        }
+       },
+       {
+        "byte": {
+         "value": 83
+        }
+       },
+       {
+        "byte": {
+         "value": 220
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 246
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 197
+        }
+       },
+       {
+        "byte": {
+         "value": 178
+        }
+       },
+       {
+        "byte": {
+         "value": 146
+        }
+       },
+       {
+        "byte": {
+         "value": 201
+        }
+       },
+       {
+        "byte": {
+         "value": 222
+        }
+       },
+       {
+        "byte": {
+         "value": 87
+        }
+       },
+       {
+        "byte": {
+         "value": 124
+        }
+       },
+       {
+        "byte": {
+         "value": 131
+        }
+       },
+       {
+        "byte": {
+         "value": 203
+        }
+       },
+       {
+        "byte": {
+         "value": 232
+        }
+       },
+       {
+        "byte": {
+         "value": 62
+        }
+       },
+       {
+        "byte": {
+         "value": 208
+        }
+       },
+       {
+        "byte": {
+         "value": 83
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 206
+        }
+       },
+       {
+        "byte": {
+         "value": 21
+        }
+       },
+       {
+        "byte": {
+         "value": 213
+        }
+       },
+       {
+        "byte": {
+         "value": 167
+        }
+       },
+       {
+        "byte": {
+         "value": 63
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest8",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest8"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 29
+        }
+       },
+       {
+        "byte": {
+         "value": 109
+        }
+       },
+       {
+        "byte": {
+         "value": 38
+        }
+       },
+       {
+        "byte": {
+         "value": 210
+        }
+       },
+       {
+        "byte": {
+         "value": 203
+        }
+       },
+       {
+        "byte": {
+         "value": 48
+        }
+       },
+       {
+        "byte": {
+         "value": 119
+        }
+       },
+       {
+        "byte": {
+         "value": 42
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 184
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 78
+        }
+       },
+       {
+        "byte": {
+         "value": 251
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 207
+        }
+       },
+       {
+        "byte": {
+         "value": 60
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 95
+        }
+       },
+       {
+        "byte": {
+         "value": 160
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 103
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 108
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 241
+        }
+       },
+       {
+        "byte": {
+         "value": 26
+        }
+       },
+       {
+        "byte": {
+         "value": 212
+        }
+       },
+       {
+        "byte": {
+         "value": 142
+        }
+       },
+       {
+        "byte": {
+         "value": 158
+        }
+       },
+       {
+        "byte": {
+         "value": 105
+        }
+       },
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 197
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest16",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest16"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 90
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 222
+        }
+       },
+       {
+        "byte": {
+         "value": 40
+        }
+       },
+       {
+        "byte": {
+         "value": 85
+        }
+       },
+       {
+        "byte": {
+         "value": 227
+        }
+       },
+       {
+        "byte": {
+         "value": 188
+        }
+       },
+       {
+        "byte": {
+         "value": 134
+        }
+       },
+       {
+        "byte": {
+         "value": 217
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 163
+        }
+       },
+       {
+        "byte": {
+         "value": 38
+        }
+       },
+       {
+        "byte": {
+         "value": 189
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 240
+        }
+       },
+       {
+        "byte": {
+         "value": 135
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 222
+        }
+       },
+       {
+        "byte": {
+         "value": 182
+        }
+       },
+       {
+        "byte": {
+         "value": 200
+        }
+       },
+       {
+        "byte": {
+         "value": 201
+        }
+       },
+       {
+        "byte": {
+         "value": 123
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 245
+        }
+       },
+       {
+        "byte": {
+         "value": 71
+        }
+       },
+       {
+        "byte": {
+         "value": 20
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 91
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 138
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 170
+        }
+       },
+       {
+        "byte": {
+         "value": 151
+        }
+       },
+       {
+        "byte": {
+         "value": 102
+        }
+       },
+       {
+        "byte": {
+         "value": 222
+        }
+       },
+       {
+        "byte": {
+         "value": 86
+        }
+       },
+       {
+        "byte": {
+         "value": 122
+        }
+       },
+       {
+        "byte": {
+         "value": 192
+        }
+       },
+       {
+        "byte": {
+         "value": 209
+        }
+       },
+       {
+        "byte": {
+         "value": 39
+        }
+       },
+       {
+        "byte": {
+         "value": 61
+        }
+       },
+       {
+        "byte": {
+         "value": 228
+        }
+       },
+       {
+        "byte": {
+         "value": 254
+        }
+       },
+       {
+        "byte": {
+         "value": 27
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 84
+        }
+       },
+       {
+        "byte": {
+         "value": 113
+        }
+       },
+       {
+        "byte": {
+         "value": 49
+        }
+       },
+       {
+        "byte": {
+         "value": 246
+        }
+       },
+       {
+        "byte": {
+         "value": 177
+        }
+       },
+       {
+        "byte": {
+         "value": 41
+        }
+       },
+       {
+        "byte": {
+         "value": 165
+        }
+       },
+       {
+        "byte": {
+         "value": 132
+        }
+       },
+       {
+        "byte": {
+         "value": 208
+        }
+       },
+       {
+        "byte": {
+         "value": 122
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 213
+        }
+       },
+       {
+        "byte": {
+         "value": 82
+        }
+       },
+       {
+        "byte": {
+         "value": 30
+        }
+       },
+       {
+        "byte": {
+         "value": 39
+        }
+       },
+       {
+        "byte": {
+         "value": 242
+        }
+       },
+       {
+        "byte": {
+         "value": 106
+        }
+       },
+       {
+        "byte": {
+         "value": 38
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-empty",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest_empty"
+    },
+    "arguments": [],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 84
+        }
+       },
+       {
+        "byte": {
+         "value": 199
+        }
+       },
+       {
+        "byte": {
+         "value": 57
+        }
+       },
+       {
+        "byte": {
+         "value": 187
+        }
+       },
+       {
+        "byte": {
+         "value": 60
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 115
+        }
+       },
+       {
+        "byte": {
+         "value": 139
+        }
+       },
+       {
+        "byte": {
+         "value": 237
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 122
+        }
+       },
+       {
+        "byte": {
+         "value": 202
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 57
+        }
+       },
+       {
+        "byte": {
+         "value": 142
+        }
+       },
+       {
+        "byte": {
+         "value": 34
+        }
+       },
+       {
+        "byte": {
+         "value": 99
+        }
+       },
+       {
+        "byte": {
+         "value": 82
+        }
+       },
+       {
+        "byte": {
+         "value": 126
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       },
+       {
+        "byte": {
+         "value": 110
+        }
+       },
+       {
+        "byte": {
+         "value": 141
+        }
+       },
+       {
+        "byte": {
+         "value": 239
+        }
+       },
+       {
+        "byte": {
+         "value": 124
+        }
+       },
+       {
+        "byte": {
+         "value": 106
+        }
+       },
+       {
+        "byte": {
+         "value": 239
+        }
+       },
+       {
+        "byte": {
+         "value": 190
+        }
+       },
+       {
+        "byte": {
+         "value": 37
+        }
+       },
+       {
+        "byte": {
+         "value": 243
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify4-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 152
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 196
+         }
+        },
+        {
+         "byte": {
+          "value": 193
+         }
+        },
+        {
+         "byte": {
+          "value": 247
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 220
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        },
+        {
+         "byte": {
+          "value": 178
+         }
+        },
+        {
+         "byte": {
+          "value": 146
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 87
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 131
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 232
+         }
+        },
+        {
+         "byte": {
+          "value": 62
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 206
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 167
+         }
+        },
+        {
+         "byte": {
+          "value": 63
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify4-false",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 152
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 196
+         }
+        },
+        {
+         "byte": {
+          "value": 193
+         }
+        },
+        {
+         "byte": {
+          "value": 247
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 220
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        },
+        {
+         "byte": {
+          "value": 178
+         }
+        },
+        {
+         "byte": {
+          "value": 146
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 87
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 131
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 232
+         }
+        },
+        {
+         "byte": {
+          "value": 62
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 206
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 167
+         }
+        },
+        {
+         "byte": {
+          "value": 63
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify8-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify8"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 109
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        },
+        {
+         "byte": {
+          "value": 210
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 48
+         }
+        },
+        {
+         "byte": {
+          "value": 119
+         }
+        },
+        {
+         "byte": {
+          "value": 42
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 184
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 78
+         }
+        },
+        {
+         "byte": {
+          "value": 251
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 60
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 95
+         }
+        },
+        {
+         "byte": {
+          "value": 160
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 103
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 108
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 241
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 212
+         }
+        },
+        {
+         "byte": {
+          "value": 142
+         }
+        },
+        {
+         "byte": {
+          "value": 158
+         }
+        },
+        {
+         "byte": {
+          "value": 105
+         }
+        },
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify16-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify16"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 90
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 40
+         }
+        },
+        {
+         "byte": {
+          "value": 85
+         }
+        },
+        {
+         "byte": {
+          "value": 227
+         }
+        },
+        {
+         "byte": {
+          "value": 188
+         }
+        },
+        {
+         "byte": {
+          "value": 134
+         }
+        },
+        {
+         "byte": {
+          "value": 217
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 163
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        },
+        {
+         "byte": {
+          "value": 189
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 240
+         }
+        },
+        {
+         "byte": {
+          "value": 135
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 182
+         }
+        },
+        {
+         "byte": {
+          "value": 200
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 123
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 245
+         }
+        },
+        {
+         "byte": {
+          "value": 71
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 91
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 138
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify32-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 170
+         }
+        },
+        {
+         "byte": {
+          "value": 151
+         }
+        },
+        {
+         "byte": {
+          "value": 102
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 86
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 192
+         }
+        },
+        {
+         "byte": {
+          "value": 209
+         }
+        },
+        {
+         "byte": {
+          "value": 39
+         }
+        },
+        {
+         "byte": {
+          "value": 61
+         }
+        },
+        {
+         "byte": {
+          "value": 228
+         }
+        },
+        {
+         "byte": {
+          "value": 254
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 84
+         }
+        },
+        {
+         "byte": {
+          "value": 113
+         }
+        },
+        {
+         "byte": {
+          "value": 49
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 177
+         }
+        },
+        {
+         "byte": {
+          "value": 41
+         }
+        },
+        {
+         "byte": {
+          "value": 165
+         }
+        },
+        {
+         "byte": {
+          "value": 132
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 82
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 39
+         }
+        },
+        {
+         "byte": {
+          "value": 242
+         }
+        },
+        {
+         "byte": {
+          "value": 106
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify32-false",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 109
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        },
+        {
+         "byte": {
+          "value": 210
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 48
+         }
+        },
+        {
+         "byte": {
+          "value": 119
+         }
+        },
+        {
+         "byte": {
+          "value": 42
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 184
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 78
+         }
+        },
+        {
+         "byte": {
+          "value": 251
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 60
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 95
+         }
+        },
+        {
+         "byte": {
+          "value": 160
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 103
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 108
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 241
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 212
+         }
+        },
+        {
+         "byte": {
+          "value": 142
+         }
+        },
+        {
+         "byte": {
+          "value": 158
+         }
+        },
+        {
+         "byte": {
+          "value": 105
+         }
+        },
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-empty-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_empty"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 84
+         }
+        },
+        {
+         "byte": {
+          "value": 199
+         }
+        },
+        {
+         "byte": {
+          "value": 57
+         }
+        },
+        {
+         "byte": {
+          "value": 187
+         }
+        },
+        {
+         "byte": {
+          "value": 60
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 115
+         }
+        },
+        {
+         "byte": {
+          "value": 139
+         }
+        },
+        {
+         "byte": {
+          "value": 237
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 202
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 57
+         }
+        },
+        {
+         "byte": {
+          "value": 142
+         }
+        },
+        {
+         "byte": {
+          "value": 34
+         }
+        },
+        {
+         "byte": {
+          "value": 99
+         }
+        },
+        {
+         "byte": {
+          "value": 82
+         }
+        },
+        {
+         "byte": {
+          "value": 126
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 110
+         }
+        },
+        {
+         "byte": {
+          "value": 141
+         }
+        },
+        {
+         "byte": {
+          "value": 239
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 106
+         }
+        },
+        {
+         "byte": {
+          "value": 239
+         }
+        },
+        {
+         "byte": {
+          "value": 190
+         }
+        },
+        {
+         "byte": {
+          "value": 37
+         }
+        },
+        {
+         "byte": {
+          "value": 243
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-ok",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-truncated",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-short",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 1,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-domain",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 2,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-version",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 3,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-valid-width12",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_valid"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 5,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-len-4",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_payload_len"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 4,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-len-32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_payload_len"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 32
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 32,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-len-empty",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_payload_len"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_u32"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_u64"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 72623859790382856,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frame-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "frame_pair"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 84281096,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest_u32"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 152
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 207
+        }
+       },
+       {
+        "byte": {
+         "value": 196
+        }
+       },
+       {
+        "byte": {
+         "value": 193
+        }
+       },
+       {
+        "byte": {
+         "value": 247
+        }
+       },
+       {
+        "byte": {
+         "value": 83
+        }
+       },
+       {
+        "byte": {
+         "value": 220
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 246
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 197
+        }
+       },
+       {
+        "byte": {
+         "value": 178
+        }
+       },
+       {
+        "byte": {
+         "value": 146
+        }
+       },
+       {
+        "byte": {
+         "value": 201
+        }
+       },
+       {
+        "byte": {
+         "value": 222
+        }
+       },
+       {
+        "byte": {
+         "value": 87
+        }
+       },
+       {
+        "byte": {
+         "value": 124
+        }
+       },
+       {
+        "byte": {
+         "value": 131
+        }
+       },
+       {
+        "byte": {
+         "value": 203
+        }
+       },
+       {
+        "byte": {
+         "value": 232
+        }
+       },
+       {
+        "byte": {
+         "value": 62
+        }
+       },
+       {
+        "byte": {
+         "value": 208
+        }
+       },
+       {
+        "byte": {
+         "value": 83
+        }
+       },
+       {
+        "byte": {
+         "value": 185
+        }
+       },
+       {
+        "byte": {
+         "value": 206
+        }
+       },
+       {
+        "byte": {
+         "value": 21
+        }
+       },
+       {
+        "byte": {
+         "value": 213
+        }
+       },
+       {
+        "byte": {
+         "value": 167
+        }
+       },
+       {
+        "byte": {
+         "value": 63
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest_u64"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 72623859790382856,
+       "type": {
+        "bits": 64,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 29
+        }
+       },
+       {
+        "byte": {
+         "value": 109
+        }
+       },
+       {
+        "byte": {
+         "value": 38
+        }
+       },
+       {
+        "byte": {
+         "value": 210
+        }
+       },
+       {
+        "byte": {
+         "value": 203
+        }
+       },
+       {
+        "byte": {
+         "value": 48
+        }
+       },
+       {
+        "byte": {
+         "value": 119
+        }
+       },
+       {
+        "byte": {
+         "value": 42
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 184
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 78
+        }
+       },
+       {
+        "byte": {
+         "value": 251
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 207
+        }
+       },
+       {
+        "byte": {
+         "value": 60
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 95
+        }
+       },
+       {
+        "byte": {
+         "value": 160
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 103
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 108
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 241
+        }
+       },
+       {
+        "byte": {
+         "value": 26
+        }
+       },
+       {
+        "byte": {
+         "value": 212
+        }
+       },
+       {
+        "byte": {
+         "value": 142
+        }
+       },
+       {
+        "byte": {
+         "value": 158
+        }
+       },
+       {
+        "byte": {
+         "value": 105
+        }
+       },
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 197
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "digest-pair",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "digest_pair"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 16909060,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 84281096,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 29
+        }
+       },
+       {
+        "byte": {
+         "value": 109
+        }
+       },
+       {
+        "byte": {
+         "value": 38
+        }
+       },
+       {
+        "byte": {
+         "value": 210
+        }
+       },
+       {
+        "byte": {
+         "value": 203
+        }
+       },
+       {
+        "byte": {
+         "value": 48
+        }
+       },
+       {
+        "byte": {
+         "value": 119
+        }
+       },
+       {
+        "byte": {
+         "value": 42
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 184
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 78
+        }
+       },
+       {
+        "byte": {
+         "value": 251
+        }
+       },
+       {
+        "byte": {
+         "value": 211
+        }
+       },
+       {
+        "byte": {
+         "value": 207
+        }
+       },
+       {
+        "byte": {
+         "value": 60
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 95
+        }
+       },
+       {
+        "byte": {
+         "value": 160
+        }
+       },
+       {
+        "byte": {
+         "value": 120
+        }
+       },
+       {
+        "byte": {
+         "value": 103
+        }
+       },
+       {
+        "byte": {
+         "value": 155
+        }
+       },
+       {
+        "byte": {
+         "value": 108
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 241
+        }
+       },
+       {
+        "byte": {
+         "value": 26
+        }
+       },
+       {
+        "byte": {
+         "value": 212
+        }
+       },
+       {
+        "byte": {
+         "value": 142
+        }
+       },
+       {
+        "byte": {
+         "value": 158
+        }
+       },
+       {
+        "byte": {
+         "value": 105
+        }
+       },
+       {
+        "byte": {
+         "value": 67
+        }
+       },
+       {
+        "byte": {
+         "value": 197
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "get-u32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "get_u32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16909060,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "get-u64",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "get_u64"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 72623859790382856,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "get-pair-first",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "get_pair_first"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 16909060,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "get-pair-second",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "get_pair_second"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 84281096,
+      "type": {
+       "bits": 32,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "payload8",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "payload8"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "payload16",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "payload16"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 9
+        }
+       },
+       {
+        "byte": {
+         "value": 10
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 12
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 14
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "payload32",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "payload32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 32
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 4
+        }
+       },
+       {
+        "byte": {
+         "value": 5
+        }
+       },
+       {
+        "byte": {
+         "value": 6
+        }
+       },
+       {
+        "byte": {
+         "value": 7
+        }
+       },
+       {
+        "byte": {
+         "value": 8
+        }
+       },
+       {
+        "byte": {
+         "value": 9
+        }
+       },
+       {
+        "byte": {
+         "value": 10
+        }
+       },
+       {
+        "byte": {
+         "value": 11
+        }
+       },
+       {
+        "byte": {
+         "value": 12
+        }
+       },
+       {
+        "byte": {
+         "value": 13
+        }
+       },
+       {
+        "byte": {
+         "value": 14
+        }
+       },
+       {
+        "byte": {
+         "value": 15
+        }
+       },
+       {
+        "byte": {
+         "value": 16
+        }
+       },
+       {
+        "byte": {
+         "value": 17
+        }
+       },
+       {
+        "byte": {
+         "value": 18
+        }
+       },
+       {
+        "byte": {
+         "value": 19
+        }
+       },
+       {
+        "byte": {
+         "value": 20
+        }
+       },
+       {
+        "byte": {
+         "value": 21
+        }
+       },
+       {
+        "byte": {
+         "value": 22
+        }
+       },
+       {
+        "byte": {
+         "value": 23
+        }
+       },
+       {
+        "byte": {
+         "value": 24
+        }
+       },
+       {
+        "byte": {
+         "value": 25
+        }
+       },
+       {
+        "byte": {
+         "value": 26
+        }
+       },
+       {
+        "byte": {
+         "value": 27
+        }
+       },
+       {
+        "byte": {
+         "value": 28
+        }
+       },
+       {
+        "byte": {
+         "value": 29
+        }
+       },
+       {
+        "byte": {
+         "value": 30
+        }
+       },
+       {
+        "byte": {
+         "value": 31
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame4-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 152
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 196
+         }
+        },
+        {
+         "byte": {
+          "value": 193
+         }
+        },
+        {
+         "byte": {
+          "value": 247
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 220
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        },
+        {
+         "byte": {
+          "value": 178
+         }
+        },
+        {
+         "byte": {
+          "value": 146
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 87
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 131
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 232
+         }
+        },
+        {
+         "byte": {
+          "value": 62
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 206
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 167
+         }
+        },
+        {
+         "byte": {
+          "value": 63
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame4-false",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 152
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 196
+         }
+        },
+        {
+         "byte": {
+          "value": 193
+         }
+        },
+        {
+         "byte": {
+          "value": 247
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 220
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        },
+        {
+         "byte": {
+          "value": 178
+         }
+        },
+        {
+         "byte": {
+          "value": 146
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 87
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 131
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 232
+         }
+        },
+        {
+         "byte": {
+          "value": 62
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 206
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 167
+         }
+        },
+        {
+         "byte": {
+          "value": 63
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame4-badtag",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame4"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 152
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 196
+         }
+        },
+        {
+         "byte": {
+          "value": 193
+         }
+        },
+        {
+         "byte": {
+          "value": 247
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 220
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        },
+        {
+         "byte": {
+          "value": 178
+         }
+        },
+        {
+         "byte": {
+          "value": 146
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 87
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 131
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 232
+         }
+        },
+        {
+         "byte": {
+          "value": 62
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 83
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 206
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 167
+         }
+        },
+        {
+         "byte": {
+          "value": 63
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame8-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame8"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 109
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        },
+        {
+         "byte": {
+          "value": 210
+         }
+        },
+        {
+         "byte": {
+          "value": 203
+         }
+        },
+        {
+         "byte": {
+          "value": 48
+         }
+        },
+        {
+         "byte": {
+          "value": 119
+         }
+        },
+        {
+         "byte": {
+          "value": 42
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 184
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 78
+         }
+        },
+        {
+         "byte": {
+          "value": 251
+         }
+        },
+        {
+         "byte": {
+          "value": 211
+         }
+        },
+        {
+         "byte": {
+          "value": 207
+         }
+        },
+        {
+         "byte": {
+          "value": 60
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 95
+         }
+        },
+        {
+         "byte": {
+          "value": 160
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 103
+         }
+        },
+        {
+         "byte": {
+          "value": 155
+         }
+        },
+        {
+         "byte": {
+          "value": 108
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 241
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 212
+         }
+        },
+        {
+         "byte": {
+          "value": 142
+         }
+        },
+        {
+         "byte": {
+          "value": 158
+         }
+        },
+        {
+         "byte": {
+          "value": 105
+         }
+        },
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 197
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame16-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame16"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 90
+         }
+        },
+        {
+         "byte": {
+          "value": 120
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 40
+         }
+        },
+        {
+         "byte": {
+          "value": 85
+         }
+        },
+        {
+         "byte": {
+          "value": 227
+         }
+        },
+        {
+         "byte": {
+          "value": 188
+         }
+        },
+        {
+         "byte": {
+          "value": 134
+         }
+        },
+        {
+         "byte": {
+          "value": 217
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 163
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        },
+        {
+         "byte": {
+          "value": 189
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 240
+         }
+        },
+        {
+         "byte": {
+          "value": 135
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 182
+         }
+        },
+        {
+         "byte": {
+          "value": 200
+         }
+        },
+        {
+         "byte": {
+          "value": 201
+         }
+        },
+        {
+         "byte": {
+          "value": 123
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 245
+         }
+        },
+        {
+         "byte": {
+          "value": 71
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 91
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 138
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame32-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame32"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 32
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 4
+         }
+        },
+        {
+         "byte": {
+          "value": 5
+         }
+        },
+        {
+         "byte": {
+          "value": 6
+         }
+        },
+        {
+         "byte": {
+          "value": 7
+         }
+        },
+        {
+         "byte": {
+          "value": 8
+         }
+        },
+        {
+         "byte": {
+          "value": 9
+         }
+        },
+        {
+         "byte": {
+          "value": 10
+         }
+        },
+        {
+         "byte": {
+          "value": 11
+         }
+        },
+        {
+         "byte": {
+          "value": 12
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 14
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 16
+         }
+        },
+        {
+         "byte": {
+          "value": 17
+         }
+        },
+        {
+         "byte": {
+          "value": 18
+         }
+        },
+        {
+         "byte": {
+          "value": 19
+         }
+        },
+        {
+         "byte": {
+          "value": 20
+         }
+        },
+        {
+         "byte": {
+          "value": 21
+         }
+        },
+        {
+         "byte": {
+          "value": 22
+         }
+        },
+        {
+         "byte": {
+          "value": 23
+         }
+        },
+        {
+         "byte": {
+          "value": 24
+         }
+        },
+        {
+         "byte": {
+          "value": 25
+         }
+        },
+        {
+         "byte": {
+          "value": 26
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 28
+         }
+        },
+        {
+         "byte": {
+          "value": 29
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 31
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 170
+         }
+        },
+        {
+         "byte": {
+          "value": 151
+         }
+        },
+        {
+         "byte": {
+          "value": 102
+         }
+        },
+        {
+         "byte": {
+          "value": 222
+         }
+        },
+        {
+         "byte": {
+          "value": 86
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 192
+         }
+        },
+        {
+         "byte": {
+          "value": 209
+         }
+        },
+        {
+         "byte": {
+          "value": 39
+         }
+        },
+        {
+         "byte": {
+          "value": 61
+         }
+        },
+        {
+         "byte": {
+          "value": 228
+         }
+        },
+        {
+         "byte": {
+          "value": 254
+         }
+        },
+        {
+         "byte": {
+          "value": 27
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 84
+         }
+        },
+        {
+         "byte": {
+          "value": 113
+         }
+        },
+        {
+         "byte": {
+          "value": 49
+         }
+        },
+        {
+         "byte": {
+          "value": 246
+         }
+        },
+        {
+         "byte": {
+          "value": 177
+         }
+        },
+        {
+         "byte": {
+          "value": 41
+         }
+        },
+        {
+         "byte": {
+          "value": 165
+         }
+        },
+        {
+         "byte": {
+          "value": 132
+         }
+        },
+        {
+         "byte": {
+          "value": 208
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 213
+         }
+        },
+        {
+         "byte": {
+          "value": 82
+         }
+        },
+        {
+         "byte": {
+          "value": 30
+         }
+        },
+        {
+         "byte": {
+          "value": 39
+         }
+        },
+        {
+         "byte": {
+          "value": 242
+         }
+        },
+        {
+         "byte": {
+          "value": 106
+         }
+        },
+        {
+         "byte": {
+          "value": 38
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "verify-frame-empty-true",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.chunk.v1",
+     "function": "verify_frame_empty"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 67
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     },
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 84
+         }
+        },
+        {
+         "byte": {
+          "value": 199
+         }
+        },
+        {
+         "byte": {
+          "value": 57
+         }
+        },
+        {
+         "byte": {
+          "value": 187
+         }
+        },
+        {
+         "byte": {
+          "value": 60
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 115
+         }
+        },
+        {
+         "byte": {
+          "value": 139
+         }
+        },
+        {
+         "byte": {
+          "value": 237
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 185
+         }
+        },
+        {
+         "byte": {
+          "value": 122
+         }
+        },
+        {
+         "byte": {
+          "value": 202
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 57
+         }
+        },
+        {
+         "byte": {
+          "value": 142
+         }
+        },
+        {
+         "byte": {
+          "value": 34
+         }
+        },
+        {
+         "byte": {
+          "value": 99
+         }
+        },
+        {
+         "byte": {
+          "value": 82
+         }
+        },
+        {
+         "byte": {
+          "value": 126
+         }
+        },
+        {
+         "byte": {
+          "value": 13
+         }
+        },
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 15
+         }
+        },
+        {
+         "byte": {
+          "value": 110
+         }
+        },
+        {
+         "byte": {
+          "value": 141
+         }
+        },
+        {
+         "byte": {
+          "value": 239
+         }
+        },
+        {
+         "byte": {
+          "value": 124
+         }
+        },
+        {
+         "byte": {
+          "value": 106
+         }
+        },
+        {
+         "byte": {
+          "value": 239
+         }
+        },
+        {
+         "byte": {
+          "value": 190
+         }
+        },
+        {
+         "byte": {
+          "value": 37
+         }
+        },
+        {
+         "byte": {
+          "value": 243
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  }
+ ]
+}

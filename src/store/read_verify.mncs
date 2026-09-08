@@ -1,0 +1,80 @@
+mncs 0.10;
+
+// store.read_verify — in-language read-path verification (RFC 0015).
+//
+// These functions read chunk/manifest files through the `host_read`
+// capability boundary and verify them with `sha256_digest`, proving that
+// integrity verification is expressible as MNCS semantics over granted
+// bytes — not as host-side logic. Without the matching `--grant-read` and
+// `--grant-crypto` grants the calls fail closed.
+//
+// File formats consumed here:
+// - chunk files hold canonical FRAMES (domain tag, version, length,
+//   payload), so the read path hashes file bytes directly;
+// - manifest files hold the 64-byte canonical root.
+//
+// Each function is width-specific on purpose: framing widths are exact in
+// Phase 1a (see store.chunk), and file content is validated before any
+// digest comparison. A wrong-size, mistagged, or truncated file yields
+// false, never a trap.
+module store.read_verify.v1;
+
+use store.identity;
+
+// Verify that the granted chunk-file bytes (a 4-byte-payload frame)
+// hash to `expected`. Reads 8 bytes; anything else is false.
+fn verify_chunk_file4(expected: [byte; 32]) -> (result: bool)
+    capability store_read
+    effect host_read authorized_by store_read
+    effect sha256_digest authorized_by store_read
+{
+    let blob: [byte; up_to 64] = host_read();
+    if blob.len != 8 {
+        return false;
+    }
+    if blob[0] != 67 || blob[1] != 1 || blob[2] != 0 || blob[3] != 4 {
+        return false;
+    }
+    let digest: [byte; up_to 64] = sha256_digest(blob);
+    return store.identity.digest_matches(expected, digest);
+}
+
+// Verify that the granted chunk-file bytes (an 8-byte-payload frame)
+// hash to `expected`.
+fn verify_chunk_file8(expected: [byte; 32]) -> (result: bool)
+    capability store_read
+    effect host_read authorized_by store_read
+    effect sha256_digest authorized_by store_read
+{
+    let blob: [byte; up_to 64] = host_read();
+    if blob.len != 12 {
+        return false;
+    }
+    if blob[0] != 67 || blob[1] != 1 || blob[2] != 0 || blob[3] != 8 {
+        return false;
+    }
+    let digest: [byte; up_to 64] = sha256_digest(blob);
+    return store.identity.digest_matches(expected, digest);
+}
+
+// Report the framed payload length declared by the granted file bytes,
+// or 0xFFFFFFFF when the file is not a well-formed frame. Callers treat
+// 0xFFFFFFFF as "unreadable" and must not allocate or index from it.
+fn chunk_file_len() -> (result: u32)
+    capability store_read
+    effect host_read authorized_by store_read
+{
+    let blob: [byte; up_to 64] = host_read();
+    if blob.len < 4 {
+        return 4294967295;
+    }
+    if blob[0] != 67 || blob[1] != 1 {
+        return 4294967295;
+    }
+    let declared: u32 = (((blob[2] as u32) *% 256) + (blob[3] as u32)) as u32;
+    let framed: u32 = declared +% 4;
+    if blob.len != framed as u64 {
+        return 4294967295;
+    }
+    return declared;
+}
