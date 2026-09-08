@@ -14,3 +14,21 @@ A pressure report should include:
 - affected targets/backends.
 
 Pressure is useful evidence, not a reason to hide the core implementation in another language. Storage is expected to stress lifetimes/borrowing, mmap and raw views, atomics, async I/O, checked arithmetic, crash-consistency barriers, typed reflection, SIMD, heterogeneous memory, CUDA interaction, capability types, concurrency, and distributed execution.
+
+## Phase 1 campaign index
+
+- [PHASE1-PRESSURE-SUMMARY.md](PHASE1-PRESSURE-SUMMARY.md) — consolidated
+  findings, severity table, and recommended language implementation order.
+- `P1-001`–`P1-003` — persistence blockers (file write, sync barrier,
+  atomic rename / directory ops).
+- `P1-004` — no streaming hash; `P1-005` — 64-element sequence bound;
+  `P1-006` — no scatter-write into buffers.
+- `P1-007`–`P1-015` — type-system, boundary, and capability pressure
+  (single results, iteration ceiling, view subsumption, host-called
+  generics, record identities, issuance).
+- `P1-016` — no in-process call boundary (measured subprocess/JSON cost).
+- `P1-017`–`P1-020` — paths, zero-copy views, grant shape, error codes.
+- `P1-021`, `P1-B01` — overflow-obligation debt and the C11
+  checked-arithmetic divergence (with in-suite canary).
+- `P1-B02` — host effects realized only by research-bytecode; compiled
+  backends refuse with a silent shape-shift (pinned by effects probe).
