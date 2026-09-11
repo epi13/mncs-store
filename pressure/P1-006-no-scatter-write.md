@@ -63,3 +63,21 @@ Affected backend(s) / target(s), if known: all (surface absence).
 Severity: major
 
 Status: workaround (monomorphized widths; volume-induced bug caught by tests)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+New bulk vocabulary: `replace(array, index, value)` with iteration
+carried state, `[value; N]` repeat literals, and 1024-wide construction
+all elaborate and execute (verified: fill16, zero16, concat32_32). The
+manifest-v2 chain needs exactly one 64-byte concatenation, which is now
+one monomorphized function instead of an impossibility.
+
+Remaining: no indexed assignment to buffers, no view concatenation, no
+view-to-exact materialization, no scatter into file regions. Variable
+geometry still costs one hand-written function per width (tail_ok4/8/16/
+32, payload4/8/16/32) and dynamic table assembly stays host-side. The
+monomorphization tax fell (5 widths -> 1 concat + 4 tails) but persists.
+
+Severity now: moderate (was major).

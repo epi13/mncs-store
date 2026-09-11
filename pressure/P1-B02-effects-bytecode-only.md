@@ -81,3 +81,33 @@ Severity: major (backend-specific capability gap)
 
 Status: workaround (bytecode-scoped crypto suites) + pinned (probe +
 EXPECTED_REFUSALS allowlist)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — REFRAMED (core still live)
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Two of three compounding gaps improved:
+1. Backend capability declarations EXIST now: `experiment matrix` lists
+   `effects`/`host_effects` under per-backend `unsupported_operations`
+   (all compiled backends; bytecode omits them). Support is discoverable
+   without attempting execution.
+2. The refusal is now MACHINE-READABLE at the diagnostics layer: each
+   backend reports an envelope diagnostic (CGC301/CGN301/CGL301/CGF301)
+   plus per-function host-call diagnostics in its own CG?302 family
+   (CGC302 on C11, CGN302 on wasm-MVP, CGL302 on LLVM-IR, CGF302 on
+   Cranelift), all reading "host calls are unsupported on ...; run on
+   the research bytecode backend with an explicit grant". The old "zero
+   hits for refus*" claim is stale; harnesses should key on the CG?302
+   family, not body shape (the suite pins this).
+3. Effect refusal is STILL whole-program and compiled backends still
+   realize NO host effects (sha256/host_read/host_write/fs_* all refuse).
+   Exit 1 with a compilation-result body and empty stderr is unchanged.
+
+The store therefore still executes all integrity paths on
+research-bytecode only; cross-backend agreement for hash-dependent cases
+remains impossible. Reframed from "silent refusal shape-shift" to
+"declared refusal, interpreter-only realization". The suite keeps
+EXPECTED_REFUSALS and additionally pins CGC302 presence in refusals.
+
+Severity: major backend capability gap (unchanged in substance,
+improved in failure semantics).

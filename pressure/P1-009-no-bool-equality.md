@@ -47,3 +47,16 @@ Affected backend(s) / target(s), if known: all (frontend rule).
 Severity: minor
 
 Status: workaround (i64 flag discipline)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+`bool == bool`, `!=`, and prefix `!` elaborate and execute (CP-0004;
+17-case corpus over all five backends upstream). The old MNE121
+reproducer (`flag == false`) now completes clean.
+
+Store workaround REMOVED: `store.identity.content_less` dropped the i64
+0/1 flag discipline for boolean state (`OrderState { decided: bool,
+before: bool }`, `!state.decided`, `left[i] < right[i]`). All 33
+identity corpus cases pass on all five backends after the change.

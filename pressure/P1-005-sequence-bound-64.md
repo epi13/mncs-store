@@ -56,3 +56,22 @@ individual backends may need their own lower caps declared honestly.
 Severity: major
 
 Status: workaround (exact-width classes; arbitrary sizes deferred)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Ceiling moved 64 -> 1024: `[byte; 65]` and `[0; 65]` elaborate and run;
+`[byte; 1025]` refused (MNE105). Manifest views to 1024 bytes, 1024-wide
+traversals, and 992-byte objects now execute (Phase-2 path). The store no
+longer limits values to 32 bytes.
+
+Remaining: the bound moved, it did not disappear. Arbitrary-sized
+objects are still inexpressible; storage past 1024-byte views needs
+chunked observation loops plus the missing streaming hash (P2-001).
+Reframed as bounded-storage pressure: every bound (views 1024, digest
+operands 64, iterations 1024/level, work envelope 1M) is explicit and
+fail-closed, but their interaction caps objects at 992 bytes.
+
+Severity now: moderate (was major; 32-byte proof vehicle -> 992-byte
+bounded store).

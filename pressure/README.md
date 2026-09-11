@@ -32,3 +32,26 @@ Pressure is useful evidence, not a reason to hide the core implementation in ano
   checked-arithmetic divergence (with in-suite canary).
 - `P1-B02` — host effects realized only by research-bytecode; compiled
   backends refuse with a silent shape-shift (pinned by effects probe).
+- Every `P1-*` report carries a `Re-baseline 2026-09-10` appendix
+  re-verdicting it against Source Profile 0.13 (RESOLVED /
+  PARTIALLY_RESOLVED / STILL_REPRODUCES / REFRAMED). Historical sections
+  are preserved; appendices are current truth.
+
+## Phase 2 campaign index
+
+- [PHASE2-PRESSURE-SUMMARY.md](PHASE2-PRESSURE-SUMMARY.md) — current
+  findings, re-baseline table, and the repair order for the next
+  mncs-language run.
+- `P2-001` — 64-byte digest realization bound with no incremental API
+  (reframes P1-004; answered to 992 B by chained v2 roots).
+- `P2-002` — no view-width subsumption forces widest-view boundary
+  signatures (Phase-2 cost of P1-012; new).
+- `P2-003` — no generic boundary functions forces per-width tail
+  families (Phase-2 instance of P1-013; new).
+- `P2-004` — append-only `host_write` limits (narrows P1-001).
+- `P2-005` — no atomic publication / namespace mutation / sync barrier
+  (narrows P1-002/P1-003 with commit-protocol evidence).
+- `P2-006` — in-language generation scans bound at 23 records (new).
+- `P2-007` — observation granularity: 64 B reads, one root per
+  capability (new).
+- `P2-008` — measured step-cost and boundary-crossing pressure (new).

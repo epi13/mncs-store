@@ -53,3 +53,18 @@ Affected backend(s) / target(s), if known: all (ABI-string format).
 Severity: moderate
 
 Status: workaround (scalar boundary + round-trip laws)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+`mncs abi` still emits profile-versioned nominal strings hosts must
+reproduce exactly, e.g.
+`mncs:0.2:record-type:store.identity.v1::LogicalId::namespace%3Au32%3Bserial%3Au64%3B`.
+The brittleness claim gained live evidence this run: modernizing
+OrderState fields (i64 -> bool) visibly changed its identity string
+(`before%3Abool%3Bdecided%3Abool%3B`). The store keeps the scalar/bytes
+boundary + in-language record round-trip laws; new nominal types
+(ScanState, tokens) follow the same pattern.
+
+Severity: moderate (unchanged).

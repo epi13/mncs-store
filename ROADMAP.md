@@ -34,16 +34,36 @@ lifecycle mechanics; full in-language lifecycle, multi-chunk values, and
 arbitrary sizes remain open and are tracked as language pressure
 (`pressure/PHASE1-PRESSURE-SUMMARY.md`).
 
+**Phase 1b modernization (2026-09-10, Profile 0.13):** sources bumped to
+`mncs 0.13`; P1-009/P1-010 workarounds removed (boolean ordering logic);
+P1-008 resolved (1024-wide iteration); single-chunk v1 classes frozen
+and still tested alongside the Phase-2 multi-chunk path (0..992 B
+blobs via manifest v2). See RFC 0017 and the P1 re-baseline appendices.
+
 ## Phase 2 — generations and recovery
 
-- [ ] atomic generation commit protocol
-- [ ] stable reader snapshots
-- [ ] compare-and-swap / conflict primitives
-- [ ] crash/torn-write recovery
-- [ ] unreachable chunk reclamation policy
-- [ ] deterministic recovery tests under injected faults
+- [x] atomic generation commit protocol (Phase 2: explicit 5-state
+  machine, `commit_next` transitions in-language, publication host-owned
+  pending file effects P2-004/P2-005)
+- [x] stable reader snapshots (snapshot tokens + `snap_permits`
+  binding; reads resolve through exactly one generation mapping)
+- [x] compare-and-swap / conflict primitives (`cas_decide` +
+  `conflict_token` with observed/attempted generations; no silent retry)
+- [x] crash/torn-write recovery (`classify_store`/`classify_generation`/
+  `recover_decide`: STAY/PROMOTE/REFUSE; PROMOTE moves the pointer only
+  for fully valid candidates)
+- [x] unreachable chunk reclamation policy (`table_contains`
+  membership over verified retained manifests; shared chunks survive;
+  snapshot pins respected; staged/temp pruning gated by `prune_decide`)
+- [x] deterministic recovery tests under injected faults (7 commit
+  boundaries × old-or-new assertions in `tests/test_phase2.py`)
 
 **Exit proof:** after any injected interruption, readers observe either the previous committed generation or the new committed generation, never a fabricated mixture.
+Phase 2 meets this for the bounded domain (objects 0..992 B,
+generations to 23 records in-language) with host-owned file mechanics;
+full in-language lifecycle, arbitrary sizes, and wide generation scans
+remain open and are tracked as language pressure
+(`pressure/PHASE2-PRESSURE-SUMMARY.md`).
 
 ## Phase 3 — native views and representation-aware I/O
 

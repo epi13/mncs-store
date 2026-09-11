@@ -50,3 +50,22 @@ Affected backend(s) / target(s), if known: all (execution-request shape).
 Severity: moderate
 
 Status: workaround (non-generic boundary layer)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Source-level inference exists and works (ENG-0019): omitted `<...>` over
+exact-sequence structure, cross-module, and forwarding callers all
+elaborate (verified with the pressure-generics shapes). BUT the
+execution-boundary half still reproduces exactly: invoking a generic
+entry point from a corpus yields invalid_request "execution target SSA
+function does not exist" (reproduced 2026-09-10 against a generic
+`grow_fill_local` with concrete sequence arguments). No `type_arguments`
+channel exists on execution requests. Inference through view bounds
+(`[byte; up_to N]`) is additionally not inferred (MNE220).
+
+The store keeps its non-generic boundary layer. Do NOT mark resolved on
+source ergonomics alone: the boundary problem is the storage problem.
+
+Severity: moderate (unchanged for the store).

@@ -50,3 +50,14 @@ accelerator-backed views are additionally hardware-gated.
 Severity: moderate (design pressure only; Phase 3 scope)
 
 Status: design pressure only
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+No mmap/file-backed view, lease, or placement-residency type in any 0.13
+feature list. `host_read`/`fs_read_bytes_at` copy (<= 64 B per call);
+every stored byte is still copied disk -> grant buffer -> MNCS value.
+At the 992-byte object scale copies remain harmless; formats stay
+mmap-eligible (fixed offsets, explicit alignment, BE, no interior
+pointers). Correctly sequenced after the core; still Phase-3 scope.
+
+Severity: moderate design pressure (unchanged).

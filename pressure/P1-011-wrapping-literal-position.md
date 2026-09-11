@@ -53,3 +53,14 @@ Affected backend(s) / target(s), if known: all (frontend rule).
 Severity: minor
 
 Status: workaround (coding discipline + comment in sources)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+`4 +% x` still fails (MNE117 + MNE119); `x +% 4` elaborates. Hit live
+during this run at `src/store/manifest.mncs:309` (`28 +% count *% 32`),
+fixed with the right-side discipline (`count *% 32 +% 28`). Coding
+discipline stays; each site carries a P1-011 comment.
+
+Severity: minor (unchanged).

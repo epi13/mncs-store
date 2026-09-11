@@ -1,4 +1,4 @@
-mncs 0.10;
+mncs 0.13;
 
 // store.chunk — Phase 1 content-addressed chunk substrate (RFC 0004).
 //
@@ -190,6 +190,10 @@ fn get_pair_first(frame: [byte; 12]) -> (result: u32) {
 fn get_pair_second(frame: [byte; 12]) -> (result: u32) {
     return pair_second([frame[4], frame[5], frame[6], frame[7],
         frame[8], frame[9], frame[10], frame[11]]);
+}
+
+fn payload4(frame: [byte; 8]) -> (result: [byte; 4]) {
+    return [frame[4], frame[5], frame[6], frame[7]];
 }
 
 fn payload8(frame: [byte; 12]) -> (result: [byte; 8]) {
@@ -413,4 +417,101 @@ fn frame_valid(view: [byte; up_to 64]) -> (result: u64) {
 // `frame_valid(view) == 0` first; otherwise the declaration is untrusted.
 fn frame_payload_len(view: [byte; up_to 64]) -> (result: u32) {
     return (((view[2] as u32) *% 256) + (view[3] as u32)) as u32;
+}
+
+// Fixed 64-byte concatenation of two digests. This is the one bulk
+// constructor the manifest-v2 hash chain needs (P1-006): every chain step
+// hashes exactly 64 bytes, so a single monomorphized width suffices and
+// no scatter-write primitive is required for the chain itself.
+fn concat32_32(a: [byte; 32], b: [byte; 32]) -> (result: [byte; 64]) {
+    return [a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7],
+        a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15],
+        a[16], a[17], a[18], a[19], a[20], a[21], a[22], a[23],
+        a[24], a[25], a[26], a[27], a[28], a[29], a[30], a[31],
+        b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15],
+        b[16], b[17], b[18], b[19], b[20], b[21], b[22], b[23],
+        b[24], b[25], b[26], b[27], b[28], b[29], b[30], b[31]];
+}
+
+// Canonical tail-padding checks for the multi-chunk object path (RFC 0017).
+//
+// A general blob of true length L is partitioned into floor(L/32) full
+// 32-byte body chunks plus one tail of R = L % 32 bytes (R == 0 means no
+// tail chunk). The tail is zero-extended to the next covered frame width
+// W in {4, 8, 16, 32} so every chunk frame reuses the frozen v1 widths.
+// The extension is canonical: these predicates require every byte at an
+// index >= true_len to be zero, so the host transport cannot smuggle
+// non-zero padding into committed bytes. The manifest-v2 total_len binds
+// the true length; readers strip exactly to it.
+//
+// Each predicate takes the exact padded payload and the true tail length
+// (0 < true_len <= W); anything else is false, never a trap.
+fn tail_ok4(payload: [byte; 4], true_len: u64) -> (result: bool) {
+    if true_len == 0 || true_len > 4 {
+        return false;
+    }
+    iterate i over payload carrying ok: bool = true {
+        next ok = ok && (i < true_len || payload[i] == 0);
+    }
+    return ok;
+}
+
+fn tail_ok8(payload: [byte; 8], true_len: u64) -> (result: bool) {
+    if true_len == 0 || true_len > 8 {
+        return false;
+    }
+    iterate i over payload carrying ok: bool = true {
+        next ok = ok && (i < true_len || payload[i] == 0);
+    }
+    return ok;
+}
+
+fn tail_ok16(payload: [byte; 16], true_len: u64) -> (result: bool) {
+    if true_len == 0 || true_len > 16 {
+        return false;
+    }
+    iterate i over payload carrying ok: bool = true {
+        next ok = ok && (i < true_len || payload[i] == 0);
+    }
+    return ok;
+}
+
+fn tail_ok32(payload: [byte; 32], true_len: u64) -> (result: bool) {
+    if true_len == 0 || true_len > 32 {
+        return false;
+    }
+    iterate i over payload carrying ok: bool = true {
+        next ok = ok && (i < true_len || payload[i] == 0);
+    }
+    return ok;
+}
+
+// Width class selected for a tail of R bytes (1 <= R <= 32): the least
+// covered width W >= R. Returns 0 for R outside 1..=32 (no silent choice).
+fn tail_width_for(remainder: u64) -> (result: u64) {
+    if remainder == 0 || remainder > 32 {
+        return 0;
+    }
+    if remainder <= 4 {
+        return 4;
+    }
+    if remainder <= 8 {
+        return 8;
+    }
+    if remainder <= 16 {
+        return 16;
+    }
+    return 32;
+}
+
+// Number of 32-byte body chunks plus tail presence for a true length L:
+// body = L / 32, tail = L % 32. Total chunk count is body + (tail > 0).
+// Pure arithmetic preview of the partition the put path must realize.
+fn partition_body_chunks(total_len: u64) -> (result: u64) {
+    return total_len / 32;
+}
+
+fn partition_tail_len(total_len: u64) -> (result: u64) {
+    return total_len % 32;
 }

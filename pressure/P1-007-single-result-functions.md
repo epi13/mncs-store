@@ -50,3 +50,12 @@ Affected backend(s) / target(s), if known: all (surface absence).
 Severity: moderate
 
 Status: workaround (projector families + corpus pins)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Functions still return exactly one value; no tuples or multi-out params
+in any 0.13 feature list. Projector families grew (v2_type/v2_count/
+v2_total_len/v2_descriptor/v2_header, conflict_observed/attempted,
+snap_gen) following the same pinned pattern.
+
+Severity: moderate (ergonomics + audit surface, unchanged).

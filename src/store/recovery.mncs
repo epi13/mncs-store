@@ -1,0 +1,104 @@
+mncs 0.13;
+
+// store.recovery — Phase 2 deterministic recovery decisions (RFC 0015,
+// RFC 0017).
+//
+// Recovery is verification-driven: after interruption or reopen, the
+// store must identify the latest state that is both declared committed
+// and integrity-valid, and it MUST NOT synthesize a mixed generation
+// from partially persisted pieces (invariant 12).
+//
+// Responsibility split: the host gathers observations by executing MNCS
+// validators (header_validate, validate/validate_v2, chain steps, digest
+// comparisons) over on-disk bytes. The DECISIONS — which generation is
+// authoritative, whether a candidate is promotable or must be pruned —
+// are computed here as total functions over those observations. Python
+// MUST NOT decide which generation logically wins; that would make the
+// host the authority on recovery semantics (see pressure P2-007).
+module store.recovery.v1;
+
+// Store-level triage over open-time observations. Inputs are booleans the
+// host derives from MNCS validator executions, never host guesses:
+// meta_ok (meta file parses), current_ok (current pointer parses),
+// current_gen_exists (the named generation file parses).
+// Outcomes: 0 HEALTHY (open at the committed generation),
+// 1 NO_STORE (no meta: not a store, refuse), 2 NO_CURRENT (pointer
+// missing/unparseable: refuse), 3 DANGLING_CURRENT (pointer names a
+// generation file that does not parse: refuse; operator repair required,
+// never silent fallback to an older generation).
+fn classify_store(meta_ok: bool, current_ok: bool, current_gen_exists: bool) -> (result: u64) {
+    if !meta_ok {
+        return 1;
+    }
+    if !current_ok {
+        return 2;
+    }
+    if !current_gen_exists {
+        return 3;
+    }
+    return 0;
+}
+
+// Generation-file triage over per-file validator outcomes:
+// header_ok (header_validate == 0), records_parse (every record splits;
+// implied by header code 0/5 handling), chunks_present (every referenced
+// chunk file exists), chunks_valid (every chunk frame validates and its
+// digest matches), roots_match (every root identity recomputes).
+// Outcomes: 0 COMMITTED_VALID, 1 INCOMPLETE (structurally truncated or
+// count-mismatched: a torn candidate, never authoritative),
+// 2 MISSING_CHUNK (structure parses but referenced bytes are absent),
+// 3 CORRUPT (bytes present but integrity fails: digest/frame/root
+// mismatch — surfaced explicitly, never healed by fabrication).
+fn classify_generation(
+    header_ok: bool,
+    chunks_present: bool,
+    chunks_valid: bool,
+    roots_match: bool
+) -> (result: u64) {
+    if !header_ok {
+        return 1;
+    }
+    if !chunks_present {
+        return 2;
+    }
+    if !chunks_valid {
+        return 3;
+    }
+    if !roots_match {
+        return 3;
+    }
+    return 0;
+}
+
+// Recovery selection between the previous committed generation and a
+// newer candidate. prev_valid: the previous generation classifies
+// COMMITTED_VALID. cand_class: the candidate's classify_generation code
+// (0 valid, 1 incomplete, 2 missing-chunk, 3 corrupt).
+// Outcomes: 0 STAY (serve the previous generation; candidate prunable),
+// 1 PROMOTE (candidate is fully valid: it becomes the new committed
+// generation), 2 REFUSE (neither is valid: operator repair required).
+// A candidate that is anything less than fully valid MUST NOT become
+// authoritative even when it is newer (invariant 12); a corrupt previous
+// generation with no valid candidate is refused, never papered over.
+fn recover_decide(prev_valid: bool, cand_class: u64) -> (result: u64) {
+    if cand_class == 0 {
+        return 1;
+    }
+    if prev_valid {
+        return 0;
+    }
+    return 2;
+}
+
+// Candidate-pruning safety: an incomplete candidate's staged chunks may
+// be reclaimed only when no retained root references them. staged_ref:
+// the staged chunk digest is still referenced by a retained generation,
+// a live snapshot, or the recovery roots themselves. Returns 0 PRUNE
+// (safe to delete staged bytes) or 1 KEEP (still referenced; structural
+// sharing outlives any one generation's abort).
+fn prune_decide(staged_ref: bool) -> (result: u64) {
+    if staged_ref {
+        return 1;
+    }
+    return 0;
+}

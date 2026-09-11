@@ -48,3 +48,23 @@ Affected backend(s) / target(s), if known: all (frontend-level absence).
 Severity: major (blocker for Phase 2 commit protocol; worked around in 1a)
 
 Status: workaround (host-owned namespace mechanics)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Observation half resolved: `fs_list_count`, `fs_generation`,
+`fs_entry_name_at`, `fs_entry_kind_at` (effect `fs_list`) and
+`fs_read_bytes_at(entry, offset, length)` (effect `fs_read`) elaborate
+and execute on research-bytecode via `--grant-fs capability=root`.
+Verified: 3-entry listing, generation counter, indexed names/kinds,
+16-byte positioned read, short-read EOF (offset 10 + len 64 over 16
+bytes returned 6 bytes), wild index 99 fails closed InvalidRequest.
+Recovery scans and chunked file reads are now expressible in-language.
+
+Mutation half still absent: no rename, mkdir, exclusive-create, stat,
+delete, or sync. Atomic publication stays host `os.replace`; the Phase-2
+commit protocol stages content in-language but publishes via the host.
+
+Severity now: major for commit atomicity (was blocker for Phase 2
+protocol; observation resolved, publication still host-owned).

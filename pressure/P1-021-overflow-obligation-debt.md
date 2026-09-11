@@ -57,3 +57,15 @@ divergent fallback (P1-B01).
 Severity: moderate
 
 Status: workaround (wrapping discipline + canary)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Every new module compiles with permanent CMP301 obligations
+(integer-overflow on decoders, iteration-exact-resource-cost on every
+loop, view-range-valid on effect operands) and the conservative
+fallback; no source annotation discharges byte-bound reasoning. The
+wrapping discipline (`*%`/`+%` where exactness is provable) extends to
+all new decoders and the chain arithmetic. Proof debt stays
+indistinguishable from real risk at the study layer.
+
+Severity: moderate+ (unchanged; extended surface).

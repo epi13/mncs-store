@@ -53,3 +53,22 @@ Affected backend(s) / target(s), if known: all (grant-shape design).
 Severity: moderate
 
 Status: workaround (argument-passed bytes for bulk; single-file proof kept)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Granted directory enumeration (`fs_list_count/generation/entry_name_at/
+entry_kind_at`) and positioned chunked reads (`fs_read_bytes_at`, <= 64
+B per call, short reads as EOF) now exist and execute as documented
+(verified against a 3-entry fixture tree, including the wild-index
+InvalidRequest). The "one function reads one file" ceiling is lifted
+for observation: one function can now scan a granted tree by index.
+
+Remaining: one root per capability, <= 64 B per read call, names <= 64
+B, no read-back of `host_write` appends, bytecode-only realization. Bulk
+lifecycle verification still passes bytes as corpus arguments (one
+batched invocation per N files) because per-call chunking multiplies
+invocations (P1-016 compounding).
+
+Severity now: minor-moderate (was moderate).

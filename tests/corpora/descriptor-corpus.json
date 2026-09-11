@@ -4967,6 +4967,782 @@
      }
     }
    ]
+  },
+  {
+   "id": "describe-blob2-40",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob2"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 40,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 40
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 40
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-blob2-0",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob2"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 0,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "describe-blob2-992",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "describe_blob2"
+    },
+    "arguments": [
+     {
+      "integer": {
+       "value": 992,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "sequence": {
+      "values": [
+       {
+        "byte": {
+         "value": 77
+        }
+       },
+       {
+        "byte": {
+         "value": 68
+        }
+       },
+       {
+        "byte": {
+         "value": 2
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 224
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 3
+        }
+       },
+       {
+        "byte": {
+         "value": 224
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       },
+       {
+        "byte": {
+         "value": 1
+        }
+       },
+       {
+        "byte": {
+         "value": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-roundtrip2-blob",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip2"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "integer": {
+       "value": 500,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 500,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 1
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "row-roundtrip2-scalar",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "row_roundtrip2"
+    },
+    "arguments": [
+     {
+      "byte": {
+       "value": 1
+      }
+     },
+     {
+      "byte": {
+       "value": 3
+      }
+     },
+     {
+      "byte": {
+       "value": 0
+      }
+     },
+     {
+      "integer": {
+       "value": 1,
+       "type": {
+        "bits": 16,
+        "signed": false
+       }
+      }
+     },
+     {
+      "integer": {
+       "value": 4,
+       "type": {
+        "bits": 32,
+        "signed": false
+       }
+      }
+     },
+     {
+      "byte": {
+       "value": 4
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "boolean": {
+      "value": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate2-ok",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate2"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 100
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 100
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 0,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate2-rejects-v1",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate2"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 32
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 32
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 3,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "validate2-bad-dim",
+   "request": {
+    "schema_version": "0.1",
+    "target": {
+     "module": "store.descriptor.v1",
+     "function": "validate2"
+    },
+    "arguments": [
+     {
+      "sequence": {
+       "values": [
+        {
+         "byte": {
+          "value": 77
+         }
+        },
+        {
+         "byte": {
+          "value": 68
+         }
+        },
+        {
+         "byte": {
+          "value": 2
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 225
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 3
+         }
+        },
+        {
+         "byte": {
+          "value": 225
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        },
+        {
+         "byte": {
+          "value": 1
+         }
+        },
+        {
+         "byte": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "step_budget": 32768
+   },
+   "expected": [
+    {
+     "integer": {
+      "value": 7,
+      "type": {
+       "bits": 64,
+       "signed": false
+      }
+     }
+    }
+   ]
   }
  ]
 }

@@ -1,4 +1,4 @@
-mncs 0.10;
+mncs 0.13;
 
 // store.identity — Phase 1 persistent identity primitives (RFC 0002).
 //
@@ -123,26 +123,27 @@ fn content_is_zero(value: [byte; 32]) -> (result: bool) {
     return zero;
 }
 
-record OrderState { decided: i64, before: i64 }
+record OrderState { decided: bool, before: bool }
 
 // Canonical byte ordering for digest keys: the first differing byte
 // decides, so a later byte cannot reverse the verdict.
 //
-// Implementation notes (see pressures P1-E01, P1-E02): `==` is not defined
-// over `bool`, and `<` is not defined over `byte` (only `<=`). Flags are
-// therefore carried as i64 (0/1) and byte order is built from `<=` + `!=`.
+// Modernized for Source Profile 0.13: `==` over `bool` (P1-009, resolved)
+// and `<` over `byte` (P1-010, resolved) let the ordering read as boolean
+// logic instead of the Phase-1a i64 0/1 flag discipline. Illegal states
+// (a flag holding 2) are unrepresentable in this spelling.
 fn content_less(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
-    let initial: OrderState = OrderState { decided: 0, before: 0 };
+    let initial: OrderState = OrderState { decided: false, before: false };
     iterate i over left carrying state: OrderState = initial {
-        let different: i64 = (left[i] != right[i]) as i64;
-        let first: i64 = (state.decided == 0) as i64 *% different;
-        let below: i64 = ((left[i] <= right[i]) && (left[i] != right[i])) as i64;
+        let different: bool = left[i] != right[i];
+        let first: bool = !state.decided && different;
+        let below: bool = left[i] < right[i];
         next state = OrderState {
-            decided: state.decided +% different,
-            before: state.before +% first *% below
+            decided: state.decided || different,
+            before: state.before || (first && below)
         };
     }
-    return state.decided > 0 && state.before > 0;
+    return state.decided && state.before;
 }
 
 // Match a stored 32-byte digest against freshly computed digest bytes

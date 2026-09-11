@@ -51,3 +51,12 @@ Affected backend(s) / target(s), if known: all (surface absence).
 Severity: moderate
 
 Status: workaround (host counter file + exclusive-create guards)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+No randomness, UUID, monotonic-counter, or CAS primitive is reachable
+from source in any 0.13 feature list; functions stay pure over their
+arguments. Serial issuance remains the host `meta` counter with O_EXCL
+guards and open-time healing. Unchanged.
+
+Severity: moderate (unchanged).

@@ -58,3 +58,14 @@ Affected backend(s) / target(s), if known: all (tooling-shape absence).
 Severity: moderate (test-time only; not a storage-semantics gap)
 
 Status: workaround (batched subprocess orchestration + instrumentation)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Every MNCS invocation in this run remained a subprocess + JSON round
+trip. Measured Phase-2 costs: a 40-byte blob put takes ~10 batched
+invocations; a 1024-byte table_contains argument costs ~25x JSON
+expansion (~50 KB on the wire); reclamation scans pass explicit 64k
+step budgets. Batching discipline stays (plan/depth-batched chains,
+batched verifications). Unchanged.
+
+Severity: moderate test-time pressure (unchanged; dominates suite cost).

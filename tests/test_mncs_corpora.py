@@ -48,6 +48,19 @@ CORPUS_SUITES = [
         EFFECT_BACKENDS,
     ),
     ("tests/fixtures/checked_arith_canary.mncs", "tests/corpora/canary-corpus.json", [], None),
+    # Phase-2 suites. Generation/recovery (pure-only modules) run on every
+    # backend under test. chunk-v2/manifest-v2 cases are pure functions,
+    # but their modules also host sha256 effects, and effect refusal is
+    # whole-program (P1-B02 gap 3) — so they ride the bytecode-scoped
+    # crypto discipline like the chain cases appended to
+    # manifest-corpus.json. The descriptor v2 cases ride the existing pure
+    # descriptor suite on all backends.
+    ("src/store/chunk.mncs", "tests/corpora/chunk-v2-corpus.json", [],
+     EFFECT_BACKENDS),
+    ("src/store/manifest.mncs", "tests/corpora/manifest-v2-corpus.json",
+     [], EFFECT_BACKENDS),
+    ("src/store/generation.mncs", "tests/corpora/generation-corpus.json", [], None),
+    ("src/store/recovery.mncs", "tests/corpora/recovery-corpus.json", [], None),
 ]
 
 PROBE_SRC = "tests/fixtures/effects_probe.mncs"
@@ -66,6 +79,8 @@ ELABORATION_SOURCES = [
     "src/store/chunk.mncs",
     "src/store/manifest.mncs",
     "src/store/read_verify.mncs",
+    "src/store/generation.mncs",
+    "src/store/recovery.mncs",
     "tests/fixtures/checked_arith_canary.mncs",
     "tests/fixtures/effects_probe.mncs",
 ]
@@ -219,6 +234,23 @@ def test_effects_probe_per_backend():
             executed = True
         elif is_refusal_shape(result):
             executed = False
+            # P1-B02 reframe: refusals must carry a machine-readable
+            # host-call diagnostic (CG?302 family: CGC302 on C11,
+            # CGN302 on wasm-MVP, CGL302 on LLVM, CGF302 on Cranelift),
+            # not just the body shape.
+            diags = (result or {}).get("diagnostics", [])
+            host_call_marks = [
+                d.get("code") for d in diags
+                if (d.get("code") or "").endswith("302")
+                and "host calls are unsupported" in (d.get("message") or "")
+            ]
+            if not host_call_marks:
+                problems.append(
+                    f"{backend}: refusal lacks a CG?302 host-call "
+                    "diagnostic "
+                    f"(got {[d.get('code') for d in diags][:6]}); P1-B02 "
+                    "refusal semantics regressed"
+                )
         else:
             pytest.skip(f"{backend}: no result JSON (exit={code})")
             continue

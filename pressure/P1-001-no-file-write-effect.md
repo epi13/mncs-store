@@ -67,3 +67,24 @@ Affected backend(s) / target(s), if known: all (frontend-level absence).
 Severity: blocker
 
 Status: blocked (lifecycle mechanics host-owned; semantics in-language)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — PARTIALLY_RESOLVED
+
+Compiler: mncs-language 890a653 (branch feat/proof-transport-exhaustion-hardening, dirty tree), Source Profile 0.13, `mncs 0.1.0` CLI.
+
+Old behavior: no mutation effect of any kind (four read-only effects only).
+
+Current behavior: `host_write(view)` exists (Profile 0.12+): bounded
+append-only write to the operator-granted path (`--grant-write
+capability=path`), creating the file when absent, returning the appended
+byte count as u64. Verified by execution: two sequential appends returned
+4 + 4 and the file held all 8 bytes on research-bytecode; the effect
+event records grant path + content digest. There is still no overwrite,
+truncate, exclusive-create, rename, mkdir, delete, or sync primitive
+(grep over frontend/model/syntax sources, 2026-09-10).
+
+Remaining gap: append-only covers staging logs, not chunk files (which
+need create-exclusive), generation publication (rename), or durability
+barriers (sync). The store lifecycle stays host-owned.
+
+Severity now: major (was blocker for lifecycle; staging narrowed).

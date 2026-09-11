@@ -1,4 +1,4 @@
-mncs 0.10;
+mncs 0.13;
 
 // store.manifest — Phase 1 object root / manifest format (RFC 0004).
 //
@@ -30,6 +30,7 @@ mncs 0.10;
 // (descriptor byte_len != total_len).
 module store.manifest.v1;
 
+use store.chunk;
 use store.descriptor;
 use store.identity;
 
@@ -195,6 +196,178 @@ fn gen_record(obj: [byte; 12], root: [byte; 32]) -> (result: [byte; 44]) {
         root[20], root[21], root[22], root[23],
         root[24], root[25], root[26], root[27],
         root[28], root[29], root[30], root[31]];
+}
+
+// Manifest v2 (RFC 0017): multi-chunk objects with a hash-chained root.
+//
+// A v2 manifest FILE is 28 + 32*N bytes (N = chunk count, 1..31):
+//
+//   offset  size  field
+//   0       2     magic "MN" (0x4D 0x4E)
+//   2       1     manifest version (2)
+//   3       1     type_tag (3 = BYTE_SEQ; v2 is blob-only)
+//   4       2     chunk_count u16 BE
+//   6       16    representation descriptor (descriptor v2 bytes)
+//   22      4     total_len u32 BE (true payload bytes)
+//   26      2     reserved2 (0, 0)
+//   28      N*32  chunk ContentIds in commit order
+//
+// Root identity is a domain-separated Merkle chain, every step hashing
+// at most 64 bytes (the largest single-shot digest the executors realize,
+// see pressure P2-001):
+//
+//   H0 = SHA-256(header[0..28])
+//   H_{i+1} = SHA-256(H_i || chunk_digest_i)
+//   RootId = H_N
+//
+// The chain binds the header (hence count, total_len, type, descriptor)
+// and the complete ORDERED chunk sequence: reordered, missing, or
+// substituted chunks change the root. Chunk presence alone never implies
+// commitment (invariant 10); only the chained root stored in the
+// generation mapping is authoritative.
+//
+// v1 manifests are frozen: `encode`/`validate` still admit only count 1
+// with the 64-byte layout, and `validate_v2` still rejects version != 2.
+fn header2(
+    type_tag: byte,
+    desc: [byte; 16],
+    total_len: u32,
+    chunk_count: u16
+) -> (result: [byte; 28]) {
+    let t0: byte = (total_len / 16777216) as byte;
+    let tr0: u32 = total_len % 16777216;
+    let t1: byte = (tr0 / 65536) as byte;
+    let tr1: u32 = tr0 % 65536;
+    let t2: byte = (tr1 / 256) as byte;
+    let t3: byte = (tr1 % 256) as byte;
+    let c0: byte = (chunk_count / 256) as byte;
+    let c1: byte = (chunk_count % 256) as byte;
+    return [77, 78, 2, type_tag,
+        c0, c1,
+        desc[0], desc[1], desc[2], desc[3], desc[4], desc[5], desc[6], desc[7],
+        desc[8], desc[9], desc[10], desc[11], desc[12], desc[13], desc[14], desc[15],
+        t0, t1, t2, t3, 0, 0];
+}
+
+// Chunk count required for a true payload length L: 1 body chunk per
+// 32 bytes plus one tail chunk for a nonzero remainder; the empty blob
+// still commits one (empty-frame) chunk so the chain is never vacuous.
+fn chunk_count_for(total_len: u32) -> (result: u32) {
+    if total_len == 0 {
+        return 1;
+    }
+    return (total_len +% 31) / 32;
+}
+
+// Chain initialization: binds the complete header (count, total_len,
+// type, descriptor). Pure header bytes in, digest out.
+fn chain_init(header: [byte; 28]) -> (result: [byte; up_to 64])
+    capability store_manifest
+    effect sha256_digest authorized_by store_manifest
+{
+    let view: [byte; up_to 28] = header[0..28];
+    return sha256_digest(view);
+}
+
+// One chain step: binds the next chunk digest in commit order. The 64-byte
+// concatenation keeps the digest input within the single-shot bound.
+fn chain_step(prev: [byte; 32], chunk_digest: [byte; 32]) -> (result: [byte; up_to 64])
+    capability store_manifest
+    effect sha256_digest authorized_by store_manifest
+{
+    let joined: [byte; 64] = store.chunk.concat32_32(prev, chunk_digest);
+    let view: [byte; up_to 64] = joined[0..64];
+    return sha256_digest(view);
+}
+
+// Total validation of a v2 manifest view. Codes: 0 OK, 1 BAD_VIEW_LEN,
+// 2 BAD_MAGIC, 3 BAD_VERSION, 4 BAD_TYPE, 5 BAD_COUNT, 6 BAD_RESERVED,
+// 7 BAD_DESCRIPTOR, 8 COUNT_MISMATCH, 9 DESC_LEN_MISMATCH,
+// 10 TOTAL_OVER_CEILING. The length gate admits only exact
+// 28 + 32*N framings with 1 <= N <= 31.
+fn validate_v2(view: [byte; up_to 1024]) -> (result: u64) {
+    if view.len < 28 {
+        return 1;
+    }
+    if view[0] != 77 || view[1] != 78 {
+        return 2;
+    }
+    if view[2] != 2 {
+        return 3;
+    }
+    let type_tag: byte = view[3];
+    if type_tag != 3 {
+        return 4;
+    }
+    let count: u64 = ((view[4] as u64) *% 256) + (view[5] as u64);
+    if count < 1 || count > 31 {
+        return 5;
+    }
+    if view[26] != 0 || view[27] != 0 {
+        return 6;
+    }
+    // Note: wrapping literals elaborate only on the right (P1-011), so the
+    // constant offset comes last here.
+    let framed: u64 = count *% 32 +% 28;
+    if view.len != framed {
+        return 1;
+    }
+    let desc: [byte; 16] = [view[6], view[7], view[8], view[9],
+        view[10], view[11], view[12], view[13],
+        view[14], view[15], view[16], view[17],
+        view[18], view[19], view[20], view[21]];
+    let desc_view: [byte; up_to 16] = desc[0..16];
+    if store.descriptor.validate2(desc_view) != 0 {
+        return 7;
+    }
+    if store.descriptor.desc_type(desc_view) != view[3] as u32 {
+        return 7;
+    }
+    let total_len: u32 = (((view[22] as u32) *% 16777216)
+        +% ((view[23] as u32) *% 65536)
+        +% ((view[24] as u32) *% 256))
+        +% (view[25] as u32);
+    if total_len > 992 {
+        return 10;
+    }
+    if count != chunk_count_for(total_len) as u64 {
+        return 8;
+    }
+    if store.descriptor.desc_len(desc_view) != total_len {
+        return 9;
+    }
+    return 0;
+}
+
+// Projectors over untrusted v2 views. The caller must establish
+// `validate_v2(view) == 0` first; these decode, they do not authorize.
+fn v2_type(view: [byte; up_to 1024]) -> (result: u32) {
+    return view[3] as u32;
+}
+
+fn v2_count(view: [byte; up_to 1024]) -> (result: u32) {
+    return (((view[4] as u32) *% 256) + (view[5] as u32)) as u32;
+}
+
+fn v2_total_len(view: [byte; up_to 1024]) -> (result: u32) {
+    let high: u32 = ((view[22] as u32) *% 16777216)
+        +% ((view[23] as u32) *% 65536)
+        +% ((view[24] as u32) *% 256);
+    return high +% (view[25] as u32);
+}
+
+fn v2_descriptor(view: [byte; up_to 1024]) -> (result: [byte; 16]) {
+    return [view[6], view[7], view[8], view[9],
+        view[10], view[11], view[12], view[13],
+        view[14], view[15], view[16], view[17],
+        view[18], view[19], view[20], view[21]];
+}
+
+fn v2_header(view: [byte; up_to 1024]) -> (result: [byte; 28]) {
+    return [view[0], view[1], view[2], view[3], view[4], view[5], view[6],
+        view[7], view[8], view[9], view[10], view[11], view[12], view[13],
+        view[14], view[15], view[16], view[17], view[18], view[19], view[20],
+        view[21], view[22], view[23], view[24], view[25], view[26], view[27]];
 }
 
 fn gen_record_obj(entry: [byte; 44]) -> (result: [byte; 12]) {

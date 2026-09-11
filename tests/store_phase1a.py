@@ -500,20 +500,26 @@ class StorePhase1a:
         return self.put("empty", [])
 
     # -- verified read path ------------------------------------------------
-    def load_committed(self, oid):
+    def load_committed(self, oid, mapping=None):
         """Host transport: mapping -> root file bytes + chunk file bytes.
+
+        `mapping` selects the generation to resolve through (default: the
+        live current mapping); snapshot reads pass the bound generation's
+        mapping so concurrent publication cannot move the read (Phase 2).
+        
 
         No semantic check here; use verify_batch before interpreting.
         Raises NotFoundError for absent logical state, IntegrityError for
         absent committed files (a generation references bytes that are not
         on disk: corruption, never "not found").
         """
-        if self._mapping is None:
+        mapping = self._mapping if mapping is None else mapping
+        if mapping is None:
             raise StoreError("store is closed")
         ohex = bytes(oid).hex()
-        if ohex not in self._mapping:
+        if ohex not in mapping:
             raise NotFoundError(f"unknown object {ohex}")
-        root_hex = self._mapping[ohex]
+        root_hex = mapping[ohex]
         try:
             with open(self._p("objects", ohex), "rb") as f:
                 root = f.read()
@@ -613,14 +619,14 @@ class StorePhase1a:
                     "contents (corrupted chunk)")
         return {e["ohex"]: e for e in entries}
 
-    def _read_and_verify(self, oid):
+    def _read_and_verify(self, oid, mapping=None):
         """Single-object convenience over load_committed + verify_batch."""
-        entry = self.load_committed(oid)
+        entry = self.load_committed(oid, mapping=mapping)
         verified = self.verify_batch([entry])
         return verified[entry["ohex"]]
 
-    def _get_one(self, oid, expected_tag, op):
-        entry = self._read_and_verify(oid)
+    def _get_one(self, oid, expected_tag, op, mapping=None):
+        entry = self._read_and_verify(oid, mapping=mapping)
         self._require_types({entry["ohex"]: entry}, {entry["ohex"]: expected_tag})
         return entry
 
@@ -640,22 +646,22 @@ class StorePhase1a:
                 raise TypeMismatchError(
                     f"object {ohex}: stored type tag {got} != requested {tag}")
 
-    def get_u32(self, oid):
-        entry = self._get_one(oid, 1, "get_u32")
+    def get_u32(self, oid, mapping=None):
+        entry = self._get_one(oid, 1, "get_u32", mapping=mapping)
         out = self.engine.check(
             self.engine.run(SRC_CHUNK, MOD_CHUNK,
                             [("g", "get_u32", [BYTES(entry["frame"])])]), ["g"])
         return as_int(require_returned(out["g"], "get_u32"))
 
-    def get_u64(self, oid):
-        entry = self._get_one(oid, 2, "get_u64")
+    def get_u64(self, oid, mapping=None):
+        entry = self._get_one(oid, 2, "get_u64", mapping=mapping)
         out = self.engine.check(
             self.engine.run(SRC_CHUNK, MOD_CHUNK,
                             [("g", "get_u64", [BYTES(entry["frame"])])]), ["g"])
         return as_int(require_returned(out["g"], "get_u64"))
 
-    def get_pair(self, oid):
-        entry = self._get_one(oid, 4, "get_pair")
+    def get_pair(self, oid, mapping=None):
+        entry = self._get_one(oid, 4, "get_pair", mapping=mapping)
         out = self.engine.check(
             self.engine.run(
                 SRC_CHUNK, MOD_CHUNK,
@@ -664,8 +670,8 @@ class StorePhase1a:
         return (as_int(require_returned(out["a"], "pair-first")),
                 as_int(require_returned(out["b"], "pair-second")))
 
-    def get_blob(self, oid):
-        entry = self._get_one(oid, 3, "get_blob")
+    def get_blob(self, oid, mapping=None):
+        entry = self._get_one(oid, 3, "get_blob", mapping=mapping)
         width = len(entry["frame"]) - 4
         if width == 0:
             # A verified empty frame carries zero payload bytes; returning
@@ -683,13 +689,14 @@ class StorePhase1a:
                             [("g", decode_fn, [BYTES(entry["frame"])])]), ["g"])
         return as_bytes(require_returned(out["g"], "get_blob"))
 
-    def get_many(self, wants):
+    def get_many(self, wants, mapping=None):
         """Batched typed read: `wants` = list of (key, oid, getter-name).
 
         Verifies all entries in 4 MNCS invocations, checks types in 1,
         then decodes grouped by class. Returns {key: value}.
         """
-        entries = [self.load_committed(oid) for _, oid, _ in wants]
+        entries = [self.load_committed(oid, mapping=mapping)
+                   for _, oid, _ in wants]
         verified = self.verify_batch(entries)
         self._require_types(
             verified,

@@ -1,4 +1,4 @@
-mncs 0.10;
+mncs 0.13;
 
 // store.descriptor — Phase 1 native representation descriptors (RFC 0003).
 //
@@ -254,4 +254,137 @@ fn row_roundtrip(
     let encoded: [byte; 16] = encode(type_tag, scalar_tag, rank, dim0, byte_len, alignment);
     let view: [byte; up_to 16] = encoded[0..16];
     return validate(view) == 0;
+}
+
+// Descriptor v2 (RFC 0017): identical 16-byte layout, version byte 2.
+// The sole semantic change is the BYTE_SEQ validity row: dim 0..992
+// (the multi-chunk object ceiling: 31 chunks x 32 bytes), len == dim.
+// Scalar and pair rows are unchanged. v1 validation is frozen: `validate`
+// still rejects dim > 32, and `validate2` still rejects version != 2, so
+// neither generation can silently admit the other's descriptors
+// (invariant 8: unknown versions fail explicitly).
+fn encode2(
+    type_tag: byte,
+    scalar_tag: byte,
+    rank: byte,
+    dim0: u16,
+    byte_len: u32,
+    alignment: byte
+) -> (result: [byte; 16]) {
+    let d0h: byte = (dim0 / 256) as byte;
+    let d0l: byte = (dim0 % 256) as byte;
+    let l0: byte = (byte_len / 16777216) as byte;
+    let lr0: u32 = byte_len % 16777216;
+    let l1: byte = (lr0 / 65536) as byte;
+    let lr1: u32 = lr0 % 65536;
+    let l2: byte = (lr1 / 256) as byte;
+    let l3: byte = (lr1 % 256) as byte;
+    return [77, 68, 2, type_tag, scalar_tag, rank, d0h, d0l,
+        l0, l1, l2, l3, alignment, 0, 1, 0];
+}
+
+// Total validation for descriptor v2 over an untrusted view. Codes match
+// v1 (0 OK, 1 BAD_VIEW_LEN, 2 BAD_MAGIC, 3 BAD_VERSION, 4 BAD_TYPE_TAG,
+// 5 BAD_SCALAR_TAG, 6 BAD_RANK, 7 BAD_DIM, 8 BAD_ALIGN, 9 BAD_LAYOUT,
+// 10 BAD_ENDIAN, 11 BAD_RESERVED, 12 LEN_MISMATCH, 13 ROW_MISMATCH);
+// code 3 fires unless the version byte is exactly 2.
+fn validate2(view: [byte; up_to 16]) -> (result: u64) {
+    if view.len != 16 {
+        return 1;
+    }
+    if view[0] != 77 || view[1] != 68 {
+        return 2;
+    }
+    if view[2] != 2 {
+        return 3;
+    }
+    let type_tag: byte = view[3];
+    let scalar_tag: byte = view[4];
+    let rank: byte = view[5];
+    if type_tag != 1 && type_tag != 2 && type_tag != 3 && type_tag != 4 {
+        return 4;
+    }
+    if scalar_tag != 1 && scalar_tag != 2 && scalar_tag != 3 && scalar_tag != 4 {
+        return 5;
+    }
+    if rank != 0 && rank != 1 {
+        return 6;
+    }
+    let dim0: u16 = (((view[6] as u16) *% 256) + (view[7] as u16)) as u16;
+    let byte_len: u32 = desc_len(view);
+    let alignment: byte = view[12];
+    if type_tag == 1 {
+        if scalar_tag != 3 || rank != 0 || dim0 != 1 {
+            return 13;
+        }
+        if alignment != 4 {
+            return 8;
+        }
+        if byte_len != 4 {
+            return 12;
+        }
+    }
+    if type_tag == 2 {
+        if scalar_tag != 4 || rank != 0 || dim0 != 1 {
+            return 13;
+        }
+        if alignment != 8 {
+            return 8;
+        }
+        if byte_len != 8 {
+            return 12;
+        }
+    }
+    if type_tag == 3 {
+        if scalar_tag != 1 || rank != 1 {
+            return 13;
+        }
+        if (dim0 as u32) > 992 {
+            return 7;
+        }
+        if alignment != 1 {
+            return 8;
+        }
+        if byte_len != dim0 as u32 {
+            return 12;
+        }
+    }
+    if type_tag == 4 {
+        if scalar_tag != 3 || rank != 0 || dim0 != 2 {
+            return 13;
+        }
+        if alignment != 4 {
+            return 8;
+        }
+        if byte_len != 8 {
+            return 12;
+        }
+    }
+    if view[13] != 0 {
+        return 9;
+    }
+    if view[14] != 1 {
+        return 10;
+    }
+    if view[15] != 0 {
+        return 11;
+    }
+    return 0;
+}
+
+fn describe_blob2(total_len: u16) -> (result: [byte; 16]) {
+    return encode2(3, 1, 1, total_len, total_len as u32, 1);
+}
+
+fn row_roundtrip2(
+    type_tag: byte,
+    scalar_tag: byte,
+    rank: byte,
+    dim0: u16,
+    byte_len: u32,
+    alignment: byte
+) -> (result: bool) {
+    let encoded: [byte; 16] = encode2(type_tag, scalar_tag, rank, dim0, byte_len, alignment);
+    let view: [byte; up_to 16] = encoded[0..16];
+    return validate2(view) == 0;
 }

@@ -42,3 +42,11 @@ Affected backend(s) / target(s), if known: all (frontend rule).
 Severity: minor
 
 Status: workaround (compound idiom, pinned by ordering corpus cases)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+`left < right` over `byte` elaborates and executes (the old MNE121
+reproducer now completes). Removed from `content_less` together with
+P1-009; same corpus evidence.

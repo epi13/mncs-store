@@ -52,3 +52,15 @@ Affected backend(s) / target(s), if known: all (ABI-shape gap).
 Severity: moderate
 
 Status: workaround (code tables + corpus pins)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+`mncs.core.result.v1` still shapes Result-with-payload as a nominal
+record (unconstructible across the boundary per P1-014) and `fail`
+carries no structured payload the harness can match. The u64-code
+discipline grew as designed: validate_v2 (0-10), header_validate (0-5),
+conflict_validate (0-4), snap_validate (0-4), commit/recovery outcome
+codes — each pinned by corpus cases. Two-sided tables (MNCS comments +
+host mapping) remain the failure mode; no drift observed.
+
+Severity: moderate (unchanged).

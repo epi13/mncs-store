@@ -57,3 +57,17 @@ Affected backend(s) / target(s), if known: all (type-system rule).
 Severity: moderate
 
 Status: workaround (inline checks + widest-view signatures)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+`[byte; up_to 8]` into a `[byte; up_to 64]` parameter still fails
+(MNE117 + MNE133, reproduced 2026-09-10). Hit live during this run: the
+planned in-language generation-header round trip was removed because an
+8-byte header view cannot feed `header_validate`'s up_to-1024 view; the
+corpus pins the round trip across the harness boundary instead.
+Widest-view signatures stay (validate_v2 takes up_to 1024; narrow
+callers go through the host).
+
+Severity: moderate (unchanged; interacts with every new validator).

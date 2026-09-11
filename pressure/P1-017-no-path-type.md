@@ -49,3 +49,14 @@ Affected backend(s) / target(s), if known: all (type absence).
 Severity: moderate
 
 Status: blocked (layout naming host-owned)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+No string/path/filename type in any 0.13 feature list. The fs_* design
+deliberately avoids paths: u64 entry indices plus <= 64-byte name values
+keep authority in grants and indices as data. Layout derivation
+(digest -> hex filename) stays host `bytes.hex()`; names crossing into
+MNCS are opaque bytes. The pressure narrows (indices compose better than
+nothing) but the type absence stands.
+
+Severity: moderate (unchanged).

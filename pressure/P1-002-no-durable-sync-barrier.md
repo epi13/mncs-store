@@ -50,3 +50,16 @@ weakened barriers, which must then be DECLARED, not silent.
 Severity: blocker (for any durability claim; visibility-only commits work)
 
 Status: blocked
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+No sync/fsync/flush primitive exists in any profile (source grep over
+`crates/mncs-compiler/src/frontend.rs`, `mncs-model`, `mncs-syntax`:
+zero hits for fsync/fdatasync/sync-barrier effects). `host_write`
+appending without a barrier still cannot distinguish "visible to this
+process" from "durable". Durability acknowledgments stay host-side
+(`os.fsync` ordering in the driver).
+
+Severity: still blocker for any in-language durability claim.

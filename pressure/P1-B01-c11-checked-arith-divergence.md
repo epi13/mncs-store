@@ -61,3 +61,16 @@ executable backends, on x86_64 Linux, clang toolchain).
 Severity: major (backend-specific correctness divergence)
 
 Status: workaround (wrapping discipline) + pinned (canary + allowlist)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — STILL_REPRODUCES
+
+Compiler: mncs-language 890a653, Source Profile 0.13, x86_64 Linux.
+
+`decode-plain-max` (255,255,255,254 -> 4294967294) still returns exact
+values on bytecode/wasm/llvm/cranelift and still reports runtime_failure
+on mncs-c11 (reproduced 2026-09-10 via the checked-in canary corpus).
+The KNOWN_DIVERGENCES allowlist entry stays with stale-entry discipline.
+All store decoders (old and new, including v2 length fields) keep the
+wrapping formulation, so no store path executes the divergent shape.
+
+Severity: major backend correctness divergence (unchanged).

@@ -50,3 +50,18 @@ Affected backend(s) / target(s), if known: all (profile-level rule).
 Severity: moderate
 
 Status: workaround (indexing discipline; no nested loops needed in 1a)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — RESOLVED
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Bounds are 1..=1024 per level with a 1024x1024 = 1M static work envelope.
+Verified: `scan64` (the old MNE142 reproducer) and a 1024-wide traversal
+both elaborate and execute; 32-byte digest loops sit at 3% of the
+ceiling instead of exactly at it. Nesting stays 2 levels (sufficient:
+the store's deepest nesting is 1 level + callee loops, product 32k <<
+1M). No store workaround remains for iteration shape; loops read
+naturally at every width used (4/8/16/32/1024).
+
+Kept as regression evidence: the corpus pins bound-32 digest loops and
+the new 1024 scan covers the ceiling.

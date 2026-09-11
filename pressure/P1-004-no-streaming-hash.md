@@ -62,3 +62,22 @@ Affected backend(s) / target(s), if known: all (intrinsic-shape absence).
 Severity: major
 
 Status: partially implemented (single-chunk path complete; multi-chunk deferred)
+
+## Re-baseline 2026-09-10 (Source Profile 0.13) — REFRAMED (see P2-001)
+
+Compiler: mncs-language 890a653, Source Profile 0.13.
+
+Elaboration widened: `sha256_digest` accepts any byte-view width (a
+128-byte view elaborates; only the standard CMP301 view-range note).
+Realization did NOT widen: `host_view_bytes` caps effect operands at
+HOST_GRANT_MAX_BYTES = 64, so digesting > 64 bytes fails at execution
+with InvalidRequest ("sha256_digest requires one byte-view operand",
+reproduced 2026-09-10). Still no init/update/finalize streaming shape.
+
+The store answers with a Merkle chain of <= 64-byte steps (manifest v2,
+RFC 0017) instead of single-shot roots. The pressure is reframed from
+"single-shot over <= 64 B views only" to "single-shot realization bound
+64 B with no incremental API" and continues as P2-001.
+
+Severity now: major (bounded workaround complete; arbitrary sizes still
+impossible).
