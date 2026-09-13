@@ -1,0 +1,12 @@
+{
+  "schema_version": "mncs-family.repository-manifest/v0alpha1",
+  "repository": "mncs-store",
+  "revision": 1,
+  "manifest_location": "in-repository",
+  "authority": {"note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."},
+  "contracts": {
+    "provides": [{"contract": "persistent-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/", "docs/invariants.md"]}],
+    "consumes": [{"contract": "mncs-language.source-profile", "envelope": {"op": "compatible-minor", "version": "0.16"}, "required": true, "evidence_refs": ["tests/mncs_exec.py"]}],
+    "tests": [{"test": "store-tests", "covers": ["persistent-state"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}}]
+  }
+}
