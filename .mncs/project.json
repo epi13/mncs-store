@@ -5,8 +5,12 @@
   "manifest_location": "in-repository",
   "authority": {"note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."},
   "contracts": {
-    "provides": [{"contract": "persistent-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/", "docs/invariants.md"]}],
-    "consumes": [{"contract": "mncs-language.source-profile", "envelope": {"op": "compatible-minor", "version": "0.16"}, "required": true, "evidence_refs": ["tests/mncs_exec.py"]}],
-    "tests": [{"test": "store-tests", "covers": ["persistent-state"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}}]
+    "provides": [
+      {"contract": "persistent-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/", "docs/invariants.md"]},
+      {"contract": "typed-relations", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/relationship.mncs", "src/store/provenance.mncs"]},
+      {"contract": "commit-feed", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/commit_feed.mncs"]}
+    ],
+    "consumes": [{"contract": "mncs-language.source-profile", "envelope": {"op": "compatible-minor", "version": "0.16", "minimum_required": "0.16", "compatibility_ceiling": "0.18"}, "required": true, "evidence_refs": ["src/store/publication.mncs", "tests/mncs_exec.py"]}, {"contract": "mncs.ingest.typed-handoff", "envelope": {"op": "exact", "version": "1"}, "required": true, "evidence_refs": ["src/store/relationship.mncs"]}],
+    "tests": [{"test": "store-native-substrate", "covers": ["persistent-state", "typed-relations", "commit-feed"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/test_native_substrate.py", "-q"]}}, {"test": "store-tests", "covers": ["persistent-state"], "obligation": "scheduled", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}}]
   }
 }

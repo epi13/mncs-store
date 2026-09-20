@@ -16,6 +16,16 @@ Machine-native persistent storage for MNCS: typed objects, graphs, tensors, mode
 > [RFC 0017](rfcs/0017-phase2-multichunk-generations-recovery.md), and
 > [pressure/PHASE2-PRESSURE-SUMMARY.md](pressure/PHASE2-PRESSURE-SUMMARY.md).
 
+The current substrate tranche adds a bounded typed-state slice without
+changing those frozen bytes. `store.relationship.v1` (80 bytes),
+`store.provenance.v1` (112 bytes), and `store.commit_feed.v1` (56 bytes) are
+versioned native records stored separately from object payload chunks. A
+retained `mncs-embed` session now serves repeated semantic batches in the
+Store driver; the filesystem lifecycle remains an explicit host boundary
+until the larger generation publication protocol can use granted effects
+without weakening atomicity or no-follow safety. See
+[docs/machine-native-substrate.md](docs/machine-native-substrate.md).
+
 ## Why this exists
 
 MNCS components increasingly need durable state, but repeatedly reducing machine state to JSON, rows, documents, or application-specific blobs throws away information the machine already knows: type, layout, alignment, shape, provenance, relations, generation, placement, integrity, and hardware affinity.
@@ -144,6 +154,8 @@ The RFCs are initial architectural decisions, not declarations that implementati
 | Semantic corpora (300+ cases) | `tests/corpora/*.json` | independent oracles; pure suites all backends, hash suites bytecode (P1-B02) |
 | Lifecycle + corruption tests | `tests/test_lifecycle.py` | close/reopen, torn/corrupt rejection |
 | Generation/recovery/fault tests | `tests/test_phase2.py` | boundaries, CAS, snapshots, 7-point fault matrix, reclamation |
+| Typed relations/provenance/feed | `src/store/relationship.mncs`, `src/store/provenance.mncs`, `src/store/commit_feed.mncs` | fixed versioned records, separate persistence, generation-bound validation |
+| Retained semantic boundary | `tests/retained_session.py` | one admitted artifact across Store batches; C ABI is transport only |
 | Language pressure (23 P1 + 8 P2) | `pressure/` | re-baselined 2026-09-10; see PHASE2-PRESSURE-SUMMARY.md |
 
 Run the suite: `cd tests && python3 -m pytest . -q`

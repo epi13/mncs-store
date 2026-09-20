@@ -1,0 +1,32 @@
+mncs 0.16;
+
+// store.publication.v1 — native publication policy and bounded filesystem
+// effect boundary.
+//
+// `publication_admit` owns the semantic decision that a candidate may be
+// published.  `publish` owns the ordinary sequence available in Profile
+// 0.16: create the staged bytes, sync them, rename into the published name,
+// then sync the published entry.  The runtime/host still supplies the
+// granted root and realizes the platform filesystem mechanics.
+module store.publication.v1;
+
+fn publication_admit(content_valid: bool, root_valid: bool, durable_valid: bool, recovery_valid: bool) -> (result: u64) {
+    if content_valid && root_valid && durable_valid && recovery_valid {
+        return 0;
+    }
+    return 1;
+}
+
+fn publish(staging: [byte; up_to 64], published: [byte; up_to 64], content: [byte; up_to 64]) -> (result: u64)
+    capability fs_root
+    effect fs_write authorized_by fs_root
+{
+    let staged: u64 = fs_create_file(staging, content);
+    let staged_sync: u64 = fs_sync_at(staged);
+    let final_entry: u64 = fs_rename_at(staged, published);
+    let final_sync: u64 = fs_sync_at(final_entry);
+    if staged_sync == 0 || final_sync == 0 {
+        return 0 -% 1;
+    }
+    return final_entry;
+}

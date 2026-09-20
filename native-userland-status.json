@@ -1,0 +1,32 @@
+{
+  "schema_version": "mncs.native-userland-status/1",
+  "repository_id": "mncs-store",
+  "status": "native_canonical_with_retained_session_host_lifecycle_boundary",
+  "canonical_entrypoint": "StorePhase2 typed object/generation path plus store.*.mncs semantic modules",
+  "native_sources": {
+    "frozen_identity_and_content_domains": "src/store/identity.mncs",
+    "frozen_and_versioned_representation": "src/store/descriptor.mncs",
+    "chunk_manifest_and_integrity": "src/store/chunk.mncs and src/store/manifest.mncs",
+    "generation_recovery_and_reclamation": "src/store/generation.mncs and src/store/recovery.mncs",
+    "typed_relationships": "src/store/relationship.mncs",
+    "typed_provenance": "src/store/provenance.mncs",
+    "index_change_feed": "src/store/commit_feed.mncs",
+    "publication_admission": "src/store/publication.mncs",
+    "typed_record_persistence": "tests/store_phase2.py::persist_typed_commit",
+    "retained_execution": "tests/retained_session.py::RetainedEngine"
+  },
+  "frozen_encodings": [
+    "store.identity.v1 object id and digest widths",
+    "store.descriptor.v1 descriptor bytes",
+    "store.chunk.v1 frames and digest inputs",
+    "store.manifest.v1 and v2 headers/chains",
+    "store.generation.v1 generation/header/record bytes",
+    "store.recovery.v1 decision vocabulary"
+  ],
+  "native_shadow_slices": [
+    "Python StorePhase2 remains the differential lifecycle/orchestration driver and host transport",
+    "host file create/read/fsync/rename/delete and directory recovery remain platform mechanics",
+    "large-file generation publication is not yet routed through the effectful entrypoint"
+  ],
+  "next_migration_slice": "route the large generation/current-pointer publication sequence through granted effects once a bounded handle/path protocol and no-follow metadata contract are available"
+}

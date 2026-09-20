@@ -62,6 +62,10 @@ SRC_MANIFEST = "src/store/manifest.mncs"
 SRC_IDENTITY = "src/store/identity.mncs"
 SRC_GENERATION = "src/store/generation.mncs"
 SRC_RECOVERY = "src/store/recovery.mncs"
+SRC_PUBLICATION = "src/store/publication.mncs"
+SRC_RELATION = "src/store/relationship.mncs"
+SRC_PROVENANCE = "src/store/provenance.mncs"
+SRC_FEED = "src/store/commit_feed.mncs"
 
 MOD_CHUNK = "store.chunk.v1"
 MOD_DESC = "store.descriptor.v1"
@@ -69,6 +73,10 @@ MOD_MANIFEST = "store.manifest.v1"
 MOD_IDENTITY = "store.identity.v1"
 MOD_GENERATION = "store.generation.v1"
 MOD_RECOVERY = "store.recovery.v1"
+MOD_PUBLICATION = "store.publication.v1"
+MOD_RELATION = "store.relationship.v1"
+MOD_PROVENANCE = "store.provenance.v1"
+MOD_FEED = "store.commit_feed.v1"
 
 # Reclamation scans exceed the default 32k budget (measured ~34k steps).
 SCAN_BUDGET = 65536
@@ -135,6 +143,163 @@ class StorePhase2(StorePhase1a):
         super().__init__(path, engine)
         self._retained = set()  # snapshot-pinned generations (in-memory)
         self.trace = []  # MNCS commit-transition trace of the last commit
+        self.publication_trace = []  # native admission decisions + host boundary
+
+    @classmethod
+    def create(cls, path, engine=None):
+        """Create a Phase-2 store with separate typed-state areas.
+
+        Relations, provenance, and commit feeds are not folded into opaque
+        object payloads.  Their bytes are still admitted by their own MNCS
+        validators and are published through these mechanically named areas.
+        """
+        self = super().create(path, engine)
+        self._ensure_typed_dirs()
+        _fsync_dir(self.path)
+        return self
+
+    def _ensure_typed_dirs(self):
+        for sub in ("relations", "provenance", "feeds"):
+            os.makedirs(self._p(sub), exist_ok=True)
+
+    def _open(self):
+        super()._open()
+        self._ensure_typed_dirs()
+
+    def _publication_admit(self, content_valid, root_valid, durable_valid,
+                           recovery_valid):
+        """Ask MNCS whether the candidate may cross the publication edge.
+
+        The host supplies observations gathered from the platform boundary;
+        it does not choose the semantic outcome.  The actual file operations
+        remain here until the effectful entrypoint is wired to the runtime
+        grant adapter, and are recorded as a host mechanics boundary.
+        """
+        out = self._mncs(
+            SRC_PUBLICATION,
+            MOD_PUBLICATION,
+            [("admit", "publication_admit", [
+                B(content_valid), B(root_valid), B(durable_valid),
+                B(recovery_valid),
+            ])],
+        )
+        decision = as_int(require_returned(out["admit"], "publication admission"))
+        self.publication_trace.append({
+            "decision": decision,
+            "content_valid": bool(content_valid),
+            "root_valid": bool(root_valid),
+            "durable_valid": bool(durable_valid),
+            "recovery_valid": bool(recovery_valid),
+            "host_boundary": "filesystem create/fsync/rename/fsync",
+        })
+        return decision
+
+    def _validate_typed_record(self, source, module, raw):
+        out = self._mncs(
+            source,
+            module,
+            [("validate", "validate", [BYTES(bytes(raw))])],
+        )
+        code = as_int(require_returned(out["validate"], "typed record validation"))
+        if code != 0:
+            raise IntegrityError(
+                f"{module}: typed record rejected by MNCS validation code {code}"
+            )
+
+    def persist_typed_commit(self, feed, relations=(), provenance=()):
+        """Persist first-class relation/provenance records for this generation.
+
+        The feed is the commit boundary: native projectors verify that its
+        generation and declared counts agree with the typed records before
+        host filesystem publication.  The host chooses only placement and
+        create-exclusive mechanics; it never decodes an application blob.
+        """
+        if self._mapping is None:
+            raise StoreError("store is closed")
+        feed = bytes(feed)
+        relations = tuple(bytes(value) for value in relations)
+        provenance = tuple(bytes(value) for value in provenance)
+
+        feed_out = self._mncs(
+            SRC_FEED,
+            MOD_FEED,
+            [
+                ("validate", "validate", [BYTES(feed)]),
+                ("generation", "generation", [BYTES(feed)]),
+                ("objects", "objects", [BYTES(feed)]),
+                ("relations", "relations", [BYTES(feed)]),
+                ("provenance", "provenance", [BYTES(feed)]),
+            ],
+        )
+        feed_code = as_int(require_returned(feed_out["validate"], "feed validation"))
+        if feed_code != 0:
+            raise IntegrityError(f"{MOD_FEED}: feed rejected by MNCS validation code {feed_code}")
+        feed_generation = as_int(require_returned(feed_out["generation"], "feed generation"))
+        feed_objects = as_int(require_returned(feed_out["objects"], "feed objects"))
+        feed_relations = as_int(require_returned(feed_out["relations"], "feed relations"))
+        feed_provenance = as_int(require_returned(feed_out["provenance"], "feed provenance"))
+        if feed_generation != self._gen:
+            raise IntegrityError(
+                f"typed feed generation {feed_generation} does not match Store generation {self._gen}"
+            )
+        if feed_relations != len(relations) or feed_provenance != len(provenance):
+            raise IntegrityError("typed feed counts do not match supplied records")
+        if feed_objects > len(self._mapping):
+            raise IntegrityError("typed feed object count exceeds committed object count")
+
+        relation_calls = []
+        for index, raw in enumerate(relations):
+            relation_calls.append((f"r{index}", "validate", [BYTES(raw)]))
+            relation_calls.append((f"rg{index}", "generation", [BYTES(raw)]))
+        if relation_calls:
+            relation_out = self._mncs(SRC_RELATION, MOD_RELATION, relation_calls)
+            for index in range(len(relations)):
+                code = as_int(require_returned(relation_out[f"r{index}"], "relation validation"))
+                generation = as_int(require_returned(relation_out[f"rg{index}"], "relation generation"))
+                if code != 0 or generation != self._gen:
+                    raise IntegrityError("relation validation or generation binding failed")
+
+        provenance_calls = []
+        for index, raw in enumerate(provenance):
+            provenance_calls.append((f"p{index}", "validate", [BYTES(raw)]))
+            provenance_calls.append((f"pg{index}", "generation", [BYTES(raw)]))
+        if provenance_calls:
+            provenance_out = self._mncs(SRC_PROVENANCE, MOD_PROVENANCE, provenance_calls)
+            for index in range(len(provenance)):
+                code = as_int(require_returned(provenance_out[f"p{index}"], "provenance validation"))
+                generation = as_int(require_returned(provenance_out[f"pg{index}"], "provenance generation"))
+                if code != 0 or generation != self._gen:
+                    raise IntegrityError("provenance validation or generation binding failed")
+
+        for raw in relations:
+            _write_create_exclusive(self._p("relations", raw.hex()), raw)
+        for raw in provenance:
+            _write_create_exclusive(self._p("provenance", raw.hex()), raw)
+        _write_create_exclusive(self._p("feeds", feed.hex()), feed)
+        _fsync_dir(self._p("relations"))
+        _fsync_dir(self._p("provenance"))
+        _fsync_dir(self._p("feeds"))
+
+    def typed_records(self, kind):
+        """Return canonical typed records, validating each on read."""
+        if self._mapping is None:
+            raise StoreError("store is closed")
+        sources = {
+            "relations": (SRC_RELATION, MOD_RELATION),
+            "provenance": (SRC_PROVENANCE, MOD_PROVENANCE),
+            "feeds": (SRC_FEED, MOD_FEED),
+        }
+        if kind not in sources:
+            raise ValueError(f"unknown typed record kind: {kind}")
+        source, module = sources[kind]
+        records = []
+        directory = self._p(kind)
+        for name in sorted(os.listdir(directory)):
+            with open(os.path.join(directory, name), "rb") as stream:
+                raw = stream.read()
+            self._validate_typed_record(source, module, raw)
+            records.append(raw)
+        return records
 
     def _open(self):
         super()._open()
@@ -408,6 +573,15 @@ class StorePhase2(StorePhase1a):
         state = self._transition(state, True)
         # DURABLE_PREREQ: barriers the language cannot yet name (P1-002).
         self._persist_meta()
+        code, _, _ = self._classify_generation_file(new_gen)
+        if self._publication_admit(
+            content_valid=True,
+            root_valid=code == 0,
+            durable_valid=True,
+            recovery_valid=code == 0,
+        ) != 0:
+            self._transition(state, False)
+            raise IntegrityError("native publication policy rejected candidate")
         fault("before-current")
         self._write_current(new_gen)
         _fsync_dir(self.path)
@@ -1039,4 +1213,3 @@ def _verify_fn_for(width):
     except KeyError:
         raise IntegrityError(
             f"unsupported frame payload width {width}")
-

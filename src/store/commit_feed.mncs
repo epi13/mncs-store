@@ -1,0 +1,175 @@
+mncs 0.13;
+
+// store.commit_feed.v1 — deterministic change metadata consumed by Index.
+//
+// This is a derived description of a Store commit, not a second data store.
+//
+//   0..1   magic MC
+//   2      representation version
+//   3      flags (reserved)
+//   4..11  committed Store generation
+//   12..15 object count
+//   16..19 relation count
+//   20..23 provenance count
+//   24..55 canonical root/content digest
+module store.commit_feed.v1;
+
+record Feed {
+    generation: u64,
+    objects: u64,
+    relations: u64,
+    provenance: u64,
+    root: [byte; 32]
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn u32_bytes(value: u64) -> (result: [byte; 4]) {
+    let b0: byte = (value / 16777216) as byte;
+    let r0: u64 = value % 16777216;
+    let b1: byte = (r0 / 65536) as byte;
+    let r1: u64 = r0 % 65536;
+    let b2: byte = (r1 / 256) as byte;
+    let b3: byte = (r1 % 256) as byte;
+    return [b0, b1, b2, b3];
+}
+
+fn copy(out: [byte; 56], offset: u64, value: [byte; 32]) -> (result: [byte; 56]) {
+    iterate i over value carrying row: [byte; 56] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy8(out: [byte; 56], offset: u64, value: [byte; 8]) -> (result: [byte; 56]) {
+    iterate i over value carrying row: [byte; 56] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy4(out: [byte; 56], offset: u64, value: [byte; 4]) -> (result: [byte; 56]) {
+    iterate i over value carrying row: [byte; 56] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: Feed) -> (result: [byte; 56]) {
+    let seed: [byte; 56] = [0; 56];
+    let tagged: [byte; 56] = replace(replace(replace(replace(seed,
+        0, 77), 1, 67), 2, 1), 3, 0);
+    let g: [byte; 56] = copy8(tagged, 4, u64_bytes(value.generation));
+    let o: [byte; 56] = copy4(g, 12, u32_bytes(value.objects));
+    let r: [byte; 56] = copy4(o, 16, u32_bytes(value.relations));
+    let p: [byte; 56] = copy4(r, 20, u32_bytes(value.provenance));
+    return copy(p, 24, value.root);
+}
+
+// Codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 56]) -> (result: u64) {
+    if view.len != 56 { return 1; }
+    if view[0] != 77 || view[1] != 67 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    return 0;
+}
+
+fn generation(view: [byte; 56]) -> (result: u64) {
+    let b0: u64 = (view[4] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[5] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[6] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[7] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[8] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[9] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[10] as u64) *% 256);
+    return b6 +% (view[11] as u64);
+}
+
+fn objects(view: [byte; 56]) -> (result: u64) {
+    return ((view[12] as u64) *% 16777216)
+        +% ((view[13] as u64) *% 65536)
+        +% ((view[14] as u64) *% 256)
+        +% (view[15] as u64);
+}
+
+fn relations(view: [byte; 56]) -> (result: u64) {
+    return ((view[16] as u64) *% 16777216)
+        +% ((view[17] as u64) *% 65536)
+        +% ((view[18] as u64) *% 256)
+        +% (view[19] as u64);
+}
+
+fn provenance(view: [byte; 56]) -> (result: u64) {
+    return ((view[20] as u64) *% 16777216)
+        +% ((view[21] as u64) *% 65536)
+        +% ((view[22] as u64) *% 256)
+        +% (view[23] as u64);
+}
+
+fn root(view: [byte; 56]) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[24 +% i]);
+    }
+    return row;
+}
+
+fn equal32(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn through(index_generation: u64, store_generation: u64) -> (result: u64) {
+    if index_generation == store_generation { return 0; }
+    if index_generation < store_generation { return 1; }
+    return 2;
+}
+
+fn roundtrip(value: Feed) -> (result: bool) {
+    let bytes: [byte; 56] = encode(value);
+    return validate(bytes) == 0
+        && generation(bytes) == value.generation
+        && objects(bytes) == value.objects
+        && relations(bytes) == value.relations
+        && provenance(bytes) == value.provenance
+        && equal32(root(bytes), value.root);
+}
+
+fn encode_fields(generation_value: u64, objects_value: u64, relations_value: u64, provenance_value: u64, root_value: [byte; 32]) -> (result: [byte; 56]) {
+    return encode(Feed {
+        generation: generation_value,
+        objects: objects_value,
+        relations: relations_value,
+        provenance: provenance_value,
+        root: root_value
+    });
+}
+
+fn roundtrip_fields(generation_value: u64, objects_value: u64, relations_value: u64, provenance_value: u64, root_value: [byte; 32]) -> (result: bool) {
+    return roundtrip(Feed {
+        generation: generation_value,
+        objects: objects_value,
+        relations: relations_value,
+        provenance: provenance_value,
+        root: root_value
+    });
+}

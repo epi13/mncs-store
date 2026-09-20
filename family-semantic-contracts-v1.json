@@ -1,0 +1,27 @@
+{
+  "schema_version": "commons.mncs.semantic-contract-declarations/v1",
+  "repository_id": "mncs-store",
+  "revision": "1",
+  "provides": [
+    {
+      "contract_identity": "mncs.store.persistent-state/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:persistent-state",
+      "evidence": "native-userland-status.json"
+    }
+  ],
+  "consumes": [
+    {
+      "contract_identity": "mncs.ingest.typed-handoff/1",
+      "contract_revision": "1",
+      "consumer_identity": "mncs-store:typed-handoff-input",
+      "evidence": "src/store/relationship.mncs",
+      "verification": {
+        "check_identity": "mncs-store:typed-handoff-input",
+        "executor": "mncs-store",
+        "surface": "typed-handoff-to-persistent-state",
+        "evidence": "family-verification-checks-v1.json"
+      }
+    }
+  ]
+}

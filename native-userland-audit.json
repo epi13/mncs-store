@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs.native-userland-audit/1",
+  "repository_id": "mncs-store",
+  "profile_revalidation": {
+    "historical_source_profile": "0.13",
+    "minimum_profile_for_frozen_pure_modules": "0.13",
+    "minimum_profile_for_publication_module": "0.16",
+    "current_family_compatibility": "0.18",
+    "reason": "Profile 0.16 filesystem effects are now used by the versioned publication contract; Profile 0.18 is the family compatibility ceiling, not a claim that every frozen module needs 0.18 semantics."
+  },
+  "surfaces": {
+    "canonical_machine_state": ["src/store/*.mncs", "committed chunks/manifests/generations"],
+    "transport_only": ["tests/mncs_exec.py JSON request/response envelope"],
+    "host_platform_boundary": ["tests/store_phase1a.py", "tests/store_phase2.py"],
+    "differential_oracle": ["tests/test_native_substrate.py"]
+  },
+  "pressure_reclassification": [
+    {"legacy": "P1-001/P1-002/P1-003", "status": "partially_resolved", "note": "Profile 0.16 now expresses create/write/rename/sync; runtime effect wiring and directory durability remain host-bound."},
+    {"legacy": "P1-016", "status": "partially_resolved", "note": "Store now has a retained mncs-embed semantic driver and the focused typed-substrate path reuses one session across batches; the ordinary legacy lifecycle/reference matrix remains CLI-backed until the broader cutover is proven."},
+    {"legacy": "P2-008", "status": "still_real", "note": "Reclamation scan cost remains an explicit scheduled obligation, not an ordinary per-change suite."}
+  ]
+}
