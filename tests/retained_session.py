@@ -11,6 +11,7 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -19,7 +20,9 @@ from pathlib import Path
 from store_phase1a import Engine, StoreHarnessError
 
 
-STORE_ROOT = Path(__file__).resolve().parents[1]
+STORE_ROOT = Path(
+    os.environ.get("MNCS_STORE_ROOT", str(Path(__file__).resolve().parents[1]))
+)
 LANGUAGE_ROOT = Path(
     os.environ.get("MNCS_LANGUAGE_ROOT", "/home/epi13/Documents/Projects/mncs-language")
 )
@@ -32,6 +35,7 @@ EMBED_LIB = Path(
     )
 )
 BACKEND = "mncs-research-bytecode"
+APPLICATION_SOURCE = "src/store/application.mncs"
 
 
 class RetainedSession:
@@ -73,6 +77,7 @@ class RetainedSession:
         environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(
             [str(LANGUAGE_ROOT / "library"), str(STORE_ROOT / "src")]
         )
+        environment["MNCS_TIMINGS"] = "1"
         compile_started = time.perf_counter()
         completed = subprocess.run(
             [
@@ -93,6 +98,8 @@ class RetainedSession:
             check=False,
         )
         self.compile_seconds = time.perf_counter() - compile_started
+        self.compiler_timings = self._parse_timings(completed.stderr)
+        self.compiler_stderr = completed.stderr
         artifact_path = output_dir / "backend.json"
         if completed.returncode != 0 or not artifact_path.is_file():
             detail = (completed.stderr or completed.stdout)[-3000:]
@@ -114,6 +121,16 @@ class RetainedSession:
         self.batch_seconds: list[float] = []
         self.batch_sizes: list[int] = []
         self.closed = False
+
+    @staticmethod
+    def _parse_timings(stderr):
+        timings = {}
+        for line in stderr.splitlines():
+            match = re.search(r"mncs-timing stage=([^ ]+)(?: .*?exclusive_elapsed_ms=([0-9]+)| .*?elapsed_ms=([0-9]+))", line)
+            if match:
+                value = match.group(2) or match.group(3)
+                timings[match.group(1)] = int(value)
+        return timings
 
     @staticmethod
     def _grants(values):
@@ -214,22 +231,26 @@ class RetainedSession:
 class RetainedEngine(Engine):
     """Store ``Engine`` compatibility backed by retained source sessions."""
 
-    def __init__(self, backend=BACKEND):
+    def __init__(self, backend=BACKEND, application_source=APPLICATION_SOURCE):
         super().__init__(backend=backend)
         if backend != BACKEND:
             raise StoreHarnessError("retained adapter currently supports research-bytecode only")
+        self.application_source = application_source
         self.sessions: dict[str, RetainedSession] = {}
+        self.source_aliases: dict[str, str] = {}
         self.cold_admission_seconds = 0.0
         self.session_reopen_seconds = []
         self._closed = False
 
     def run(self, source, module, calls, grants=()):
-        session = self.sessions.get(source)
+        admitted_source = self.application_source or source
+        session = self.sessions.get(admitted_source)
         if session is None:
             started = time.perf_counter()
-            session = RetainedSession(source)
+            session = RetainedSession(admitted_source)
             self.cold_admission_seconds += time.perf_counter() - started
-            self.sessions[source] = session
+            self.sessions[admitted_source] = session
+        self.source_aliases[source] = admitted_source
         self.invocations += 1
         output = session.call_batch(module, calls, grants=grants)
         self.bytes_out += len(str(calls))
@@ -256,6 +277,21 @@ class RetainedEngine(Engine):
             "session_open_seconds": sum(
                 getattr(session, "session_open_seconds", 0.0) for session in sessions
             ),
+            "compile_seconds": sum(
+                getattr(session, "compile_seconds", 0.0) for session in sessions
+            ),
+            "artifact_bytes": sum(len(getattr(session, "_artifact", b"")) for session in sessions),
+            "source_aliases": dict(sorted(self.source_aliases.items())),
+            "admission_by_source": [
+                {
+                    "source": session.source,
+                    "compile_seconds": session.compile_seconds,
+                    "session_open_seconds": session.session_open_seconds,
+                    "artifact_bytes": len(session._artifact),
+                    "compiler_timings_ms": dict(session.compiler_timings),
+                }
+                for session in sorted(sessions, key=lambda item: item.source)
+            ],
             "semantic_batch_count": len(batches),
             "semantic_call_count": len(calls),
             "mean_per_operation_seconds": (sum(calls) / len(calls)) if calls else 0.0,

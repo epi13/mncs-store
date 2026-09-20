@@ -242,12 +242,22 @@ def test_retained_session_reuses_one_admitted_artifact():
             "store.publication.v1",
             [calls[1]],
         )
+        relation = engine.run(
+            "src/store/relationship.mncs",
+            "store.relationship.v1",
+            [("relation", "roundtrip_fields", _relation_args())],
+        )
         assert as_int(require_returned(first["admit"], "retained admission")) == 0
         assert as_int(require_returned(second["reject"], "retained rejection")) == 1
+        assert as_bool(require_returned(relation["relation"], "consolidated relation"))
         metrics = engine.metrics()
         assert metrics["session_count"] == 1
-        assert metrics["semantic_batch_count"] == 2
-        assert metrics["semantic_call_count"] == 2
+        assert metrics["semantic_batch_count"] == 3
+        assert metrics["semantic_call_count"] == 3
+        assert metrics["source_aliases"] == {
+            "src/store/publication.mncs": "src/store/application.mncs",
+            "src/store/relationship.mncs": "src/store/application.mncs",
+        }
         assert metrics["cold_admission_seconds"] >= metrics["session_open_seconds"]
     finally:
         engine.close()

@@ -1,0 +1,27 @@
+mncs 0.18;
+
+// One Store provider artifact.  The application entrypoint is deliberately
+// small: the imported modules remain the owners of their schemas and
+// callable identities, while admission retains one artifact/session for the
+// complete Store semantic surface.
+module store.application.v1;
+
+use store.identity;
+use store.descriptor;
+use store.chunk;
+use store.manifest;
+use store.generation;
+use store.recovery;
+use store.publication;
+use store.relationship;
+use store.provenance;
+use store.commit_feed;
+use store.semantic_state;
+
+fn provider_version() -> (result: u64) {
+    return 1;
+}
+
+fn publication_admit(content_valid: bool, root_valid: bool, durable_valid: bool, recovery_valid: bool) -> (result: u64) {
+    return store.publication.publication_admit(content_valid, root_valid, durable_valid, recovery_valid);
+}

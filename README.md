@@ -149,7 +149,7 @@ The RFCs are initial architectural decisions, not declarations that implementati
 
 | Area | Where | Notes |
 |---|---|---|
-| Identity, descriptors, chunks, manifests, generations, recovery | `src/store/*.mncs` | mncs-language, Source Profile 0.13, no stdlib imports |
+| Identity, descriptors, chunks, manifests, generations, recovery | `src/store/*.mncs` | mncs-language; typed records remain Profile 0.13, publication uses Profile 0.18 for no-follow metadata, no stdlib imports |
 | Canonical encodings v1 (frozen) | `rfcs/0016-phase1-canonical-encodings.md` | single-chunk classes unchanged, still tested |
 | Multi-chunk + generations + recovery | `rfcs/0017-phase2-multichunk-generations-recovery.md` | manifest/descriptor v2, chained roots, CAS, snapshots, commit states |
 | Lifecycle driver (host transport) | `tests/store_phase1a.py` | files/fsync/rename only; semantics always MNCS |
