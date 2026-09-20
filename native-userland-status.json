@@ -11,6 +11,7 @@
     "typed_relationships": "src/store/relationship.mncs",
     "typed_provenance": "src/store/provenance.mncs",
     "index_change_feed": "src/store/commit_feed.mncs",
+    "typed_semantic_state": "src/store/semantic_state.mncs",
     "publication_admission": "src/store/publication.mncs",
     "typed_record_persistence": "tests/store_phase2.py::persist_typed_commit",
     "retained_execution": "tests/retained_session.py::RetainedEngine"

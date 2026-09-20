@@ -19,8 +19,11 @@ Machine-native persistent storage for MNCS: typed objects, graphs, tensors, mode
 The current substrate tranche adds a bounded typed-state slice without
 changing those frozen bytes. `store.relationship.v1` (80 bytes),
 `store.provenance.v1` (112 bytes), and `store.commit_feed.v1` (56 bytes) are
-versioned native records stored separately from object payload chunks. A
-retained `mncs-embed` session now serves repeated semantic batches in the
+versioned native records stored separately from object payload chunks.
+`store.semantic_state.v1` adds a 164-byte identity-bound payload for
+producer-supplied lifecycle, severity, evidence-set, supersession-set,
+generation, and completeness fields without making Store the authority for
+their meanings. A retained `mncs-embed` session now serves repeated semantic batches in the
 Store driver; the filesystem lifecycle remains an explicit host boundary
 until the larger generation publication protocol can use granted effects
 without weakening atomicity or no-follow safety. See

@@ -1,0 +1,108 @@
+mncs 0.13;
+
+// store.semantic_state.v1 — generic identity-bound semantic state payload.
+// Store persists producer-supplied codes and set identities; it does not
+// interpret Commons lifecycle or severity meanings.
+//
+// Fixed representation (164 bytes):
+//   SS1\0 | semantic subject | source content | lifecycle code |
+//   severity code | evidence-set identity | supersession-set identity |
+//   Store generation | completeness code
+module store.semantic_state.v1;
+
+record SemanticState {
+    semantic_subject: [byte; 32],
+    source_content: [byte; 32],
+    lifecycle: u64,
+    severity: u64,
+    evidence_identity: [byte; 32],
+    supersession_identity: [byte; 32],
+    generation: u64,
+    completeness: u64
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy8(out: [byte; 164], offset: u64, value: [byte; 8]) -> (result: [byte; 164]) {
+    iterate i over value carrying row: [byte; 164] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy32(out: [byte; 164], offset: u64, value: [byte; 32]) -> (result: [byte; 164]) {
+    iterate i over value carrying row: [byte; 164] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: SemanticState) -> (result: [byte; 164]) {
+    let seed: [byte; 164] = [0; 164];
+    let tagged: [byte; 164] = replace(replace(replace(replace(seed,
+        0, 83), 1, 83), 2, 1), 3, 0);
+    let semantic: [byte; 164] = copy32(tagged, 4, value.semantic_subject);
+    let source: [byte; 164] = copy32(semantic, 36, value.source_content);
+    let lifecycle: [byte; 164] = copy8(source, 68, u64_bytes(value.lifecycle));
+    let severity: [byte; 164] = copy8(lifecycle, 76, u64_bytes(value.severity));
+    let evidence: [byte; 164] = copy32(severity, 84, value.evidence_identity);
+    let supersession: [byte; 164] = copy32(evidence, 116, value.supersession_identity);
+    let generation: [byte; 164] = copy8(supersession, 148, u64_bytes(value.generation));
+    return copy8(generation, 156, u64_bytes(value.completeness));
+}
+
+// Codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 164]) -> (result: u64) {
+    if view.len != 164 { return 1; }
+    if view[0] != 83 || view[1] != 83 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    return 0;
+}
+
+fn roundtrip(value: SemanticState) -> (result: bool) {
+    let bytes: [byte; 164] = encode(value);
+    return validate(bytes) == 0;
+}
+
+fn encode_fields(semantic_value: [byte; 32], source_value: [byte; 32], lifecycle_value: u64, severity_value: u64, evidence_value: [byte; 32], supersession_value: [byte; 32], generation_value: u64, completeness_value: u64) -> (result: [byte; 164]) {
+    return encode(SemanticState {
+        semantic_subject: semantic_value,
+        source_content: source_value,
+        lifecycle: lifecycle_value,
+        severity: severity_value,
+        evidence_identity: evidence_value,
+        supersession_identity: supersession_value,
+        generation: generation_value,
+        completeness: completeness_value
+    });
+}
+
+fn roundtrip_fields(semantic_value: [byte; 32], source_value: [byte; 32], lifecycle_value: u64, severity_value: u64, evidence_value: [byte; 32], supersession_value: [byte; 32], generation_value: u64, completeness_value: u64) -> (result: bool) {
+    return roundtrip(SemanticState {
+        semantic_subject: semantic_value,
+        source_content: source_value,
+        lifecycle: lifecycle_value,
+        severity: severity_value,
+        evidence_identity: evidence_value,
+        supersession_identity: supersession_value,
+        generation: generation_value,
+        completeness: completeness_value
+    });
+}

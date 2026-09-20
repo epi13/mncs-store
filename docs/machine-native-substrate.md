@@ -10,6 +10,7 @@ representations that are not reinterpretations of the old object bytes.
 | `store.relationship.v1` | 80 bytes | typed edge kind, endpoints, generation, provenance identity, ordinal | logical endpoint vs relation generation |
 | `store.provenance.v1` | 112 bytes | source, producer, transformation, generation, evidence, ancestry | source/producer/transformation/evidence |
 | `store.commit_feed.v1` | 56 bytes | deterministic Store-to-Index change metadata | Store generation vs Index-through generation |
+| `store.semantic_state.v1` | 164 bytes | producer-supplied lifecycle/severity, evidence-set and supersession-set identities, generation, completeness | Store persists codes and set identities; Commons owns their meanings |
 
 The relationship and provenance records are persisted under separate Store
 areas and validated as their own native values. They are not JSON documents

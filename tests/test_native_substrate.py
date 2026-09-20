@@ -100,6 +100,34 @@ def test_commit_feed_reports_generation_freshness():
     assert as_int(require_returned(out["future"], "future freshness")) == 2
 
 
+def test_semantic_state_is_typed_and_identity_bound():
+    values = [
+        BYTES(bytes(range(32))),
+        BYTES(bytes(range(32, 64))),
+        U64(0),
+        U64(3),
+        BYTES(bytes(range(64, 96))),
+        BYTES(bytes(reversed(range(32)))),
+        U64(7),
+        U64(0),
+    ]
+    out = call_many(
+        "src/store/semantic_state.mncs",
+        "store.semantic_state.v1",
+        [
+            ("roundtrip", "roundtrip_fields", values),
+            ("encode", "encode_fields", values),
+        ],
+        RESEARCH,
+    )
+    assert as_bool(require_returned(out["roundtrip"], "semantic state roundtrip"))
+    state = as_bytes(require_returned(out["encode"], "semantic state encode"))
+    assert len(state) == 164
+    assert state[:4] == bytes.fromhex("53530100")
+    assert state[4:36] == bytes(range(32))
+    assert state[84:116] == bytes(range(64, 96))
+
+
 def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
     engine = RetainedEngine()
     relation_args = [

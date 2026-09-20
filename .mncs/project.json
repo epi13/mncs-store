@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 1,
+  "revision": 2,
   "manifest_location": "in-repository",
   "authority": {"note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."},
   "contracts": {
