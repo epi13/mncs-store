@@ -14,6 +14,18 @@
       "contract_revision": "1",
       "exported_identity": "mncs-store:semantic-state",
       "evidence": "src/store/semantic_state.mncs"
+    },
+    {
+      "contract_identity": "mncs.store.typed-relations/2",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:typed-relations-v2",
+      "evidence": "src/store/relationship/v2.mncs"
+    },
+    {
+      "contract_identity": "mncs.store.provenance/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:provenance",
+      "evidence": "src/store/provenance.mncs"
     }
   ],
   "consumes": [

@@ -8,15 +8,21 @@ representations that are not reinterpretations of the old object bytes.
 | `store.identity.v1` | 12/32-byte fields | logical objects and content/chunk/root roles | logical vs content/chunk/root |
 | `store.descriptor.v1` | 16 bytes | type tag, scalar/layout, shape, alignment, length | representation metadata vs payload |
 | `store.relationship.v1` | 80 bytes | typed edge kind, endpoints, generation, provenance identity, ordinal | logical endpoint vs relation generation |
+| `store.relationship.v2` | 172 bytes | generic relation type identity, endpoints, generation, provenance, ordinal, optional typed metadata identities | relation type identity vs endpoint/generation/metadata identities |
 | `store.provenance.v1` | 112 bytes | source, producer, transformation, generation, evidence, ancestry | source/producer/transformation/evidence |
 | `store.commit_feed.v1` | 56 bytes | deterministic Store-to-Index change metadata | Store generation vs Index-through generation |
 | `store.semantic_state.v1` | 164 bytes | producer-supplied lifecycle/severity, evidence-set and supersession-set identities, generation, completeness | Store persists codes and set identities; Commons owns their meanings |
 
-The relationship and provenance records are persisted under separate Store
-areas and validated as their own native values. They are not JSON documents
-embedded in an object blob. The first Commons path carries the Ingest
-handoff's semantic type and source/transformation identities as typed bytes;
-Commons remains the authority for pressure lifecycle and meaning.
+`store.relationship.v1` is frozen and remains available for existing Commons
+state and compatibility fixtures. `store.relationship.v2` is the reusable
+consumer contract for new family domains: Store carries the relation type
+identity and optional typed metadata identities, while the producer/owning
+authority defines their meaning. The relationship and provenance records are
+persisted under separate Store areas and validated as their own native values.
+They are not JSON documents embedded in an object blob. The first Commons path
+carries the Ingest handoff's semantic type and source/transformation identities
+as typed bytes; Commons remains the authority for pressure lifecycle and
+meaning.
 
 ## Frozen bytes
 
