@@ -125,7 +125,13 @@ def test_semantic_state_is_typed_and_identity_bound():
     assert len(state) == 164
     assert state[:4] == bytes.fromhex("53530100")
     assert state[4:36] == bytes(range(32))
+    assert state[36:68] == bytes(range(32, 64))
+    assert int.from_bytes(state[68:76], "big") == 0
+    assert int.from_bytes(state[76:84], "big") == 3
     assert state[84:116] == bytes(range(64, 96))
+    assert state[116:148] == bytes(reversed(range(32)))
+    assert int.from_bytes(state[148:156], "big") == 7
+    assert int.from_bytes(state[156:164], "big") == 0
 
 
 def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
