@@ -14,6 +14,7 @@ use store.generation;
 use store.recovery;
 use store.publication;
 use store.relationship;
+use store.relationship.v2;
 use store.provenance;
 use store.commit_feed;
 use store.semantic_state;

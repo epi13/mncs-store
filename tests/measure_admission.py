@@ -25,6 +25,7 @@ BASE_SOURCES = [
     "src/store/recovery.mncs",
     "src/store/publication.mncs",
     "src/store/relationship.mncs",
+    "src/store/relationship/v2.mncs",
     "src/store/provenance.mncs",
     "src/store/commit_feed.mncs",
 ]

@@ -64,6 +64,7 @@ SRC_GENERATION = "src/store/generation.mncs"
 SRC_RECOVERY = "src/store/recovery.mncs"
 SRC_PUBLICATION = "src/store/publication.mncs"
 SRC_RELATION = "src/store/relationship.mncs"
+SRC_RELATION_V2 = "src/store/relationship/v2.mncs"
 SRC_PROVENANCE = "src/store/provenance.mncs"
 SRC_FEED = "src/store/commit_feed.mncs"
 
@@ -75,6 +76,7 @@ MOD_GENERATION = "store.generation.v1"
 MOD_RECOVERY = "store.recovery.v1"
 MOD_PUBLICATION = "store.publication.v1"
 MOD_RELATION = "store.relationship.v1"
+MOD_RELATION_V2 = "store.relationship.v2"
 MOD_PROVENANCE = "store.provenance.v1"
 MOD_FEED = "store.commit_feed.v1"
 
@@ -195,16 +197,27 @@ class StorePhase2(StorePhase1a):
         return decision
 
     def _validate_typed_record(self, source, module, raw):
+        calls = [("validate", "validate", [BYTES(bytes(raw))])]
+        if module == MOD_RELATION_V2 and len(raw) == 172:
+            calls.append(("validate_exact", "validate_exact", [BYTES(bytes(raw))]))
         out = self._mncs(
             source,
             module,
-            [("validate", "validate", [BYTES(bytes(raw))])],
+            calls,
         )
         code = as_int(require_returned(out["validate"], "typed record validation"))
         if code != 0:
             raise IntegrityError(
                 f"{module}: typed record rejected by MNCS validation code {code}"
             )
+        if module == MOD_RELATION_V2:
+            exact_code = as_int(
+                require_returned(out["validate_exact"], "exact typed record validation")
+            )
+            if exact_code != 0:
+                raise IntegrityError(
+                    f"{module}: exact typed record rejected by MNCS validation code {exact_code}"
+                )
 
     def persist_typed_commit(self, feed, relations=(), provenance=()):
         """Persist first-class relation/provenance records for this generation.
@@ -247,13 +260,20 @@ class StorePhase2(StorePhase1a):
         if feed_objects > len(self._mapping):
             raise IntegrityError("typed feed object count exceeds committed object count")
 
-        relation_calls = []
+        relation_groups = {}
         for index, raw in enumerate(relations):
-            relation_calls.append((f"r{index}", "validate", [BYTES(raw)]))
-            relation_calls.append((f"rg{index}", "generation", [BYTES(raw)]))
-        if relation_calls:
-            relation_out = self._mncs(SRC_RELATION, MOD_RELATION, relation_calls)
-            for index in range(len(relations)):
+            source, module = self._relation_source_module(raw)
+            relation_groups.setdefault((source, module), []).extend(
+                [
+                    (f"r{index}", "validate", [BYTES(raw)]),
+                    (f"rg{index}", "generation", [BYTES(raw)]),
+                ]
+            )
+        for (source, module), relation_calls in relation_groups.items():
+            relation_out = self._mncs(source, module, relation_calls)
+            for index, raw in enumerate(relations):
+                if (source, module) != self._relation_source_module(raw):
+                    continue
                 code = as_int(require_returned(relation_out[f"r{index}"], "relation validation"))
                 generation = as_int(require_returned(relation_out[f"rg{index}"], "relation generation"))
                 if code != 0 or generation != self._gen:
@@ -272,9 +292,9 @@ class StorePhase2(StorePhase1a):
                     raise IntegrityError("provenance validation or generation binding failed")
 
         for raw in relations:
-            _write_create_exclusive(self._p("relations", raw.hex()), raw)
+            self._write_typed_record("relations", raw)
         for raw in provenance:
-            _write_create_exclusive(self._p("provenance", raw.hex()), raw)
+            self._write_typed_record("provenance", raw)
         _write_create_exclusive(self._p("feeds", feed.hex()), feed)
         _fsync_dir(self._p("relations"))
         _fsync_dir(self._p("provenance"))
@@ -291,15 +311,49 @@ class StorePhase2(StorePhase1a):
         }
         if kind not in sources:
             raise ValueError(f"unknown typed record kind: {kind}")
-        source, module = sources[kind]
         records = []
         directory = self._p(kind)
-        for name in sorted(os.listdir(directory)):
-            with open(os.path.join(directory, name), "rb") as stream:
+        for path in self._typed_record_paths(directory):
+            with open(path, "rb") as stream:
                 raw = stream.read()
+            source, module = sources[kind]
+            if kind == "relations":
+                source, module = self._relation_source_module(raw)
             self._validate_typed_record(source, module, raw)
             records.append(raw)
         return records
+
+    @staticmethod
+    def _typed_record_path(directory, raw):
+        """Keep content identity in the path without exceeding NAME_MAX."""
+
+        encoded = bytes(raw).hex()
+        if len(encoded) <= 240:
+            return os.path.join(directory, encoded)
+        return os.path.join(directory, encoded[:200], encoded[200:])
+
+    def _write_typed_record(self, kind, raw):
+        path = self._typed_record_path(self._p(kind), raw)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        _write_create_exclusive(path, raw)
+        _fsync_dir(os.path.dirname(path))
+
+    @staticmethod
+    def _typed_record_paths(directory):
+        paths = []
+        for current, _directories, files in os.walk(directory):
+            for name in files:
+                paths.append(os.path.join(current, name))
+        return sorted(paths)
+
+    @staticmethod
+    def _relation_source_module(raw):
+        """Select a frozen relation validator from its versioned header only."""
+
+        raw = bytes(raw)
+        if len(raw) >= 3 and raw[:3] == b"MR\x02":
+            return SRC_RELATION_V2, MOD_RELATION_V2
+        return SRC_RELATION, MOD_RELATION
 
     def _open(self):
         super()._open()

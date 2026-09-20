@@ -80,6 +80,80 @@ def test_relationship_and_provenance_records_are_typed_and_inspectable():
     assert provenance[:4] == bytes.fromhex("4d500100")
 
 
+def test_generic_relationship_v2_is_domain_extensible():
+    """v2 carries an identity supplied by the domain, not a Store enum."""
+
+    relation_type = bytes(range(1, 33))
+    source = bytes(range(12))
+    target = bytes(range(12, 24))
+    provenance = bytes(range(32))
+    metadata_type = bytes(range(64, 96))
+    metadata_root = bytes(reversed(range(32)))
+    args = [
+        BYTES(relation_type),
+        BYTES(source),
+        BYTES(target),
+        U64(19),
+        BYTES(provenance),
+        U64(4),
+        BYTES(metadata_type),
+        BYTES(metadata_root),
+    ]
+    out = call_many(
+        "src/store/relationship/v2.mncs",
+        "store.relationship.v2",
+        [
+            ("roundtrip", "roundtrip_fields", args),
+            ("encode", "encode_fields", args),
+        ],
+        RESEARCH,
+    )
+    assert as_bool(require_returned(out["roundtrip"], "generic relation roundtrip"))
+    relation = as_bytes(require_returned(out["encode"], "generic relation encode"))
+    assert len(relation) == 172
+    assert relation[:4] == bytes.fromhex("4d520200")
+    assert relation[4:36] == relation_type
+    assert relation[36:48] == source
+    assert relation[48:60] == target
+    assert int.from_bytes(relation[60:68], "big") == 19
+    assert relation[68:100] == provenance
+    assert int.from_bytes(relation[100:108], "big") == 4
+    assert relation[108:140] == metadata_type
+    assert relation[140:172] == metadata_root
+
+    absent_args = list(args)
+    absent_args[6] = BYTES(bytes(32))
+    absent_args[7] = BYTES(bytes(32))
+    absent = call_many(
+        "src/store/relationship/v2.mncs",
+        "store.relationship.v2",
+        [("absent", "encode_fields", absent_args)],
+        RESEARCH,
+    )
+    absent_bytes = as_bytes(require_returned(absent["absent"], "relation without metadata"))
+    assert as_int(
+        require_returned(
+            call_many(
+                "src/store/relationship/v2.mncs",
+                "store.relationship.v2",
+                [("valid", "validate_exact", [BYTES(absent_bytes)])],
+                RESEARCH,
+            )["valid"],
+            "metadata-free relation validation",
+        )
+    ) == 0
+
+    mismatched = bytearray(absent_bytes)
+    mismatched[-1] = 1
+    invalid = call_many(
+        "src/store/relationship/v2.mncs",
+        "store.relationship.v2",
+        [("invalid", "validate_exact", [BYTES(mismatched)])],
+        RESEARCH,
+    )
+    assert as_int(require_returned(invalid["invalid"], "half-present metadata validation")) == 6
+
+
 def test_commit_feed_reports_generation_freshness():
     root = bytes(range(32))
     out = call_many(
@@ -161,6 +235,28 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
                 )
             )
         )
+    generic_relation_args = [
+        BYTES(bytes(range(1, 33))),
+        BYTES(bytes(range(12))),
+        BYTES(bytes(range(12, 24))),
+        U64(1),
+        BYTES(bytes(range(32))),
+        U64(4),
+        BYTES(bytes(32)),
+        BYTES(bytes(32)),
+    ]
+    relations.append(
+        as_bytes(
+            require_returned(
+                engine.run(
+                    "src/store/relationship/v2.mncs",
+                    "store.relationship.v2",
+                    [("generic-relation", "encode_fields", generic_relation_args)],
+                )["generic-relation"],
+                "generic relation encode",
+            )
+        )
+    )
     provenance_args = [
         BYTES(bytes(range(12))),
         BYTES(bytes(range(12, 24))),
@@ -190,7 +286,7 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
                 engine.run(
                     "src/store/commit_feed.mncs",
                     "store.commit_feed.v1",
-                    [("feed", "encode_fields", [U64(1), U64(1), U64(4), U64(1), BYTES(bytes(32))])],
+                    [("feed", "encode_fields", [U64(1), U64(1), U64(5), U64(1), BYTES(bytes(32))])],
                 )["feed"],
                 "feed encode",
             )
@@ -247,16 +343,35 @@ def test_retained_session_reuses_one_admitted_artifact():
             "store.relationship.v1",
             [("relation", "roundtrip_fields", _relation_args())],
         )
+        generic_relation_args = [
+            BYTES(bytes(range(1, 33))),
+            BYTES(bytes(range(12))),
+            BYTES(bytes(range(12, 24))),
+            U64(1),
+            BYTES(bytes(range(32))),
+            U64(0),
+            BYTES(bytes(32)),
+            BYTES(bytes(32)),
+        ]
+        generic_relation = engine.run(
+            "src/store/relationship/v2.mncs",
+            "store.relationship.v2",
+            [("generic-relation", "roundtrip_fields", generic_relation_args)],
+        )
         assert as_int(require_returned(first["admit"], "retained admission")) == 0
         assert as_int(require_returned(second["reject"], "retained rejection")) == 1
         assert as_bool(require_returned(relation["relation"], "consolidated relation"))
+        assert as_bool(
+            require_returned(generic_relation["generic-relation"], "generic relation")
+        )
         metrics = engine.metrics()
         assert metrics["session_count"] == 1
-        assert metrics["semantic_batch_count"] == 3
-        assert metrics["semantic_call_count"] == 3
+        assert metrics["semantic_batch_count"] == 4
+        assert metrics["semantic_call_count"] == 4
         assert metrics["source_aliases"] == {
             "src/store/publication.mncs": "src/store/application.mncs",
             "src/store/relationship.mncs": "src/store/application.mncs",
+            "src/store/relationship/v2.mncs": "src/store/application.mncs",
         }
         assert metrics["cold_admission_seconds"] >= metrics["session_open_seconds"]
     finally:

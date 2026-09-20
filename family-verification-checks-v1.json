@@ -7,6 +7,18 @@
       "contract_identity": "mncs.ingest.typed-handoff/1",
       "runner": "declaration",
       "surface": "typed-handoff-to-persistent-state"
+    },
+    {
+      "identity": "mncs-store:generic-typed-relations-v2",
+      "contract_identity": "mncs.store.typed-relations/2",
+      "runner": "native-corpus",
+      "surface": "generic-relation-type-and-optional-metadata"
+    },
+    {
+      "identity": "mncs-store:provenance-v1",
+      "contract_identity": "mncs.store.provenance/1",
+      "runner": "native-corpus",
+      "surface": "source-producer-transformation-evidence-ancestry"
     }
   ]
 }

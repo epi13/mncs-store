@@ -1,13 +1,15 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 3,
+  "revision": 5,
   "manifest_location": "in-repository",
   "authority": {"note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."},
   "contracts": {
     "provides": [
       {"contract": "persistent-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/", "docs/invariants.md"]},
       {"contract": "typed-relations", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/relationship.mncs", "src/store/provenance.mncs"]},
+      {"contract": "typed-relations", "version": "2", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/relationship/v2.mncs", "src/store/provenance.mncs"]},
+      {"contract": "provenance", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/provenance.mncs", "docs/invariants.md"]},
       {"contract": "commit-feed", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/commit_feed.mncs"]},
       {"contract": "semantic-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/semantic_state.mncs"]}
     ],

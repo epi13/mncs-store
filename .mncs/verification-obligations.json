@@ -28,6 +28,18 @@
       "evidence_identity": {"subject_fields": ["record_identity"], "definition_fields": ["representation_version"], "execution_fields": ["test_execution_identity"]}
     },
     {
+      "identity": "mncs-store.generic-relations-v2.roundtrip",
+      "title": "Generic relation type identity and optional typed edge metadata round-trip without Store-owned ontology",
+      "guarantee_domain": "family_contract",
+      "evidence_role": "canonical_regression",
+      "lifecycle": "permanent",
+      "scope": "family",
+      "subjects": ["mncs.store.typed-relations/2"],
+      "invalidation_dependencies": ["src/store/relationship/v2.mncs", "tests/test_native_substrate.py"],
+      "executor": {"provider": "mncs-store", "kind": "native_first_class_test", "entrypoint": "tests/test_native_substrate.py::test_generic_relationship_v2_is_domain_extensible"},
+      "evidence_identity": {"subject_fields": ["relation_type", "source", "target"], "definition_fields": ["representation_version"], "execution_fields": ["test_execution_identity"]}
+    },
+    {
       "identity": "mncs-store.lifecycle.reopen",
       "title": "A typed Store object remains readable and verifiable after generation publication and reopen",
       "guarantee_domain": "family_contract",
