@@ -8,6 +8,12 @@
       "contract_revision": "1",
       "exported_identity": "mncs-store:persistent-state",
       "evidence": "native-userland-status.json"
+    },
+    {
+      "contract_identity": "mncs.store.semantic-state/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:semantic-state",
+      "evidence": "src/store/semantic_state.mncs"
     }
   ],
   "consumes": [
