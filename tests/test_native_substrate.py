@@ -110,16 +110,23 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
         BYTES(bytes(range(32))),
         U64(0),
     ]
-    relation = as_bytes(
-        require_returned(
-            engine.run(
-                "src/store/relationship.mncs",
-                "store.relationship.v1",
-                [("relation", "encode_fields", relation_args)],
-            )["relation"],
-            "relation encode",
+    relations = []
+    for kind in range(1, 5):
+        fields = list(relation_args)
+        fields[0] = U64(kind)
+        fields[5] = U64(kind - 1)
+        relations.append(
+            as_bytes(
+                require_returned(
+                    engine.run(
+                        "src/store/relationship.mncs",
+                        "store.relationship.v1",
+                        [(f"relation-{kind}", "encode_fields", fields)],
+                    )[f"relation-{kind}"],
+                    f"relation-{kind} encode",
+                )
+            )
         )
-    )
     provenance_args = [
         BYTES(bytes(range(12))),
         BYTES(bytes(range(12, 24))),
@@ -140,8 +147,8 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
     )
     store = StorePhase2.create(tmp_path / "store", engine=engine)
     try:
-        oid = store.put_blob(relation)
-        assert store.get_blob(oid) == relation
+        oid = store.put_blob(relations[0])
+        assert store.get_blob(oid) == relations[0]
         assert store.verify(oid)
         assert store.publication_trace[-1]["decision"] == 0
         feed = as_bytes(
@@ -149,13 +156,13 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
                 engine.run(
                     "src/store/commit_feed.mncs",
                     "store.commit_feed.v1",
-                    [("feed", "encode_fields", [U64(1), U64(1), U64(1), U64(1), BYTES(bytes(32))])],
+                    [("feed", "encode_fields", [U64(1), U64(1), U64(4), U64(1), BYTES(bytes(32))])],
                 )["feed"],
                 "feed encode",
             )
         )
-        store.persist_typed_commit(feed, [relation], [provenance])
-        assert store.typed_records("relations") == [relation]
+        store.persist_typed_commit(feed, relations, [provenance])
+        assert store.typed_records("relations") == relations
         assert store.typed_records("provenance") == [provenance]
         assert store.typed_records("feeds") == [feed]
     finally:
@@ -163,9 +170,9 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
 
     reopened = StorePhase2.open(tmp_path / "store", engine=engine)
     try:
-        assert reopened.get_blob(oid) == relation
+        assert reopened.get_blob(oid) == relations[0]
         assert reopened.verify(oid)
-        assert reopened.typed_records("relations") == [relation]
+        assert reopened.typed_records("relations") == relations
         assert reopened.typed_records("provenance") == [provenance]
         assert reopened.typed_records("feeds") == [feed]
     finally:
