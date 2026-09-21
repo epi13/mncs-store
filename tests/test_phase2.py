@@ -21,7 +21,7 @@ from store_phase1a import (
     UnsupportedWidthError,
 )
 from store_phase2 import (
-    MAX_GENERAL_BLOB,
+    REFERENCE_GENERAL_BLOB_LIMIT,
     ConflictError,
     FaultInjected,
     SnapshotExpired,
@@ -87,7 +87,7 @@ def test_general_blob_boundaries_roundtrip(store_path, engine):
 def test_over_ceiling_rejected_without_truncation(store_path, engine):
     s = StorePhase2.create(store_path, engine)
     with pytest.raises(UnsupportedWidthError):
-        s.put_blob(bytes(MAX_GENERAL_BLOB + 1))
+        s.put_blob(bytes(REFERENCE_GENERAL_BLOB_LIMIT + 1))
     # The failed put committed nothing.
     assert s.generation() == 0
 

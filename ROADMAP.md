@@ -36,9 +36,10 @@ arbitrary sizes remain open and are tracked as language pressure
 
 **Phase 1b modernization (2026-09-10, Profile 0.13):** sources bumped to
 `mncs 0.13`; P1-009/P1-010 workarounds removed (boolean ordering logic);
-P1-008 resolved (1024-wide iteration); single-chunk v1 classes frozen
-and still tested alongside the Phase-2 multi-chunk path (0..992 B
-blobs via manifest v2). See RFC 0017 and the P1 re-baseline appendices.
+P1-008 resolved (1024-wide iteration). The single-chunk v1 classes remain
+available only to the differential/reference oracle. The supported Store
+path now uses the current bounded content tree and generation-bound
+representation root; see RFC 0017 and the P1 re-baseline appendices.
 
 ## Phase 2 — generations and recovery
 
@@ -59,11 +60,10 @@ blobs via manifest v2). See RFC 0017 and the P1 re-baseline appendices.
   boundaries × old-or-new assertions in `tests/test_phase2.py`)
 
 **Exit proof:** after any injected interruption, readers observe either the previous committed generation or the new committed generation, never a fabricated mixture.
-Phase 2 meets this for the bounded domain (objects 0..992 B,
-generations to 23 records in-language) with host-owned file mechanics;
-full in-language lifecycle, arbitrary sizes, and wide generation scans
-remain open and are tracked as language pressure
-(`pressure/PHASE2-PRESSURE-SUMMARY.md`).
+Phase 2 meets this for the current bounded content-tree realization with
+host-owned file mechanics and native CAS/recovery decisions. The frozen
+0..992 B driver remains a differential oracle; the supported path is
+measured separately in `docs/scalable-content-measurement.md`.
 
 ## Phase 3 — native views and representation-aware I/O
 

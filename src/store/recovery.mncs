@@ -1,7 +1,9 @@
-mncs 0.13;
+mncs 0.18;
 
-// store.recovery — Phase 2 deterministic recovery decisions (RFC 0015,
-// RFC 0017).
+// store.recovery — current deterministic recovery decisions (RFC 0015,
+// RFC 0017). The byte-layout observations documented below describe the
+// original driver, but the selection law is also used by the supported
+// embedded Store boundary.
 //
 // Recovery is verification-driven: after interruption or reopen, the
 // store must identify the latest state that is both declared committed

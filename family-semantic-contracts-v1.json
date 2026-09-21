@@ -1,13 +1,25 @@
 {
   "schema_version": "commons.mncs.semantic-contract-declarations/v1",
   "repository_id": "mncs-store",
-  "revision": "1",
+  "revision": "2",
   "provides": [
     {
-      "contract_identity": "mncs.store.persistent-state/1",
+      "contract_identity": "mncs.store.persistent-object/1",
       "contract_revision": "1",
-      "exported_identity": "mncs-store:persistent-state",
-      "evidence": "native-userland-status.json"
+      "exported_identity": "mncs-store:persistent-object",
+      "evidence": "python/mncs_store/embedded.py"
+    },
+    {
+      "contract_identity": "mncs.store.scalable-content/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:scalable-content",
+      "evidence": "src/store/content.mncs"
+    },
+    {
+      "contract_identity": "mncs.store.durable-publication/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:durable-publication",
+      "evidence": "python/mncs_store/embedded.py"
     },
     {
       "contract_identity": "mncs.store.semantic-state/1",
@@ -19,13 +31,19 @@
       "contract_identity": "mncs.store.typed-relations/2",
       "contract_revision": "1",
       "exported_identity": "mncs-store:typed-relations-v2",
-      "evidence": "src/store/relationship/v2.mncs"
+      "evidence": "src/store/relationship.mncs"
     },
     {
       "contract_identity": "mncs.store.provenance/1",
       "contract_revision": "1",
       "exported_identity": "mncs-store:provenance",
       "evidence": "src/store/provenance.mncs"
+    },
+    {
+      "contract_identity": "mncs.store.commit-feed/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:commit-feed",
+      "evidence": "src/store/commit_feed.mncs"
     }
   ],
   "consumes": [
@@ -33,11 +51,13 @@
       "contract_identity": "mncs.ingest.typed-handoff/1",
       "contract_revision": "1",
       "consumer_identity": "mncs-store:typed-handoff-input",
-      "evidence": "src/store/relationship.mncs",
+      "required": false,
+      "scope": "import/migration only; native producers persist directly through persistent-object",
+      "evidence": "docs/consumer-contracts.md",
       "verification": {
         "check_identity": "mncs-store:typed-handoff-input",
         "executor": "mncs-store",
-        "surface": "typed-handoff-to-persistent-state",
+        "surface": "typed-handoff-to-import-migration",
         "evidence": "family-verification-checks-v1.json"
       }
     }

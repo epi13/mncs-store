@@ -11,9 +11,11 @@ layer) plus Phase-2 generations/recovery (2026-09-10):
 - multi-chunk / generation / recovery semantics (136 new corpus cases:
   chunk-v2, manifest-v2 + chain, descriptor-v2 additions, generation,
   recovery; pure suites on all backends, hash suites bytecode-scoped);
-- general blobs 0..992 B across 23 boundary sizes (empty, 1, tails,
-  exact multiples, 992, over-ceiling rejection), close/reopen round
-  trips, dedup/sharing without identity merge;
+- historical general-blob vectors 0..992 B across 23 boundary sizes
+  (the frozen differential oracle, not the supported consumer path);
+- supported bounded content-tree geometry, close/reopen round trips,
+  dedup/sharing without identity merge, and a 4 MB admission geometry
+  proof;
 - ordered-manifest binding (reorder/corrupt/missing/torn/padding attacks
   all fail closed with distinct codes);
 - generations with CAS conflicts (typed tokens), stable snapshots across

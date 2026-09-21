@@ -7,18 +7,18 @@ representations that are not reinterpretations of the old object bytes.
 |---|---:|---|---|
 | `store.identity.v1` | 12/32-byte fields | logical objects and content/chunk/root roles | logical vs content/chunk/root |
 | `store.descriptor.v1` | 16 bytes | type tag, scalar/layout, shape, alignment, length | representation metadata vs payload |
-| `store.relationship.v1` | 80 bytes | typed edge kind, endpoints, generation, provenance identity, ordinal | logical endpoint vs relation generation |
-| `store.relationship.v2` | 172 bytes | generic relation type identity, endpoints, generation, provenance, ordinal, optional typed metadata identities | relation type identity vs endpoint/generation/metadata identities |
+| `store.relationship` | 172 bytes | generic relation type identity, endpoints, generation, provenance, ordinal, optional typed metadata identities | relation type identity vs endpoint/generation/metadata identities |
 | `store.provenance.v1` | 112 bytes | source, producer, transformation, generation, evidence, ancestry | source/producer/transformation/evidence |
 | `store.commit_feed.v1` | 56 bytes | deterministic Store-to-Index change metadata | Store generation vs Index-through generation |
 | `store.semantic_state.v1` | 164 bytes | producer-supplied lifecycle/severity, evidence-set and supersession-set identities, generation, completeness | Store persists codes and set identities; Commons owns their meanings |
 
-`store.relationship.v1` is frozen and remains available for existing Commons
-state and compatibility fixtures. `store.relationship.v2` is the reusable
-consumer contract for new family domains: Store carries the relation type
-identity and optional typed metadata identities, while the producer/owning
-authority defines their meaning. The relationship and provenance records are
-persisted under separate Store areas and validated as their own native values.
+`store.relationship` is the one current reusable consumer representation:
+Store carries the relation type identity and optional typed metadata
+identities, while the producer/owning authority defines their meaning. The
+historical numeric relation source was migrated out of the active Store tree;
+old bytes are not written or validated by normal consumers. Relationship and
+provenance records are persisted as separate typed sections of a committed
+Store generation and validated as their own native values.
 They are not JSON documents embedded in an object blob. The first Commons path
 carries the Ingest handoff's semantic type and source/transformation identities
 as typed bytes; Commons remains the authority for pressure lifecycle and
@@ -32,8 +32,9 @@ tested as frozen compatibility surfaces:
 - object logical IDs and 32-byte content/chunk/root widths;
 - Phase-1 descriptors, frames, chunk digests, and manifests;
 - Phase-1 generation headers and records;
-- Phase-2 manifest-v2 headers, chained roots, recovery decisions, and
-  reclamation vocabulary.
+- Phase-2 manifest-v2 headers, chained roots, and reclamation vocabulary;
+  the current embedded boundary reuses the native old/new recovery selection
+  law from `store.recovery.v1`.
 
 New relation, provenance, feed, and publication records use explicit version
 and magic fields. No historical bytes are mutated in place.

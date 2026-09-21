@@ -81,7 +81,7 @@ ELABORATION_SOURCES = [
     "src/store/read_verify.mncs",
     "src/store/generation.mncs",
     "src/store/recovery.mncs",
-    "src/store/relationship/v2.mncs",
+    "src/store/relationship.mncs",
     "tests/fixtures/checked_arith_canary.mncs",
     "tests/fixtures/effects_probe.mncs",
 ]

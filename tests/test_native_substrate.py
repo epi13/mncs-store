@@ -22,6 +22,7 @@ from mncs_exec import (
     require_returned,
 )
 from retained_session import RetainedEngine
+from store_phase1a import Engine as DifferentialEngine
 from store_phase2 import StorePhase2
 
 
@@ -30,34 +31,29 @@ RESEARCH = "mncs-research-bytecode"
 
 def _relation_args():
     return [
-        U64(2),
+        BYTES(bytes(range(1, 33))),
         BYTES(bytes(range(12))),
         BYTES(bytes(range(12, 24))),
         U64(7),
         BYTES(bytes(range(32))),
         U64(9),
+        BYTES(bytes(range(64, 96))),
+        BYTES(bytes(reversed(range(32)))),
     ]
 
 
 def test_relationship_and_provenance_records_are_typed_and_inspectable():
-    relation_calls = []
-    for kind in range(1, 5):
-        args = _relation_args()
-        args[0] = U64(kind)
-        relation_calls.append((f"roundtrip-{kind}", "roundtrip_fields", args))
     out = call_many(
         "src/store/relationship.mncs",
-        "store.relationship.v1",
-        relation_calls + [("encode", "encode_fields", _relation_args())],
+        "store.relationship",
+        [("roundtrip", "roundtrip_fields", _relation_args()),
+         ("encode", "encode_fields", _relation_args())],
         RESEARCH,
     )
-    assert all(
-        as_bool(require_returned(out[f"roundtrip-{kind}"], "relation roundtrip"))
-        for kind in range(1, 5)
-    )
+    assert as_bool(require_returned(out["roundtrip"], "relation roundtrip"))
     relation = as_bytes(require_returned(out["encode"], "relation encode"))
-    assert len(relation) == 80
-    assert relation[:8] == bytes.fromhex("4d52010002000000")
+    assert len(relation) == 172
+    assert relation[:4] == bytes.fromhex("4d520200")
 
     p_args = [
         BYTES(bytes(range(12))),
@@ -80,8 +76,8 @@ def test_relationship_and_provenance_records_are_typed_and_inspectable():
     assert provenance[:4] == bytes.fromhex("4d500100")
 
 
-def test_generic_relationship_v2_is_domain_extensible():
-    """v2 carries an identity supplied by the domain, not a Store enum."""
+def test_current_relationship_is_domain_extensible():
+    """The current relation carries an identity supplied by the domain."""
 
     relation_type = bytes(range(1, 33))
     source = bytes(range(12))
@@ -100,8 +96,8 @@ def test_generic_relationship_v2_is_domain_extensible():
         BYTES(metadata_root),
     ]
     out = call_many(
-        "src/store/relationship/v2.mncs",
-        "store.relationship.v2",
+        "src/store/relationship.mncs",
+        "store.relationship",
         [
             ("roundtrip", "roundtrip_fields", args),
             ("encode", "encode_fields", args),
@@ -125,8 +121,8 @@ def test_generic_relationship_v2_is_domain_extensible():
     absent_args[6] = BYTES(bytes(32))
     absent_args[7] = BYTES(bytes(32))
     absent = call_many(
-        "src/store/relationship/v2.mncs",
-        "store.relationship.v2",
+        "src/store/relationship.mncs",
+        "store.relationship",
         [("absent", "encode_fields", absent_args)],
         RESEARCH,
     )
@@ -134,8 +130,8 @@ def test_generic_relationship_v2_is_domain_extensible():
     assert as_int(
         require_returned(
             call_many(
-                "src/store/relationship/v2.mncs",
-                "store.relationship.v2",
+                "src/store/relationship.mncs",
+                "store.relationship",
                 [("valid", "validate_exact", [BYTES(absent_bytes)])],
                 RESEARCH,
             )["valid"],
@@ -146,8 +142,8 @@ def test_generic_relationship_v2_is_domain_extensible():
     mismatched = bytearray(absent_bytes)
     mismatched[-1] = 1
     invalid = call_many(
-        "src/store/relationship/v2.mncs",
-        "store.relationship.v2",
+        "src/store/relationship.mncs",
+        "store.relationship",
         [("invalid", "validate_exact", [BYTES(mismatched)])],
         RESEARCH,
     )
@@ -211,52 +207,27 @@ def test_semantic_state_is_typed_and_identity_bound():
 def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
     engine = RetainedEngine()
     relation_args = [
-        U64(2),
-        BYTES(bytes(range(12))),
-        BYTES(bytes(range(12, 24))),
-        U64(1),
-        BYTES(bytes(range(32))),
-        U64(0),
-    ]
-    relations = []
-    for kind in range(1, 5):
-        fields = list(relation_args)
-        fields[0] = U64(kind)
-        fields[5] = U64(kind - 1)
-        relations.append(
-            as_bytes(
-                require_returned(
-                    engine.run(
-                        "src/store/relationship.mncs",
-                        "store.relationship.v1",
-                        [(f"relation-{kind}", "encode_fields", fields)],
-                    )[f"relation-{kind}"],
-                    f"relation-{kind} encode",
-                )
-            )
-        )
-    generic_relation_args = [
         BYTES(bytes(range(1, 33))),
         BYTES(bytes(range(12))),
         BYTES(bytes(range(12, 24))),
         U64(1),
         BYTES(bytes(range(32))),
-        U64(4),
+        U64(0),
         BYTES(bytes(32)),
         BYTES(bytes(32)),
     ]
-    relations.append(
+    relations = [
         as_bytes(
             require_returned(
                 engine.run(
-                    "src/store/relationship/v2.mncs",
-                    "store.relationship.v2",
-                    [("generic-relation", "encode_fields", generic_relation_args)],
-                )["generic-relation"],
-                "generic relation encode",
+                    "src/store/relationship.mncs",
+                    "store.relationship",
+                    [("relation", "encode_fields", relation_args)],
+                )["relation"],
+                "relation encode",
             )
         )
-    )
+    ]
     provenance_args = [
         BYTES(bytes(range(12))),
         BYTES(bytes(range(12, 24))),
@@ -275,7 +246,11 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
             "provenance encode",
         )
     )
-    store = StorePhase2.create(tmp_path / "store", engine=engine)
+    # The Phase-2 driver is a frozen differential oracle.  Keep its legacy
+    # descriptor/manifest calls on the explicit subprocess engine rather than
+    # widening the current retained Store application artifact again.
+    differential = DifferentialEngine(backend=RESEARCH)
+    store = StorePhase2.create(tmp_path / "store", engine=differential)
     try:
         oid = store.put_blob(relations[0])
         assert store.get_blob(oid) == relations[0]
@@ -286,7 +261,7 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
                 engine.run(
                     "src/store/commit_feed.mncs",
                     "store.commit_feed.v1",
-                    [("feed", "encode_fields", [U64(1), U64(1), U64(5), U64(1), BYTES(bytes(32))])],
+                    [("feed", "encode_fields", [U64(1), U64(1), U64(1), U64(1), BYTES(bytes(32))])],
                 )["feed"],
                 "feed encode",
             )
@@ -298,7 +273,7 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
     finally:
         store.close()
 
-    reopened = StorePhase2.open(tmp_path / "store", engine=engine)
+    reopened = StorePhase2.open(tmp_path / "store", engine=differential)
     try:
         assert reopened.get_blob(oid) == relations[0]
         assert reopened.verify(oid)
@@ -340,23 +315,13 @@ def test_retained_session_reuses_one_admitted_artifact():
         )
         relation = engine.run(
             "src/store/relationship.mncs",
-            "store.relationship.v1",
+            "store.relationship",
             [("relation", "roundtrip_fields", _relation_args())],
         )
-        generic_relation_args = [
-            BYTES(bytes(range(1, 33))),
-            BYTES(bytes(range(12))),
-            BYTES(bytes(range(12, 24))),
-            U64(1),
-            BYTES(bytes(range(32))),
-            U64(0),
-            BYTES(bytes(32)),
-            BYTES(bytes(32)),
-        ]
         generic_relation = engine.run(
-            "src/store/relationship/v2.mncs",
-            "store.relationship.v2",
-            [("generic-relation", "roundtrip_fields", generic_relation_args)],
+            "src/store/relationship.mncs",
+            "store.relationship",
+            [("generic-relation", "roundtrip_fields", _relation_args())],
         )
         assert as_int(require_returned(first["admit"], "retained admission")) == 0
         assert as_int(require_returned(second["reject"], "retained rejection")) == 1
@@ -371,7 +336,6 @@ def test_retained_session_reuses_one_admitted_artifact():
         assert metrics["source_aliases"] == {
             "src/store/publication.mncs": "src/store/application.mncs",
             "src/store/relationship.mncs": "src/store/application.mncs",
-            "src/store/relationship/v2.mncs": "src/store/application.mncs",
         }
         assert metrics["cold_admission_seconds"] >= metrics["session_open_seconds"]
     finally:

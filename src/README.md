@@ -1,31 +1,39 @@
 # Source layout
 
-MNCS-language modules whose boundaries follow the RFCs. All canonical
-storage bytes — and, since Phase 2, all commit/recovery/reclamation
-decisions — are produced by executing these modules; the host test
-drivers (`tests/store_phase1a.py`, `tests/store_phase2.py`) transport
-bytes opaquely and never reimplement their semantics. Canonical layouts
-are frozen by [RFC 0016](../rfcs/0016-phase1-canonical-encodings.md)
-(v1) and extended by [RFC 0017](../rfcs/0017-phase2-multichunk-generations-recovery.md)
-(v2, alongside — never by altering v1).
+MNCS-language modules define Store's semantic bytes and decisions. The
+supported embedded boundary in `../python/mncs_store/` supplies retained
+session transport and local filesystem durability; it does not choose Store
+outcomes. The old test drivers remain differential/reference tools, not a
+consumer API. The current content path uses bounded chunks and a manifest/tree
+root rather than increasing one MNCS value until it contains a whole object.
+
+The following frozen Phase-1 modules are reference-only and are not imported
+by `store.application.v1` or the supported embedded boundary:
 
 | Module | RFC | Owns |
 |---|---|---|
-| `store/identity.mncs` (`store.identity.v1`) | 0002 | ObjectId encoding/parse/equality; digest compare/order/match; nominal ChunkId/ContentId/RootId/LogicalId wrappers |
-| `store/descriptor.mncs` (`store.descriptor.v1`) | 0003 | 16-byte descriptor encode/validate/accessors; put-path `describe_*`; descriptor v2 (BYTE_SEQ to 992 B) |
-| `store/chunk.mncs` (`store.chunk.v1`) | 0004 | Scalar codecs; domain-separated framing; SHA-256 digests/verification; whole-frame verify; typed get projectors; `concat32_32`; canonical tail-padding checks; partition arithmetic |
-| `store/manifest.mncs` (`store.manifest.v1`) | 0004/0005 | 64-byte root encode/validate; root identity; generation-record encode/split; manifest v2 (chained multi-chunk roots) |
+| `store/descriptor.mncs` (`store.descriptor.v1`) | 0003 | frozen descriptor encoding/validation used by the differential oracle |
+| `store/chunk.mncs` (`store.chunk.v1`) | 0004 | frozen fixed-width chunk codecs used by the differential oracle |
+| `store/manifest.mncs` (`store.manifest.v1`) | 0004/0005 | frozen manifest vocabulary used by the differential oracle |
+| `store/read_verify.mncs` (`store.read_verify.v1`) | 0015 | frozen in-language chunk-file verification used by the differential oracle |
+
+The current semantic modules are:
+
+| Module | RFC | Owns |
+|---|---|---|
+| `store/identity.mncs` (`store.identity.v1`) | 0002 | current nominal logical/content/chunk/root identity wrappers used by generation and typed Store paths |
+| `store/content.mncs` (`store.content.v1`) | current Store path | bounded streaming `DigestState` adapter over `mncs.std.sha256.v1`, including granted filesystem windows |
 | `store/generation.mncs` (`store.generation.v1`) | 0005 | Generation headers; CAS decisions + conflict tokens; snapshot tokens + binding; commit state machine; reclamation membership scans |
-| `store/recovery.mncs` (`store.recovery.v1`) | 0015 | Store/generation triage; STAY/PROMOTE/REFUSE selection; prune decisions |
-| `store/read_verify.mncs` (`store.read_verify.v1`) | 0015 | In-language chunk-file read + digest verification (dual-effect proof) |
+| `store/recovery.mncs` (`store.recovery.v1`) | 0015 | current native old/new recovery selection and historical triage vectors |
+| `store/relationship.mncs` (`store.relationship`) | current relation path | one generic 172-byte relation representation: type identity, endpoints, generation, provenance, ordinal, optional typed metadata |
 
-Profile: Source 0.13. No stdlib imports, by design:
-canonical store bytes must be frozen against stdlib evolution. Every
-module elaborates cleanly (only CMP301 proof obligations with safe
-fallbacks remain; see pressure P1-021).
+Profile: current Store semantic modules use Source 0.18 where granted
+filesystem effects are required; frozen compatibility modules retain their
+declared source profiles. The content module imports only the existing
+`mncs.std.sha256.v1` streaming implementation; Store does not define another
+hash system.
 
-Value classes: Phase-1a exact widths (u32, u64, u32-pair, fixed blobs
-8/16/32, empty — frozen v1, still tested) plus general blobs 0..992 B
-via manifest v2 (31 x 32-byte chunks, canonical zero-padded tails,
-hash-chained roots). Arbitrary sizes past 992 B remain pressure
-(P2-001).
+Value classes: fixed compatibility widths remain tested, while the supported
+object path uses 64 KiB content chunks, 31-way structural nodes, a bounded
+manifest, and a generation-bound representation root. Individual semantic
+operations stay bounded even when the object is larger than one MNCS value.

@@ -64,7 +64,6 @@ SRC_GENERATION = "src/store/generation.mncs"
 SRC_RECOVERY = "src/store/recovery.mncs"
 SRC_PUBLICATION = "src/store/publication.mncs"
 SRC_RELATION = "src/store/relationship.mncs"
-SRC_RELATION_V2 = "src/store/relationship/v2.mncs"
 SRC_PROVENANCE = "src/store/provenance.mncs"
 SRC_FEED = "src/store/commit_feed.mncs"
 
@@ -75,16 +74,16 @@ MOD_IDENTITY = "store.identity.v1"
 MOD_GENERATION = "store.generation.v1"
 MOD_RECOVERY = "store.recovery.v1"
 MOD_PUBLICATION = "store.publication.v1"
-MOD_RELATION = "store.relationship.v1"
-MOD_RELATION_V2 = "store.relationship.v2"
+MOD_RELATION = "store.relationship"
 MOD_PROVENANCE = "store.provenance.v1"
 MOD_FEED = "store.commit_feed.v1"
 
 # Reclamation scans exceed the default 32k budget (measured ~34k steps).
 SCAN_BUDGET = 65536
 
-# Multi-chunk object ceiling: 31 chunks x 32 bytes (manifest-v2 bound).
-MAX_GENERAL_BLOB = 992
+# Historical Phase-2 driver ceiling. The supported embedded Store path uses
+# bounded 64 KiB chunks and is not constrained by this differential oracle.
+REFERENCE_GENERAL_BLOB_LIMIT = 992
 
 # Covered tail widths (frozen v1 frame widths reused by the v2 path).
 TAIL_FNS = {
@@ -198,7 +197,7 @@ class StorePhase2(StorePhase1a):
 
     def _validate_typed_record(self, source, module, raw):
         calls = [("validate", "validate", [BYTES(bytes(raw))])]
-        if module == MOD_RELATION_V2 and len(raw) == 172:
+        if module == MOD_RELATION and len(raw) == 172:
             calls.append(("validate_exact", "validate_exact", [BYTES(bytes(raw))]))
         out = self._mncs(
             source,
@@ -210,7 +209,7 @@ class StorePhase2(StorePhase1a):
             raise IntegrityError(
                 f"{module}: typed record rejected by MNCS validation code {code}"
             )
-        if module == MOD_RELATION_V2:
+        if module == MOD_RELATION:
             exact_code = as_int(
                 require_returned(out["validate_exact"], "exact typed record validation")
             )
@@ -266,6 +265,7 @@ class StorePhase2(StorePhase1a):
             relation_groups.setdefault((source, module), []).extend(
                 [
                     (f"r{index}", "validate", [BYTES(raw)]),
+                    (f"rx{index}", "validate_exact", [BYTES(raw)]),
                     (f"rg{index}", "generation", [BYTES(raw)]),
                 ]
             )
@@ -275,8 +275,9 @@ class StorePhase2(StorePhase1a):
                 if (source, module) != self._relation_source_module(raw):
                     continue
                 code = as_int(require_returned(relation_out[f"r{index}"], "relation validation"))
+                exact_code = as_int(require_returned(relation_out[f"rx{index}"], "relation exact validation"))
                 generation = as_int(require_returned(relation_out[f"rg{index}"], "relation generation"))
-                if code != 0 or generation != self._gen:
+                if code != 0 or exact_code != 0 or generation != self._gen:
                     raise IntegrityError("relation validation or generation binding failed")
 
         provenance_calls = []
@@ -348,11 +349,8 @@ class StorePhase2(StorePhase1a):
 
     @staticmethod
     def _relation_source_module(raw):
-        """Select a frozen relation validator from its versioned header only."""
+        """Select the one current generic relation validator."""
 
-        raw = bytes(raw)
-        if len(raw) >= 3 and raw[:3] == b"MR\x02":
-            return SRC_RELATION_V2, MOD_RELATION_V2
         return SRC_RELATION, MOD_RELATION
 
     def _open(self):
@@ -423,10 +421,10 @@ class StorePhase2(StorePhase1a):
         """
         engine = self.engine
         for key, data in items:
-            if len(bytes(data)) > MAX_GENERAL_BLOB:
+            if len(bytes(data)) > REFERENCE_GENERAL_BLOB_LIMIT:
                 raise UnsupportedWidthError(
                     f"blob length {len(bytes(data))}: Phase 2 admits "
-                    f"0..{MAX_GENERAL_BLOB} bytes (manifest-v2 bound, "
+                    f"0..{REFERENCE_GENERAL_BLOB_LIMIT} bytes (manifest-v2 bound, "
                     "explicit rejection, never truncation)")
         # 1. descriptors (one describe_blob2 per item).
         out = self._mncs(SRC_DESC, MOD_DESC,

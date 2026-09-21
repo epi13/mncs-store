@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.verification-obligation-inventory/v1",
   "repository": "mncs-store",
-  "revision": 3,
+  "revision": 4,
   "obligations": [
     {
       "identity": "mncs-store.semantic-state.roundtrip",
@@ -22,7 +22,7 @@
       "evidence_role": "canonical_regression",
       "lifecycle": "permanent",
       "scope": "family",
-      "subjects": ["mncs.store.persistent-state/1"],
+      "subjects": ["mncs.store.typed-relations/2", "mncs.store.provenance/1", "mncs.store.commit-feed/1"],
       "invalidation_dependencies": ["src/store/relationship.mncs", "src/store/provenance.mncs", "src/store/commit_feed.mncs"],
       "executor": {"provider": "mncs-store", "kind": "native_first_class_test", "entrypoint": "tests/test_native_substrate.py"},
       "evidence_identity": {"subject_fields": ["record_identity"], "definition_fields": ["representation_version"], "execution_fields": ["test_execution_identity"]}
@@ -35,7 +35,7 @@
       "lifecycle": "permanent",
       "scope": "family",
       "subjects": ["mncs.store.typed-relations/2"],
-      "invalidation_dependencies": ["src/store/relationship/v2.mncs", "tests/test_native_substrate.py"],
+      "invalidation_dependencies": ["src/store/relationship.mncs", "tests/test_native_substrate.py"],
       "executor": {"provider": "mncs-store", "kind": "native_first_class_test", "entrypoint": "tests/test_native_substrate.py::test_generic_relationship_v2_is_domain_extensible"},
       "evidence_identity": {"subject_fields": ["relation_type", "source", "target"], "definition_fields": ["representation_version"], "execution_fields": ["test_execution_identity"]}
     },
@@ -46,7 +46,7 @@
       "evidence_role": "conformance",
       "lifecycle": "permanent",
       "scope": "consumer",
-      "subjects": ["mncs.store.persistent-state/1"],
+      "subjects": ["mncs.store.persistent-object/1", "mncs.store.durable-publication/1"],
       "invalidation_dependencies": ["tests/store_phase2.py", "tests/test_native_substrate.py"],
       "executor": {"provider": "mncs-store", "kind": "external_integration", "entrypoint": "tests/test_native_substrate.py::test_relation_object_survives_store_commit_close_and_reopen"},
       "evidence_identity": {"subject_fields": ["object_identity", "generation_identity"], "definition_fields": ["frozen_encoding_identity"], "execution_fields": ["reopen_evidence_identity"]}
@@ -58,7 +58,7 @@
       "evidence_role": "canonical_regression",
       "lifecycle": "permanent",
       "scope": "local",
-      "subjects": ["mncs.store.persistent-state/1"],
+      "subjects": ["mncs.store.persistent-object/1", "mncs.store.durable-publication/1"],
       "invalidation_dependencies": ["src/store/publication.mncs", "tests/store_phase2.py"],
       "executor": {"provider": "mncs-store", "kind": "compile_experiment", "entrypoint": "tests/test_native_substrate.py::test_publication_policy_rejects_incomplete_candidate"},
       "evidence_identity": {"subject_fields": ["candidate_identity"], "definition_fields": ["publication_policy_identity"], "execution_fields": ["admission_evidence_identity"]}

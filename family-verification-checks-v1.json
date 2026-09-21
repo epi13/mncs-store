@@ -6,7 +6,7 @@
       "identity": "mncs-store:typed-handoff-input",
       "contract_identity": "mncs.ingest.typed-handoff/1",
       "runner": "declaration",
-      "surface": "typed-handoff-to-persistent-state"
+      "surface": "typed-handoff-to-import-migration"
     },
     {
       "identity": "mncs-store:generic-typed-relations-v2",

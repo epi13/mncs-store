@@ -6,18 +6,14 @@ mncs 0.18;
 // complete Store semantic surface.
 module store.application.v1;
 
-use store.identity;
-use store.descriptor;
-use store.chunk;
-use store.manifest;
 use store.generation;
 use store.recovery;
 use store.publication;
 use store.relationship;
-use store.relationship.v2;
 use store.provenance;
 use store.commit_feed;
 use store.semantic_state;
+use store.content;
 
 fn provider_version() -> (result: u64) {
     return 1;

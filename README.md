@@ -2,31 +2,24 @@
 
 Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.
 
-> **Status:** Phase 1a object-core proof complete (2026-09-08); Phase 2
-> generations/recovery complete (2026-09-10, Source Profile 0.13).
-> General blobs (0..992 bytes) persist → close → reopen → verify →
-> typed-read through multi-chunk manifests with hash-chained roots;
-> generations commit with compare-and-transition conflicts, stable
-> snapshots, an explicit commit state machine, deterministic recovery,
-> and sharing-aware reclamation — all semantic bytes AND all semantic
-> decisions produced by mncs-language executions. File mechanics
-> (files, fsync, rename, deletes) stay host-driven pending language
-> file/sync effects; arbitrary sizes past 992 bytes are explicitly
-> deferred. See [ROADMAP.md](ROADMAP.md),
-> [RFC 0017](rfcs/0017-phase2-multichunk-generations-recovery.md), and
-> [pressure/PHASE2-PRESSURE-SUMMARY.md](pressure/PHASE2-PRESSURE-SUMMARY.md).
+> **Status:** Store now exposes a supported local embedded consumer boundary.
+> Native producers persist through `mncs_store.EmbeddedStore`, which retains
+> one admitted Store application session and publishes immutable objects through
+> bounded 64 KiB chunks, 31-way content-tree nodes, generations, atomic head
+> publication, and evidence-based recovery. The supported path is not capped at
+> the historical 992-byte Phase-2 test-driver ceiling. Its current generic
+> relationship representation is `store.relationship` (172 bytes); the old
+> relation source implementations are no longer active.
 
-The current substrate tranche adds a bounded typed-state slice without
-changing those frozen bytes. `store.relationship.v1` (80 bytes),
-`store.provenance.v1` (112 bytes), and `store.commit_feed.v1` (56 bytes) are
+`store.provenance.v1` (112 bytes) and `store.commit_feed.v1` (56 bytes) remain
 versioned native records stored separately from object payload chunks.
 `store.semantic_state.v1` adds a 164-byte identity-bound payload for
 producer-supplied lifecycle, severity, evidence-set, supersession-set,
 generation, and completeness fields without making Store the authority for
-their meanings. A retained `mncs-embed` session now serves repeated semantic batches in the
-Store driver; the filesystem lifecycle remains an explicit host boundary
-until the larger generation publication protocol can use granted effects
-without weakening atomicity or no-follow safety. See
+their meanings. The historical Phase-2 driver remains only as a differential
+oracle for its frozen 992-byte representation; it is not the supported object
+path. See [docs/pressure-reconciliation.md](docs/pressure-reconciliation.md)
+and
 [docs/machine-native-substrate.md](docs/machine-native-substrate.md).
 
 ## Why this exists
@@ -145,21 +138,23 @@ See [docs/invariants.md](docs/invariants.md) for the normative form.
 
 The RFCs are initial architectural decisions, not declarations that implementation is complete.
 
-## Implementation (Phases 1a + 2)
+## Implementation (current Store boundary plus frozen reference oracle)
 
 | Area | Where | Notes |
 |---|---|---|
-| Identity, descriptors, chunks, manifests, generations, recovery | `src/store/*.mncs` | mncs-language; typed records remain Profile 0.13, publication uses Profile 0.18 for no-follow metadata, no stdlib imports |
+| Current semantic admission, generations, publication, typed records, and streaming integrity | `src/store/application.mncs`, `src/store/content.mncs`, `src/store/generation.mncs`, `src/store/publication.mncs`, `src/store/relationship.mncs`, `src/store/provenance.mncs`, `src/store/commit_feed.mncs` | mncs-language; the retained application artifact imports only the current Store path |
+| Frozen Phase-1 codecs and historical verification vocabulary | `src/store/descriptor.mncs`, `src/store/chunk.mncs`, `src/store/manifest.mncs`, `src/store/read_verify.mncs` | reference/differential execution only; not imported by `store.application.v1` or consumers |
 | Canonical encodings v1 (frozen) | `rfcs/0016-phase1-canonical-encodings.md` | single-chunk classes unchanged, still tested |
-| Multi-chunk + generations + recovery | `rfcs/0017-phase2-multichunk-generations-recovery.md` | manifest/descriptor v2, chained roots, CAS, snapshots, commit states |
+| Historical Phase-2 driver | `rfcs/0017-phase2-multichunk-generations-recovery.md` | frozen differential vocabulary; current consumers use the bounded content tree and supported embedded boundary |
 | Lifecycle driver (host transport) | `tests/store_phase1a.py` | files/fsync/rename only; semantics always MNCS |
 | Phase-2 driver (transport + decisions) | `tests/store_phase2.py` | multi-chunk put/get, CAS, snapshots, recovery, reclaim, fault injection |
 | Semantic corpora (300+ cases) | `tests/corpora/*.json` | independent oracles; pure suites all backends, hash suites bytecode (P1-B02) |
 | Lifecycle + corruption tests | `tests/test_lifecycle.py` | close/reopen, torn/corrupt rejection |
 | Generation/recovery/fault tests | `tests/test_phase2.py` | boundaries, CAS, snapshots, 7-point fault matrix, reclamation |
-| Typed relations/provenance/feed | `src/store/relationship.mncs`, `src/store/provenance.mncs`, `src/store/commit_feed.mncs` | fixed versioned records, separate persistence, generation-bound validation |
-| Retained semantic boundary | `tests/retained_session.py` | one admitted artifact across Store batches; C ABI is transport only |
-| Language pressure (23 P1 + 8 P2) | `pressure/` | re-baselined 2026-09-10; see PHASE2-PRESSURE-SUMMARY.md |
+| Typed relations/provenance/feed | `src/store/relationship.mncs`, `src/store/provenance.mncs`, `src/store/commit_feed.mncs` | one current generic relation plus separate generation-bound native records |
+| Supported embedded boundary | `python/mncs_store/` | retained Store application session; Python supplies transport and durable filesystem mechanics only |
+| Historical differential oracle | `tests/store_phase1a.py`, `tests/store_phase2.py` | frozen encodings and legacy 992-byte behavior; not imported by consumers |
+| Language pressure (23 P1 + 8 P2) | `pressure/` | re-baselined pressure records with stale claims reconciled |
 
 Run the suite: `cd tests && python3 -m pytest . -q`
 (`MNCS_BACKENDS` narrows the backend matrix; `MNCS_BIN` overrides the

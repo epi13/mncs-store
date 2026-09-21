@@ -1,0 +1,218 @@
+mncs 0.18;
+
+// store.content.v1 — bounded streaming content integrity.
+//
+// The host supplies at most one 64-byte transport window per call and carries
+// this state between calls.  SHA-256 itself remains the single standard
+// library authority; this module only exposes a Store-owned typed boundary.
+module store.content.v1;
+
+use mncs.std.sha256.v1 as sha256;
+
+record DigestState {
+    h: [u32; 8],
+    total: u64,
+    buf: [byte; 64],
+    buffered: u64
+}
+
+fn digest_init() -> (result: DigestState) {
+    let native: sha256.DigestState = sha256.init();
+    return DigestState {
+        h: native.h,
+        total: native.total,
+        buf: native.buf,
+        buffered: native.buffered
+    };
+}
+
+fn digest_update(st: DigestState, chunk: [byte; up_to 64], chunk_length: u64, k: [u32; 64]) -> (result: DigestState) {
+    let native: sha256.DigestState = sha256.DigestState {
+        h: st.h,
+        total: st.total,
+        buf: st.buf,
+        buffered: st.buffered
+    };
+    let updated: sha256.DigestState = sha256.update(native, chunk, chunk_length, k);
+    return DigestState {
+        h: updated.h,
+        total: updated.total,
+        buf: updated.buf,
+        buffered: updated.buffered
+    };
+}
+
+// The public host boundary keeps the state typed while avoiding a second
+// record representation at the transport edge.  The four state fields are
+// carried explicitly; the returned record is the one current Store state
+// representation and is decoded by the supported embedded adapter.
+fn digest_update_fields(
+    h: [u32; 8],
+    total: u64,
+    buf: [byte; 64],
+    buffered: u64,
+    chunk: [byte; up_to 64],
+    chunk_length: u64,
+    k: [u32; 64]
+) -> (result: DigestState) {
+    return digest_update(DigestState {
+        h: h,
+        total: total,
+        buf: buf,
+        buffered: buffered
+    }, chunk, chunk_length, k);
+}
+
+// Build one bounded SHA transport window.  A large payload never becomes a
+// source-language array: the host streams windows of at most 1024 bytes and
+// this function decomposes one window into the standard library's 64-byte
+// update calls while carrying one native DigestState.
+fn window_at(chunk: [byte; up_to 1024], offset: u64) -> (result: [byte; 64]) {
+    let seed: [byte; 64] = [0; 64];
+    iterate i over seed carrying out: [byte; 64] = seed {
+        let position: u64 = offset +% i;
+        let safe: u64 = select(position < chunk.len, position, 0);
+        next out = replace(out, i, chunk[safe]);
+    }
+    return out;
+}
+
+fn digest_update_window_fields(
+    h: [u32; 8],
+    total: u64,
+    buf: [byte; 64],
+    buffered: u64,
+    chunk: [byte; up_to 1024],
+    chunk_length: u64,
+    k: [u32; 64]
+) -> (result: DigestState) {
+    let initial: DigestState = DigestState {
+        h: h,
+        total: total,
+        buf: buf,
+        buffered: buffered
+    };
+    let slots: [byte; 16] = [0; 16];
+    iterate block over slots carrying current: DigestState = initial {
+        let offset: u64 = block *% 64;
+        let remaining: u64 = select(chunk_length > offset, chunk_length -% offset, 0);
+        let length: u64 = select(remaining > 64, 64, remaining);
+        let window: [byte; 64] = window_at(chunk, offset);
+        let view: [byte; up_to 64] = window[0..64];
+        let native: sha256.DigestState = sha256.DigestState {
+            h: current.h,
+            total: current.total,
+            buf: current.buf,
+            buffered: current.buffered
+        };
+        let updated: sha256.DigestState = sha256.update(native, view, length, k);
+        next current = DigestState {
+            h: updated.h,
+            total: updated.total,
+            buf: updated.buf,
+            buffered: updated.buffered
+        };
+    }
+    return current;
+}
+
+// Hash one bounded filesystem segment without moving the segment into one
+// source-language value.  The host supplies a retained fs_root grant and an
+// entry index; MNCS performs the 64-byte reads and carries the same native
+// DigestState through the whole segment.  The 1024-iteration bound is a
+// semantic operation bound, not an object-size ceiling: the host invokes the
+// function once per segment and carries the returned state between calls.
+fn digest_update_file_slot(
+    current: DigestState,
+    index: u64,
+    entry: u64,
+    start_offset: u64,
+    segment_length: u64,
+    k: [u32; 64]
+) -> (result: DigestState)
+    capability store_content
+    effect fs_read authorized_by store_content
+{
+    let relative: u64 = index *% 64;
+    if relative >= segment_length {
+        return current;
+    }
+    let remaining: u64 = segment_length -% relative;
+    let length: u64 = select(remaining > 64, 64, remaining);
+    let view: [byte; up_to 64] = fs_read_bytes_at(
+        entry,
+        start_offset +% relative,
+        length
+    );
+    let native: sha256.DigestState = sha256.DigestState {
+        h: current.h,
+        total: current.total,
+        buf: current.buf,
+        buffered: current.buffered
+    };
+    let updated: sha256.DigestState = sha256.update(native, view, length, k);
+    return DigestState {
+        h: updated.h,
+        total: updated.total,
+        buf: updated.buf,
+        buffered: updated.buffered
+    };
+}
+
+fn digest_update_file_segment_fields(
+    h: [u32; 8],
+    total: u64,
+    buf: [byte; 64],
+    buffered: u64,
+    entry: u64,
+    start_offset: u64,
+    segment_length: u64,
+    k: [u32; 64]
+) -> (result: DigestState)
+    capability store_content
+    effect fs_read authorized_by store_content
+{
+    let initial: DigestState = DigestState {
+        h: h,
+        total: total,
+        buf: buf,
+        buffered: buffered
+    };
+    let slots: [u64; 1024] = [0; 1024];
+    iterate i over slots carrying current: DigestState = initial {
+        next current = digest_update_file_slot(
+            current,
+            i,
+            entry,
+            start_offset,
+            segment_length,
+            k
+        );
+    }
+    return current;
+}
+
+fn digest_finalize(st: DigestState, k: [u32; 64]) -> (result: [byte; 32]) {
+    let native: sha256.DigestState = sha256.DigestState {
+        h: st.h,
+        total: st.total,
+        buf: st.buf,
+        buffered: st.buffered
+    };
+    return sha256.finalize(native, k);
+}
+
+fn digest_finalize_fields(
+    h: [u32; 8],
+    total: u64,
+    buf: [byte; 64],
+    buffered: u64,
+    k: [u32; 64]
+) -> (result: [byte; 32]) {
+    return digest_finalize(DigestState {
+        h: h,
+        total: total,
+        buf: buf,
+        buffered: buffered
+    }, k);
+}
