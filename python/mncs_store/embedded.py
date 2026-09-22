@@ -132,6 +132,13 @@ class EmbeddedStore:
         self._owns_session = session is None
         self._failpoint = failpoint
         self._closed = False
+        # A verified current-generation projection is a rebuildable read cache.
+        # The generation head remains the authority; a publication invalidates
+        # this cache and a changed head causes the next read to rebuild it.
+        self._projection_generation: int | None = None
+        self._projection: tuple[StoredObject, ...] = ()
+        self._commit_feed_generation: int | None = None
+        self._commit_feed: bytes | None = None
         for name in (
             "chunks",
             "nodes",
@@ -146,7 +153,7 @@ class EmbeddedStore:
         self.recovery_result = self._recover()
         if verify_on_open:
             generation = self.current_generation
-            self._read_generation(generation, verify_objects=True)
+            self._verified_projection(generation)
 
     # ---- platform boundary -------------------------------------------
 
@@ -545,6 +552,40 @@ class EmbeddedStore:
                 self._read_entry(entry, generation, verify_payload=True)
         return entries
 
+    def _invalidate_projection(self) -> None:
+        self._projection_generation = None
+        self._projection = ()
+        self._commit_feed_generation = None
+        self._commit_feed = None
+
+    def _verified_projection(self, generation: int | None = None) -> list[StoredObject]:
+        """Return one fully verified projection for an exact Store generation.
+
+        Store remains authoritative through the generation head and immutable
+        object identities.  This cache only avoids repeating the same complete
+        verification within one resident Store process; publication or a head
+        change makes it ineligible and the projection is rebuilt from Store.
+        """
+
+        selected_generation = self.current_generation if generation is None else generation
+        if self._projection_generation == selected_generation:
+            return list(self._projection)
+        entries = self._read_generation(selected_generation, verify_objects=False)
+        projection = tuple(
+            self._read_entry(entry, selected_generation, verify_payload=True)
+            for entry in sorted(entries, key=lambda item: item.ordinal)
+        )
+        self._projection_generation = selected_generation
+        self._projection = projection
+        return list(projection)
+
+    def _projection_matches_entries(self, generation: int, entries: list[_Entry]) -> bool:
+        if self._projection_generation != generation:
+            return False
+        return [
+            (item.logical_id, item.binding_id, item.ordinal) for item in self._projection
+        ] == [(item.logical_id, item.binding_id, item.ordinal) for item in sorted(entries, key=lambda item: item.ordinal)]
+
     def _read_generation_parts(self, generation: int) -> tuple[list[_Entry], list[bytes], list[bytes]]:
         path = self.path / "generations" / f"{generation:016x}"
         try:
@@ -569,16 +610,21 @@ class EmbeddedStore:
         """Return the native deterministic feed for one verified generation."""
 
         selected_generation = self.current_generation if generation is None else generation
+        if self._commit_feed_generation == selected_generation and self._commit_feed is not None:
+            return self._commit_feed
         path = self.path / "generations" / f"{selected_generation:016x}"
         raw = path.read_bytes()
         entries, relations, provenance = self._parse_generation_parts(raw, selected_generation)
-        return self.session.encode_commit_feed(
+        feed = self.session.encode_commit_feed(
             selected_generation,
             len(entries),
             len(relations),
             len(provenance),
             self._hash(raw),
         )
+        self._commit_feed_generation = selected_generation
+        self._commit_feed = feed
+        return feed
 
     def _valid_generation_bytes(self, generation: int, raw: bytes) -> bool:
         try:
@@ -868,8 +914,13 @@ class EmbeddedStore:
                     token,
                 )
             old_entries, old_relations, old_provenance = self._read_generation_parts(observed)
-            for entry in old_entries:
-                self._read_entry(entry, observed, verify_payload=True)
+            # A cleanly opened generation has already been fully verified and
+            # is still exact when the generation/feed identity is unchanged.
+            # Reuse that proof for publication validation; a missing or
+            # mismatched projection falls back to a complete Store read.
+            if not self._projection_matches_entries(observed, old_entries):
+                self._verified_projection(observed)
+            verified_projection = self._projection
             active_bindings = {entry.binding_id for entry in old_entries}
             existing_path = self._binding_path(binding_id)
             if existing_path.exists():
@@ -967,6 +1018,30 @@ class EmbeddedStore:
             self._trip("during_cleanup")
             (transaction / "journal").unlink(missing_ok=True)
             transaction.rmdir()
+            # The publication is already fully validated above.  Extend the
+            # resident generation-bound read projection with the just-written
+            # object instead of forcing the next Forge query to reread every
+            # unchanged object.  Store's generation head and immutable object
+            # identities remain authoritative; this is only a rebuildable
+            # in-process cache.
+            self._commit_feed_generation = None
+            self._commit_feed = None
+            self._projection_generation = new_generation
+            self._projection = (
+                *verified_projection,
+                StoredObject(
+                    domain_schema=domain_schema,
+                    domain_identity=domain_identity,
+                    logical_id=logical_id,
+                    content_id=content_id,
+                    representation_root=root,
+                    binding_id=binding_id,
+                    generation=new_generation,
+                    ordinal=new_entry.ordinal,
+                    descriptor=descriptor,
+                    payload=payload,
+                ),
+            )
             return CommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
@@ -980,18 +1055,13 @@ class EmbeddedStore:
 
     def get_bound_object(self, domain_schema: bytes, domain_identity: bytes) -> StoredObject:
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
-        generation = self.current_generation
-        entries = self._read_generation(generation, verify_objects=False)
         try:
-            entry = next(item for item in entries if item.binding_id == binding_id)
+            return next(item for item in self._verified_projection() if item.binding_id == binding_id)
         except StopIteration as exc:
             raise StoreError(StoreResultCode.DENIED, "Store object binding is not current") from exc
-        return self._read_entry(entry, generation, verify_payload=True)
 
     def current_objects(self) -> list[StoredObject]:
-        generation = self.current_generation
-        entries = self._read_generation(generation, verify_objects=False)
-        return [self._read_entry(entry, generation, verify_payload=True) for entry in sorted(entries, key=lambda item: item.ordinal)]
+        return self._verified_projection()
 
     def object_metrics(self, domain_schema: bytes, domain_identity: bytes) -> dict[str, int | str]:
         """Return bounded geometry and overhead for one current object."""
@@ -1048,7 +1118,7 @@ class EmbeddedStore:
 
     def verify(self) -> dict[str, object]:
         generation = self.current_generation
-        objects = self._read_generation(generation, verify_objects=True)
+        objects = self._verified_projection(generation)
         _entries, relations, provenance = self._read_generation_parts(generation)
         feed = self.commit_feed(generation)
         return {
@@ -1069,8 +1139,9 @@ class EmbeddedStore:
 
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        self._invalidate_projection()
         self.recovery_result = self._recover()
-        self._read_generation(self.current_generation, verify_objects=True)
+        self._verified_projection(self.current_generation)
         return self.recovery_result
 
     def close(self) -> None:

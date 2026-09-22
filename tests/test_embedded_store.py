@@ -26,6 +26,7 @@ class SemanticSessionDouble:
 
     def __init__(self) -> None:
         self.call_count = 0
+        self.hash_count = 0
         self.semantic_seconds = 0.0
 
     @staticmethod
@@ -33,6 +34,7 @@ class SemanticSessionDouble:
         return {"integer": {"value": value}}
 
     def sha256(self, value: bytes) -> bytes:
+        self.hash_count += 1
         return hashlib.sha256(value).digest()
 
     def encode_relation(
@@ -164,6 +166,31 @@ def test_large_object_uses_bounded_tree_geometry(tmp_path: Path) -> None:
         reopened_object = store.get_bound_object(b"test.domain/1", b"four-megabytes")
         assert reopened_object.payload == payload
         assert reopened_object.generation == 1
+
+
+def test_publication_extends_verified_projection_without_rereading_old_objects(
+    tmp_path: Path,
+) -> None:
+    session = _session()
+    with EmbeddedStore(tmp_path, session=session) as store:
+        store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"first",
+            descriptor=b"test-descriptor/1",
+            payload=b"first-payload",
+            expected_generation=0,
+        )
+        store.current_objects()
+        store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"second",
+            descriptor=b"test-descriptor/1",
+            payload=b"second-payload",
+            expected_generation=1,
+        )
+        after_publication = session.hash_count
+        assert [item.domain_identity for item in store.current_objects()] == [b"first", b"second"]
+        assert session.hash_count == after_publication
 
 
 def test_typed_relations_and_provenance_are_generation_bound(tmp_path: Path) -> None:
