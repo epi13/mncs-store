@@ -62,3 +62,19 @@ class CommitResult:
     @property
     def committed(self) -> bool:
         return self.code in {StoreResultCode.COMMITTED, StoreResultCode.DUPLICATE}
+
+
+@dataclass(frozen=True, slots=True)
+class BatchCommitResult:
+    """One atomic generation outcome for a bounded set of Store objects."""
+
+    code: StoreResultCode
+    generation: int
+    commits: tuple[CommitResult, ...]
+    expected_generation: int
+    observed_generation: int
+    conflict_token: bytes | None = None
+
+    @property
+    def committed(self) -> bool:
+        return self.code in {StoreResultCode.COMMITTED, StoreResultCode.DUPLICATE}

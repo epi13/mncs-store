@@ -15,7 +15,7 @@ from queue import Empty
 
 import pytest
 
-from mncs_store import EmbeddedStore, StoreError, StoreResultCode
+from mncs_store import BoundObjectInput, EmbeddedStore, StoreError, StoreResultCode
 from mncs_store.embedded import CrashInjected
 
 
@@ -193,6 +193,66 @@ def test_publication_extends_verified_projection_without_rereading_old_objects(
         assert session.hash_count == after_publication
 
 
+def test_generation_bound_lookup_maps_follow_publication_and_recovery(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        first = store.put_bound_object(
+            domain_schema=b"schema/a",
+            domain_identity=b"shared",
+            descriptor=b"test-descriptor/1",
+            payload=b"first",
+            expected_generation=0,
+        )
+        second = store.put_bound_object(
+            domain_schema=b"schema/b",
+            domain_identity=b"shared",
+            descriptor=b"test-descriptor/1",
+            payload=b"second",
+            expected_generation=1,
+        )
+        assert store.object_for_binding(first.binding_id).payload == b"first"
+        assert store.object_for_binding(second.binding_id).payload == b"second"
+        assert store.logical_id_for_domain(b"schema/a", b"shared") == first.logical_id
+        assert store.logical_id_for_domain(b"schema/b", b"shared") == second.logical_id
+        assert store.logical_ids_for_domain_identity(b"shared") == (
+            first.logical_id,
+            second.logical_id,
+        )
+
+    with EmbeddedStore(tmp_path, session=_session()) as reopened:
+        assert reopened.object_for_binding(first.binding_id).logical_id == first.logical_id
+        assert reopened.logical_id_for_domain(b"schema/b", b"shared") == second.logical_id
+        assert reopened.logical_ids_for_domain_identity(b"shared") == (
+            first.logical_id,
+            second.logical_id,
+        )
+
+
+def test_batch_publication_commits_all_objects_in_one_generation(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        result = store.put_bound_objects(
+            [
+                BoundObjectInput(
+                    b"batch/1",
+                    b"one",
+                    b"descriptor/1",
+                    b"payload-one",
+                ),
+                BoundObjectInput(
+                    b"batch/1",
+                    b"two",
+                    b"descriptor/1",
+                    b"payload-two",
+                ),
+            ],
+            expected_generation=0,
+        )
+        assert result.code is StoreResultCode.COMMITTED
+        assert result.generation == 1
+        assert len(result.commits) == 2
+        assert {item.generation for item in store.current_objects()} == {1}
+        assert [item.domain_identity for item in store.current_objects()] == [b"one", b"two"]
+
+
 def test_typed_relations_and_provenance_are_generation_bound(tmp_path: Path) -> None:
     session = _session()
     with EmbeddedStore(tmp_path, session=session) as store:
@@ -291,6 +351,49 @@ def test_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None
         }
         if recovered.current_generation == 1:
             assert recovered.current_objects()[0].payload == b"fault" * 300
+        else:
+            assert recovered.current_objects() == []
+
+
+@pytest.mark.parametrize(
+    "failpoint",
+    [
+        "during_chunk_staging",
+        "after_content_durability",
+        "during_structural_metadata_staging",
+        "after_binding_durability",
+        "before_generation_publication",
+        "after_generation_publication",
+        "after_head_replace_before_directory_sync",
+        "during_head_publication",
+        "after_head_publication",
+        "during_cleanup",
+    ],
+)
+def test_batch_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None:
+    def inject(name: str) -> None:
+        if name == failpoint:
+            raise CrashInjected(name)
+
+    batch = [
+        BoundObjectInput(b"batch/1", b"one", b"descriptor/1", b"payload-one"),
+        BoundObjectInput(b"batch/1", b"two", b"descriptor/1", b"payload-two"),
+    ]
+    with pytest.raises(CrashInjected):
+        with EmbeddedStore(tmp_path, session=_session(), failpoint=inject) as store:
+            store.put_bound_objects(batch, expected_generation=0)
+
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.current_generation in {0, 1}
+        assert recovered.recovery_result in {
+            StoreResultCode.RECOVERED_OLD,
+            StoreResultCode.RECOVERED_NEW,
+        }
+        if recovered.current_generation == 1:
+            assert [item.payload for item in recovered.current_objects()] == [
+                b"payload-one",
+                b"payload-two",
+            ]
         else:
             assert recovered.current_objects() == []
 

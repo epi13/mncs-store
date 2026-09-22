@@ -16,9 +16,9 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Sequence
 
-from .errors import CommitResult, StoreError, StoreIntegrityError, StoreResultCode
+from .errors import BatchCommitResult, CommitResult, StoreError, StoreIntegrityError, StoreResultCode
 from .session import StoreSession, as_bytes, as_int, u32, u64, _returned
 
 
@@ -63,6 +63,18 @@ class StoredObject:
     ordinal: int
     descriptor: bytes
     payload: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class BoundObjectInput:
+    """Generic immutable material for one object in an atomic Store batch."""
+
+    domain_schema: bytes
+    domain_identity: bytes
+    descriptor: bytes
+    payload: bytes
+    relations: tuple[bytes, ...] = ()
+    provenance: tuple[bytes, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +149,9 @@ class EmbeddedStore:
         # this cache and a changed head causes the next read to rebuild it.
         self._projection_generation: int | None = None
         self._projection: tuple[StoredObject, ...] = ()
+        self._objects_by_binding: dict[bytes, StoredObject] = {}
+        self._logical_ids_by_domain: dict[tuple[bytes, bytes], bytes] = {}
+        self._logical_ids_by_identity: dict[bytes, tuple[bytes, ...]] = {}
         self._commit_feed_generation: int | None = None
         self._commit_feed: bytes | None = None
         for name in (
@@ -555,8 +570,33 @@ class EmbeddedStore:
     def _invalidate_projection(self) -> None:
         self._projection_generation = None
         self._projection = ()
+        self._objects_by_binding = {}
+        self._logical_ids_by_domain = {}
+        self._logical_ids_by_identity = {}
         self._commit_feed_generation = None
         self._commit_feed = None
+
+    def _rebuild_lookup_maps(self, projection: tuple[StoredObject, ...]) -> None:
+        by_binding = {item.binding_id: item for item in projection}
+        by_domain = {
+            (item.domain_schema, item.domain_identity): item.logical_id for item in projection
+        }
+        by_identity: dict[bytes, list[bytes]] = {}
+        for item in projection:
+            by_identity.setdefault(item.domain_identity, []).append(item.logical_id)
+        self._objects_by_binding = by_binding
+        self._logical_ids_by_domain = by_domain
+        self._logical_ids_by_identity = {
+            identity: tuple(logical_ids) for identity, logical_ids in by_identity.items()
+        }
+
+    def _extend_lookup_maps(self, item: StoredObject) -> None:
+        self._objects_by_binding[item.binding_id] = item
+        self._logical_ids_by_domain[(item.domain_schema, item.domain_identity)] = item.logical_id
+        matches = list(self._logical_ids_by_identity.get(item.domain_identity, ()))
+        if item.logical_id not in matches:
+            matches.append(item.logical_id)
+        self._logical_ids_by_identity[item.domain_identity] = tuple(matches)
 
     def _verified_projection(self, generation: int | None = None) -> list[StoredObject]:
         """Return one fully verified projection for an exact Store generation.
@@ -577,6 +617,7 @@ class EmbeddedStore:
         )
         self._projection_generation = selected_generation
         self._projection = projection
+        self._rebuild_lookup_maps(projection)
         return list(projection)
 
     def _projection_matches_entries(self, generation: int, entries: list[_Entry]) -> bool:
@@ -962,7 +1003,8 @@ class EmbeddedStore:
                 binding_id=binding_id,
                 logical_id=logical_id,
             )
-            new_entry = _Entry(logical_id, binding_id, root, content_id, len(payload), new_generation)
+            next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
+            new_entry = _Entry(logical_id, binding_id, root, content_id, len(payload), next_ordinal)
             entries = old_entries + [new_entry]
             generation_raw = self._generation_bytes(
                 new_generation,
@@ -1027,21 +1069,20 @@ class EmbeddedStore:
             self._commit_feed_generation = None
             self._commit_feed = None
             self._projection_generation = new_generation
-            self._projection = (
-                *verified_projection,
-                StoredObject(
-                    domain_schema=domain_schema,
-                    domain_identity=domain_identity,
-                    logical_id=logical_id,
-                    content_id=content_id,
-                    representation_root=root,
-                    binding_id=binding_id,
-                    generation=new_generation,
-                    ordinal=new_entry.ordinal,
-                    descriptor=descriptor,
-                    payload=payload,
-                ),
+            committed_object = StoredObject(
+                domain_schema=domain_schema,
+                domain_identity=domain_identity,
+                logical_id=logical_id,
+                content_id=content_id,
+                representation_root=root,
+                binding_id=binding_id,
+                generation=new_generation,
+                ordinal=new_entry.ordinal,
+                descriptor=descriptor,
+                payload=payload,
             )
+            self._projection = (*verified_projection, committed_object)
+            self._extend_lookup_maps(committed_object)
             return CommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
@@ -1053,12 +1094,270 @@ class EmbeddedStore:
                 observed,
             )
 
+    def put_bound_objects(
+        self,
+        objects: Sequence[BoundObjectInput],
+        *,
+        expected_generation: int,
+    ) -> BatchCommitResult:
+        """Publish several new bound objects as one generation.
+
+        Immutable content may be staged before publication, but the generation
+        journal and head are advanced only once.  A stale expected generation
+        returns without retrying; an accepted batch is therefore visible as
+        the old complete generation or the new complete generation after
+        recovery.
+        """
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        if expected_generation < 0:
+            raise StoreError(StoreResultCode.DENIED, "expected generation must be non-negative")
+        if not objects:
+            raise StoreError(StoreResultCode.DENIED, "Store batch must contain at least one object")
+
+        normalized: list[BoundObjectInput] = []
+        bindings: list[bytes] = []
+        seen_bindings: set[bytes] = set()
+        all_relations: list[bytes] = []
+        all_provenance: list[bytes] = []
+        for item in objects:
+            if not isinstance(item, BoundObjectInput):
+                raise StoreError(StoreResultCode.DENIED, "Store batch object has an invalid type")
+            domain_schema = bytes(item.domain_schema)
+            domain_identity = bytes(item.domain_identity)
+            descriptor = bytes(item.descriptor)
+            payload = bytes(item.payload)
+            relations = tuple(bytes(value) for value in item.relations)
+            provenance = tuple(bytes(value) for value in item.provenance)
+            binding_id = self._binding_id(domain_schema, domain_identity)
+            if binding_id in seen_bindings:
+                raise StoreError(StoreResultCode.DENIED, "Store batch repeats a domain binding")
+            seen_bindings.add(binding_id)
+            bindings.append(binding_id)
+            all_relations.extend(relations)
+            all_provenance.extend(provenance)
+            normalized.append(
+                BoundObjectInput(
+                    domain_schema,
+                    domain_identity,
+                    descriptor,
+                    payload,
+                    relations,
+                    provenance,
+                )
+            )
+
+        with self._publication_lock():
+            observed = self.current_generation
+            if self._cas(observed, expected_generation) != 0:
+                token = self._conflict_token(observed, expected_generation)
+                return BatchCommitResult(
+                    StoreResultCode.STALE_GENERATION,
+                    observed,
+                    (),
+                    expected_generation,
+                    observed,
+                    token,
+                )
+            old_entries, old_relations, old_provenance = self._read_generation_parts(observed)
+            if not self._projection_matches_entries(observed, old_entries):
+                self._verified_projection(observed)
+            verified_projection = self._projection
+            active_bindings = {entry.binding_id for entry in old_entries}
+            duplicate_results: list[CommitResult] = []
+            new_items: list[tuple[BoundObjectInput, bytes, bytes]] = []
+            for item, binding_id in zip(normalized, bindings, strict=True):
+                existing_path = self._binding_path(binding_id)
+                if not existing_path.exists():
+                    new_items.append((item, binding_id, self._logical_id(binding_id)))
+                    continue
+                existing = self._read_binding(binding_id)
+                if binding_id in active_bindings:
+                    candidate_content = self._hash(item.payload)
+                    if existing[3] != candidate_content:
+                        raise StoreError(
+                            StoreResultCode.IDENTITY_CONFLICT,
+                            "domain identity already names different Store content",
+                        )
+                    duplicate_results.append(
+                        CommitResult(
+                            StoreResultCode.DUPLICATE,
+                            observed,
+                            existing[2],
+                            existing[3],
+                            existing[4],
+                            binding_id,
+                            expected_generation,
+                            observed,
+                        )
+                    )
+                    continue
+                # A binding left by a failed prior publication is not
+                # authoritative until a committed generation names it.
+                existing_path.unlink()
+                _sync_directory(existing_path.parent)
+                new_items.append((item, binding_id, self._logical_id(binding_id)))
+
+            if duplicate_results and new_items:
+                raise StoreError(
+                    StoreResultCode.IDENTITY_CONFLICT,
+                    "Store batch cannot mix duplicate and new domain bindings",
+                )
+            if duplicate_results:
+                return BatchCommitResult(
+                    StoreResultCode.DUPLICATE,
+                    observed,
+                    tuple(duplicate_results),
+                    expected_generation,
+                    observed,
+                )
+
+            new_generation = observed + 1
+            self._validate_typed_records(
+                all_relations,
+                all_provenance,
+                new_generation,
+                require_current_generation=True,
+            )
+            next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
+            entries = list(old_entries)
+            built: list[
+                tuple[BoundObjectInput, bytes, bytes, bytes, bytes, int]
+            ] = []
+            for index, (item, binding_id, logical_id) in enumerate(new_items):
+                content_id, root, _descriptor_id, _chunks, _depth = self._build_content(
+                    payload=item.payload,
+                    descriptor=item.descriptor,
+                    binding_id=binding_id,
+                    logical_id=logical_id,
+                )
+                ordinal = next_ordinal + index
+                entry = _Entry(logical_id, binding_id, root, content_id, len(item.payload), ordinal)
+                entries.append(entry)
+                built.append((item, binding_id, logical_id, content_id, root, ordinal))
+            generation_raw = self._generation_bytes(
+                new_generation,
+                entries,
+                old_relations + all_relations,
+                old_provenance + all_provenance,
+            )
+            transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
+            transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
+            staged_generation = transaction / "generation.stage"
+            _durable_write(staged_generation, generation_raw, exclusive=True)
+            generation_digest = self._hash(generation_raw)
+            _durable_write(
+                transaction / "journal",
+                JOURNAL.pack(JOURNAL_MAGIC, VERSION, 0, observed, new_generation, generation_digest),
+                exclusive=True,
+            )
+            _sync_directory(transaction)
+            for item, binding_id, logical_id, content_id, root, _ordinal in built:
+                self._write_binding(
+                    domain_schema=item.domain_schema,
+                    domain_identity=item.domain_identity,
+                    binding_id=binding_id,
+                    logical_id=logical_id,
+                    content_id=content_id,
+                    representation_root=root,
+                    generation=new_generation,
+                )
+            self._trip("after_binding_durability")
+            self._trip("before_generation_publication")
+            os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
+            _sync_directory(self.path / "generations")
+            self._write_journal_state(
+                transaction,
+                state=1,
+                old=observed,
+                new=new_generation,
+                digest=generation_digest,
+            )
+            self._trip("after_generation_publication")
+            self._publish_head(new_generation)
+            self._write_journal_state(
+                transaction,
+                state=2,
+                old=observed,
+                new=new_generation,
+                digest=generation_digest,
+            )
+            self._trip("after_head_publication")
+            self._trip("during_cleanup")
+            (transaction / "journal").unlink(missing_ok=True)
+            transaction.rmdir()
+
+            self._commit_feed_generation = None
+            self._commit_feed = None
+            self._projection_generation = new_generation
+            committed_objects: list[StoredObject] = []
+            commit_results: list[CommitResult] = []
+            for item, binding_id, logical_id, content_id, root, ordinal in built:
+                committed_objects.append(
+                    StoredObject(
+                        domain_schema=item.domain_schema,
+                        domain_identity=item.domain_identity,
+                        logical_id=logical_id,
+                        content_id=content_id,
+                        representation_root=root,
+                        binding_id=binding_id,
+                        generation=new_generation,
+                        ordinal=ordinal,
+                        descriptor=item.descriptor,
+                        payload=item.payload,
+                    )
+                )
+                commit_results.append(
+                    CommitResult(
+                        StoreResultCode.COMMITTED,
+                        new_generation,
+                        logical_id,
+                        content_id,
+                        root,
+                        binding_id,
+                        expected_generation,
+                        observed,
+                    )
+                )
+            self._projection = (*verified_projection, *committed_objects)
+            for item in committed_objects:
+                self._extend_lookup_maps(item)
+            return BatchCommitResult(
+                StoreResultCode.COMMITTED,
+                new_generation,
+                tuple(commit_results),
+                expected_generation,
+                observed,
+            )
+
     def get_bound_object(self, domain_schema: bytes, domain_identity: bytes) -> StoredObject:
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
-        try:
-            return next(item for item in self._verified_projection() if item.binding_id == binding_id)
-        except StopIteration as exc:
-            raise StoreError(StoreResultCode.DENIED, "Store object binding is not current") from exc
+        self._verified_projection()
+        item = self._objects_by_binding.get(binding_id)
+        if item is None:
+            raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
+        return item
+
+    def object_for_binding(self, binding_id: bytes) -> StoredObject | None:
+        """Return one current-generation object by its derived binding map."""
+
+        self._verified_projection()
+        return self._objects_by_binding.get(bytes(binding_id))
+
+    def logical_id_for_domain(
+        self, domain_schema: bytes, domain_identity: bytes
+    ) -> bytes | None:
+        """Resolve a current domain binding through the verified projection."""
+
+        self._verified_projection()
+        return self._logical_ids_by_domain.get((bytes(domain_schema), bytes(domain_identity)))
+
+    def logical_ids_for_domain_identity(self, domain_identity: bytes) -> tuple[bytes, ...]:
+        """Return bounded current logical matches when schema is intentionally omitted."""
+
+        self._verified_projection()
+        return self._logical_ids_by_identity.get(bytes(domain_identity), ())
 
     def current_objects(self) -> list[StoredObject]:
         return self._verified_projection()
