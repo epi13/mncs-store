@@ -77,6 +77,35 @@ fn window_at(chunk: [byte; up_to 1024], offset: u64) -> (result: [byte; 64]) {
     return out;
 }
 
+fn digest_update_window_slot(
+    current: DigestState,
+    offset: u64,
+    chunk: [byte; up_to 1024],
+    chunk_length: u64,
+    k: [u32; 64]
+) -> (result: DigestState) {
+    if offset >= chunk_length {
+        return current;
+    }
+    let remaining: u64 = chunk_length -% offset;
+    let length: u64 = select(remaining > 64, 64, remaining);
+    let window: [byte; 64] = window_at(chunk, offset);
+    let view: [byte; up_to 64] = window[0..64];
+    let native: sha256.DigestState = sha256.DigestState {
+        h: current.h,
+        total: current.total,
+        buf: current.buf,
+        buffered: current.buffered
+    };
+    let updated: sha256.DigestState = sha256.update(native, view, length, k);
+    return DigestState {
+        h: updated.h,
+        total: updated.total,
+        buf: updated.buf,
+        buffered: updated.buffered
+    };
+}
+
 fn digest_update_window_fields(
     h: [u32; 8],
     total: u64,
@@ -94,24 +123,13 @@ fn digest_update_window_fields(
     };
     let slots: [byte; 16] = [0; 16];
     iterate block over slots carrying current: DigestState = initial {
-        let offset: u64 = block *% 64;
-        let remaining: u64 = select(chunk_length > offset, chunk_length -% offset, 0);
-        let length: u64 = select(remaining > 64, 64, remaining);
-        let window: [byte; 64] = window_at(chunk, offset);
-        let view: [byte; up_to 64] = window[0..64];
-        let native: sha256.DigestState = sha256.DigestState {
-            h: current.h,
-            total: current.total,
-            buf: current.buf,
-            buffered: current.buffered
-        };
-        let updated: sha256.DigestState = sha256.update(native, view, length, k);
-        next current = DigestState {
-            h: updated.h,
-            total: updated.total,
-            buf: updated.buf,
-            buffered: updated.buffered
-        };
+        next current = digest_update_window_slot(
+            current,
+            block *% 64,
+            chunk,
+            chunk_length,
+            k
+        );
     }
     return current;
 }

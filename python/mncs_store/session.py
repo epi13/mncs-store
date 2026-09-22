@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -32,6 +33,23 @@ def _language_root() -> Path:
     if configured:
         return Path(configured).expanduser().resolve()
     return Path("/home/epi13/Documents/Projects/mncs-language")
+
+
+def _language_target(filename: str) -> Path:
+    """Choose the fastest locally built language binary, with debug fallback.
+
+    Store still accepts explicit ``MNCS_BIN``/``MNCS_EMBED_LIB`` overrides.
+    When no override is supplied, a completed release build is the normal
+    resident-development realization; a clean checkout naturally falls back
+    to the debug artifact used by the existing test workflow.
+    """
+
+    language = _language_root()
+    for profile in ("release", "debug"):
+        candidate = language / "target" / profile / filename
+        if candidate.is_file():
+            return candidate
+    return language / "target" / "debug" / filename
 
 
 def u16(value: int) -> dict[str, Any]:
@@ -88,6 +106,8 @@ class StoreSession:
     _library: Any = None
     _library_lock = threading.Lock()
     _artifact: bytes | None = None
+    _artifact_key: str | None = None
+    _last_artifact_cache_hit = False
     _artifact_lock = threading.Lock()
 
     @classmethod
@@ -95,12 +115,7 @@ class StoreSession:
         with cls._library_lock:
             if cls._library is not None:
                 return cls._library
-            language = _language_root()
-            embed = Path(
-                os.environ.get(
-                    "MNCS_EMBED_LIB", str(language / "target" / "debug" / "libmncs_embed.so")
-                )
-            )
+            embed = Path(os.environ.get("MNCS_EMBED_LIB", str(_language_target("libmncs_embed.so"))))
             if not embed.is_file():
                 raise StoreError(
                     StoreResultCode.PLATFORM_UNSUPPORTED,
@@ -113,6 +128,8 @@ class StoreSession:
             library.mncs_session_call_batch.restype = ctypes.c_void_p
             library.mncs_session_close.argtypes = [ctypes.c_void_p]
             library.mncs_session_close.restype = None
+            library.mncs_session_info.argtypes = [ctypes.c_void_p]
+            library.mncs_session_info.restype = ctypes.c_void_p
             library.mncs_response_text.argtypes = [ctypes.c_void_p]
             library.mncs_response_text.restype = ctypes.c_char_p
             library.mncs_response_free.argtypes = [ctypes.c_void_p]
@@ -123,10 +140,137 @@ class StoreSession:
             return library
 
     @classmethod
+    def _artifact_cache_root(cls) -> Path:
+        configured = os.environ.get("MNCS_STORE_ARTIFACT_CACHE")
+        if configured:
+            return Path(configured).expanduser().resolve()
+        return Path(tempfile.gettempdir()) / "mncs-store-artifact-cache"
+
+    @staticmethod
+    def _source_manifest(root: Path) -> list[dict[str, str]]:
+        entries: list[dict[str, str]] = []
+        if not root.is_dir():
+            return entries
+        for path in sorted(root.rglob("*.mncs")):
+            if not path.is_file():
+                continue
+            entries.append(
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }
+            )
+        return entries
+
+    @classmethod
+    def _artifact_identity_material(
+        cls,
+        *,
+        source: Path,
+        compiler: Path,
+        language: Path,
+        store_root: Path,
+        target: str,
+        environment: dict[str, str],
+    ) -> tuple[str, dict[str, Any]]:
+        relevant_environment = {
+            name: environment.get(name, "")
+            for name in (
+                "MNCS_LIBRARY_PATH",
+                "MNCS_STDLIB_BUNDLE",
+                "MNCS_PROFILE",
+                "MNCS_COMPILER_PROFILE",
+                "MNCS_TARGET_PROFILE",
+                "MNCS_BACKEND_CONFIG",
+            )
+        }
+        bundle = environment.get("MNCS_STDLIB_BUNDLE", "")
+        bundle_path = Path(bundle).expanduser().resolve() if bundle else None
+        material: dict[str, Any] = {
+            "schema": "mncs-store-artifact-cache/1",
+            "source": {
+                "path": source.relative_to(store_root).as_posix(),
+                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            },
+            "source_roots": {
+                "store": cls._source_manifest(store_root / "src"),
+                "language": cls._source_manifest(language / "library"),
+            },
+            "compiler": {
+                "path": str(compiler),
+                "sha256": hashlib.sha256(compiler.read_bytes()).hexdigest(),
+            },
+            "target": target,
+            "profile": relevant_environment,
+            "bundle": {
+                "path": str(bundle_path) if bundle_path else "",
+                "sha256": (
+                    hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+                    if bundle_path and bundle_path.is_file()
+                    else ""
+                ),
+            },
+        }
+        encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest(), material
+
+    @classmethod
+    def _read_cached_artifact(cls, key: str) -> bytes | None:
+        entry = cls._artifact_cache_root() / key
+        manifest_path = entry / "manifest.json"
+        artifact_path = entry / "backend.json"
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            artifact = artifact_path.read_bytes()
+        except (OSError, ValueError, TypeError):
+            return None
+        if manifest.get("schema") != "mncs-store-artifact-cache/1":
+            return None
+        if manifest.get("key") != key:
+            return None
+        if manifest.get("artifact_sha256") != hashlib.sha256(artifact).hexdigest():
+            return None
+        return artifact
+
+    @classmethod
+    def _write_cached_artifact(
+        cls,
+        key: str,
+        material: dict[str, Any],
+        artifact: bytes,
+    ) -> None:
+        root = cls._artifact_cache_root()
+        entry = root / key
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            temporary = Path(tempfile.mkdtemp(prefix=f"{key}-", dir=root))
+            (temporary / "backend.json").write_bytes(artifact)
+            (temporary / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "mncs-store-artifact-cache/1",
+                        "key": key,
+                        "material": material,
+                        "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            if entry.exists():
+                for child in (temporary / "backend.json", temporary / "manifest.json"):
+                    os.replace(child, entry / child.name)
+                temporary.rmdir()
+            else:
+                os.replace(temporary, entry)
+        except OSError:
+            # Caching is an acceleration only. A read-only or unavailable
+            # cache must never change Store admission semantics.
+            return
+
+    @classmethod
     def _compile_artifact(cls) -> bytes:
         with cls._artifact_lock:
-            if cls._artifact is not None:
-                return cls._artifact
             configured_artifact = os.environ.get("MNCS_STORE_ARTIFACT")
             if configured_artifact:
                 artifact_path = Path(configured_artifact).expanduser().resolve()
@@ -136,23 +280,43 @@ class StoreSession:
                         f"configured Store artifact is unavailable: {artifact_path}",
                     )
                 cls._artifact = artifact_path.read_bytes()
+                cls._artifact_key = None
+                cls._last_artifact_cache_hit = False
                 return cls._artifact
             store_root = _store_root()
             language = _language_root()
             source = store_root / "src" / "store" / "application.mncs"
             compiler = Path(
-                os.environ.get("MNCS_BIN", str(language / "target" / "debug" / "mncs"))
+                os.environ.get("MNCS_BIN", str(_language_target("mncs")))
             )
             if not source.is_file() or not compiler.is_file():
                 raise StoreError(
                     StoreResultCode.PLATFORM_UNSUPPORTED,
                     f"Store compiler/source unavailable: {compiler}, {source}",
                 )
+            environment = dict(os.environ)
+            environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(
+                [str(language / "library"), str(store_root / "src")]
+            )
+            target = "mncs-research-bytecode"
+            key, material = cls._artifact_identity_material(
+                source=source,
+                compiler=compiler,
+                language=language,
+                store_root=store_root,
+                target=target,
+                environment=environment,
+            )
+            if cls._artifact is not None and cls._artifact_key == key:
+                cls._last_artifact_cache_hit = True
+                return cls._artifact
+            cached = cls._read_cached_artifact(key)
+            if cached is not None:
+                cls._artifact = cached
+                cls._artifact_key = key
+                cls._last_artifact_cache_hit = True
+                return cached
             with tempfile.TemporaryDirectory(prefix="mncs-store-artifact-") as output:
-                environment = dict(os.environ)
-                environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(
-                    [str(language / "library"), str(store_root / "src")]
-                )
                 completed = subprocess.run(
                     [
                         str(compiler),
@@ -163,7 +327,7 @@ class StoreSession:
                         "--output-dir",
                         output,
                         "--target",
-                        "mncs-research-bytecode",
+                        target,
                     ],
                     capture_output=True,
                     text=True,
@@ -179,21 +343,46 @@ class StoreSession:
                         f"Store artifact admission failed: {detail}",
                     )
                 cls._artifact = artifact.read_bytes()
+                cls._artifact_key = key
+                cls._last_artifact_cache_hit = False
+                cls._write_cached_artifact(key, material, cls._artifact)
                 return cls._artifact
 
     def __init__(self) -> None:
+        started = time.perf_counter()
+        library_started = time.perf_counter()
         self._library = self._load_library()
+        self.library_load_seconds = time.perf_counter() - library_started
+        artifact_started = time.perf_counter()
         artifact = self._compile_artifact()
+        self.artifact_prepare_seconds = time.perf_counter() - artifact_started
+        self.artifact_cache_hit = self._last_artifact_cache_hit
         self.artifact_sha256 = hashlib.sha256(artifact).hexdigest()
-        self.backend = "mncs-research-bytecode"
-        self.toolchain = os.environ.get("MNCS_BIN", str(_language_root() / "target" / "debug" / "mncs"))
+        self.toolchain = os.environ.get("MNCS_BIN", str(_language_target("mncs")))
         self.call_count = 0
         self.semantic_seconds = 0.0
+        open_started = time.perf_counter()
+        # This is the artifact admission boundary for both freshly compiled
+        # and cross-process cached bytes. No cached artifact reaches a call
+        # until the embed library has accepted its identity and payload here.
         self._handle = self._library.mncs_session_open(artifact, len(artifact))
+        self.session_open_seconds = time.perf_counter() - open_started
         if not self._handle:
             raw = self._library.mncs_last_error()
             detail = raw.decode() if raw else "unknown session-open failure"
             raise StoreError(StoreResultCode.PLATFORM_UNSUPPORTED, detail)
+        self.backend = "unknown"
+        self.reused_session = False
+        info = self._library.mncs_session_info(self._handle)
+        if info:
+            try:
+                raw_info = self._library.mncs_response_text(info)
+                details = json.loads(raw_info.decode())
+                self.backend = str(details.get("backend", self.backend))
+                self.reused_session = bool(details.get("reused_session", False))
+            finally:
+                self._library.mncs_response_free(info)
+        self.construction_seconds = time.perf_counter() - started
         self._closed = False
 
     def call(
@@ -218,17 +407,41 @@ class StoreSession:
                 "step_budget": step_budget,
             }
         ]
-        response = self._library.mncs_session_call_batch(
-            self._handle, json.dumps(request, separators=(",", ":")).encode()
-        )
+        profile = os.environ.get("MNCS_RUNTIME_PROFILE") is not None
+        encode_started = time.perf_counter()
+        request_bytes = json.dumps(request, separators=(",", ":")).encode()
+        if profile:
+            print(
+                "mncs-store-profile phase=host_argument_encode elapsed_ns="
+                f"{int((time.perf_counter() - encode_started) * 1_000_000_000)}",
+                file=sys.stderr,
+                flush=True,
+            )
+        abi_started = time.perf_counter()
+        response = self._library.mncs_session_call_batch(self._handle, request_bytes)
+        if profile:
+            print(
+                "mncs-store-profile phase=c_abi_call elapsed_ns="
+                f"{int((time.perf_counter() - abi_started) * 1_000_000_000)}",
+                file=sys.stderr,
+                flush=True,
+            )
         self.semantic_seconds += time.perf_counter() - started
         if not response:
             raw = self._library.mncs_last_error()
             detail = raw.decode() if raw else "unknown Store call failure"
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, detail)
         try:
+            decode_started = time.perf_counter()
             text = self._library.mncs_response_text(response)
             values = json.loads(text.decode())
+            if profile:
+                print(
+                    "mncs-store-profile phase=host_result_decode elapsed_ns="
+                    f"{int((time.perf_counter() - decode_started) * 1_000_000_000)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
         finally:
             self._library.mncs_response_free(response)
         if not isinstance(values, list) or len(values) != 1:
