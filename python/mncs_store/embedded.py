@@ -136,11 +136,14 @@ class EmbeddedStore:
         path: Path,
         *,
         session: StoreSession | None = None,
+        command_executor: object | None = None,
         failpoint: Failpoint | None = None,
         verify_on_open: bool = True,
     ) -> None:
+        if session is not None and command_executor is not None:
+            raise ValueError("provide either a Store session or a command executor, not both")
         self.path = Path(path).expanduser().resolve()
-        self.session = session or StoreSession()
+        self.session = session or StoreSession(command_executor=command_executor)
         self._owns_session = session is None
         self._failpoint = failpoint
         self._closed = False
@@ -1362,6 +1365,22 @@ class EmbeddedStore:
     def current_objects(self) -> list[StoredObject]:
         return self._verified_projection()
 
+    def resident_status(self) -> dict[str, object]:
+        """Expose retained generation cardinalities without copying authority."""
+
+        return {
+            "generation": self._projection_generation,
+            "verified_object_projection_entries": len(self._projection),
+            "binding_lookup_entries": len(self._objects_by_binding),
+            "domain_identity_lookup_entries": len(self._logical_ids_by_domain),
+            "identity_lookup_entries": len(self._logical_ids_by_identity),
+            "commit_feed_generation": self._commit_feed_generation,
+            "commit_feed_bytes": len(self._commit_feed) if self._commit_feed is not None else 0,
+            "projection_capacity": None,
+            "projection_policy": "complete verified current-generation authority projection",
+            "limitation": "resident projection and lookup maps scale with the durable Store generation",
+        }
+
     def object_metrics(self, domain_schema: bytes, domain_identity: bytes) -> dict[str, int | str]:
         """Return bounded geometry and overhead for one current object."""
 
@@ -1449,6 +1468,12 @@ class EmbeddedStore:
         if self._owns_session:
             self.session.close()
         self._closed = True
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> "EmbeddedStore":
         return self
