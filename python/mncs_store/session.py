@@ -20,6 +20,11 @@ from typing import Any
 
 from .errors import StoreError, StoreResultCode
 
+STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS = 300
+STORE_ARTIFACT_OUTPUT_BYTES = 128 * 1024 * 1024
+STORE_ARTIFACT_MAX_BYTES = 128 * 1024 * 1024
+STORE_ARTIFACT_MANIFEST_MAX_BYTES = 8 * 1024 * 1024
+
 
 def _store_root() -> Path:
     configured = os.environ.get("MNCS_STORE_ROOT")
@@ -220,6 +225,10 @@ class StoreSession:
         manifest_path = entry / "manifest.json"
         artifact_path = entry / "backend.json"
         try:
+            if manifest_path.stat().st_size > STORE_ARTIFACT_MANIFEST_MAX_BYTES:
+                return None
+            if artifact_path.stat().st_size > STORE_ARTIFACT_MAX_BYTES:
+                return None
             manifest = json.loads(manifest_path.read_text())
             artifact = artifact_path.read_bytes()
         except (OSError, ValueError, TypeError):
@@ -268,8 +277,8 @@ class StoreSession:
             # cache must never change Store admission semantics.
             return
 
-    @classmethod
-    def _compile_artifact(cls) -> bytes:
+    def _compile_artifact(self) -> bytes:
+        cls = type(self)
         with cls._artifact_lock:
             configured_artifact = os.environ.get("MNCS_STORE_ARTIFACT")
             if configured_artifact:
@@ -278,6 +287,11 @@ class StoreSession:
                     raise StoreError(
                         StoreResultCode.PLATFORM_UNSUPPORTED,
                         f"configured Store artifact is unavailable: {artifact_path}",
+                    )
+                if artifact_path.stat().st_size > STORE_ARTIFACT_MAX_BYTES:
+                    raise StoreError(
+                        StoreResultCode.PLATFORM_UNSUPPORTED,
+                        f"configured Store artifact exceeds the {STORE_ARTIFACT_MAX_BYTES}-byte resident bound",
                     )
                 cls._artifact = artifact_path.read_bytes()
                 cls._artifact_key = None
@@ -317,30 +331,60 @@ class StoreSession:
                 cls._last_artifact_cache_hit = True
                 return cached
             with tempfile.TemporaryDirectory(prefix="mncs-store-artifact-") as output:
-                completed = subprocess.run(
-                    [
-                        str(compiler),
-                        "compile",
-                        str(source),
-                        "--emit",
-                        "backend",
-                        "--output-dir",
-                        output,
-                        "--target",
-                        target,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=900,
-                    env=environment,
-                    check=False,
-                )
+                command = [
+                    str(compiler),
+                    "compile",
+                    str(source),
+                    "--emit",
+                    "backend",
+                    "--output-dir",
+                    output,
+                    "--target",
+                    target,
+                ]
+                if self._command_executor is not None:
+                    execute = getattr(self._command_executor, "execute", None)
+                    if not callable(execute):
+                        raise StoreError(
+                            StoreResultCode.PLATFORM_UNSUPPORTED,
+                            "Store artifact command executor has no execute method",
+                        )
+                    completed = execute(
+                        command,
+                        cwd=store_root,
+                        timeout=STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS,
+                        output_cap=STORE_ARTIFACT_OUTPUT_BYTES,
+                        stderr_cap=STORE_ARTIFACT_OUTPUT_BYTES,
+                        environment=environment,
+                    )
+                else:
+                    # Standalone Store clients retain the local path, but use
+                    # a bounded wall timeout. Continuous Forge injects its
+                    # Runner to enforce aggregate cgroup and output policy.
+                    completed = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=False,
+                        timeout=STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS,
+                        env=environment,
+                        check=False,
+                    )
                 artifact = Path(output) / "backend.json"
                 if completed.returncode != 0 or not artifact.is_file():
-                    detail = (completed.stderr or completed.stdout)[-4000:]
+                    diagnostic = completed.stderr or completed.stdout
+                    detail = (
+                        diagnostic[-4000:].decode("utf-8", errors="replace")
+                        if isinstance(diagnostic, bytes)
+                        else diagnostic[-4000:]
+                    )
                     raise StoreError(
                         StoreResultCode.PLATFORM_UNSUPPORTED,
                         f"Store artifact admission failed: {detail}",
+                    )
+                if artifact.stat().st_size > STORE_ARTIFACT_MAX_BYTES:
+                    raise StoreError(
+                        StoreResultCode.PLATFORM_UNSUPPORTED,
+                        f"compiled Store artifact exceeds the {STORE_ARTIFACT_MAX_BYTES}-byte resident bound",
                     )
                 cls._artifact = artifact.read_bytes()
                 cls._artifact_key = key
@@ -348,8 +392,9 @@ class StoreSession:
                 cls._write_cached_artifact(key, material, cls._artifact)
                 return cls._artifact
 
-    def __init__(self) -> None:
+    def __init__(self, *, command_executor: object | None = None) -> None:
         started = time.perf_counter()
+        self._command_executor = command_executor
         library_started = time.perf_counter()
         self._library = self._load_library()
         self.library_load_seconds = time.perf_counter() - library_started
@@ -735,6 +780,12 @@ class StoreSession:
         self._library.mncs_session_close(self._handle)
         self._handle = None
         self._closed = True
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> "StoreSession":
         return self
