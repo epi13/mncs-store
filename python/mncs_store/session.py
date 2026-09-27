@@ -594,64 +594,29 @@ class StoreSession:
         return as_bytes(final)
 
     def sha256_file(self, path: Path) -> bytes:
-        """Hash a host file through bounded native SHA windows.
+        """Hash a host file with the platform's optimized SHA-256 primitive.
 
-        File reads are platform transport.  Every byte still crosses the
-        current native ``DigestState`` through ``digest_update_window_fields``
-        and the final digest is produced by ``mncs.std.sha256.v1``.  Keeping
-        the filesystem loop at the host boundary avoids asking the research
-        bytecode interpreter to realize hundreds of filesystem effects in one
-        call while preserving one streaming hash state for the whole file.
+        SHA-256 is the Store's canonical content identity algorithm. The
+        standard-library implementation computes the same digest as
+        ``mncs.std.sha256.v1`` while keeping bulk filesystem verification out
+        of the research-bytecode interpreter. Small semantic calls continue
+        to use the MNCS digest module directly.
         """
 
         path = Path(path).expanduser().resolve()
         if not path.is_file():
             raise StoreError(StoreResultCode.DENIED, f"hash input is not a file: {path}")
-        length = path.stat().st_size
-        constants = (
-            1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993,
-            2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987,
-            1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774,
-            264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
-            2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711,
-            113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291,
-            1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411,
-            3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
-            430227734, 506948616, 659060556, 883997877, 958139571, 1322822218,
-            1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424,
-            2428436474, 2756734187, 3204031479, 3329325298,
-        )
-        state = _record_fields(_returned(self.call("store.content.v1", "digest_init", [])))
-        with path.open("rb") as stream:
-            for start in range(0, length, 1024):
-                expected = min(1024, length - start)
-                window = stream.read(expected)
-                if len(window) != expected:
-                    raise StoreError(StoreResultCode.INTEGRITY_FAILURE, f"hash input truncated: {path}")
-                updated = _returned(
-                    self.call(
-                        "store.content.v1",
-                        "digest_update_window_fields",
-                        [
-                            state["h"],
-                            state["total"],
-                            state["buf"],
-                            state["buffered"],
-                            bytes_value(window),
-                            u64(expected),
-                            u32_values(constants),
-                        ],
-                    )
-                )
-                state = _record_fields(updated)
-        final = _returned(
-            self.call(
-                "store.content.v1",
-                "digest_finalize_fields",
-                [state["h"], state["total"], state["buf"], state["buffered"], u32_values(constants)],
-            )
-        )
-        return as_bytes(final)
+        try:
+            with path.open("rb") as stream:
+                digest = hashlib.sha256()
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                return digest.digest()
+        except OSError as exc:
+            raise StoreError(
+                StoreResultCode.INTEGRITY_FAILURE,
+                f"cannot read Store hash input: {path}",
+            ) from exc
 
     def encode_relation(
         self,

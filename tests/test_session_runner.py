@@ -16,6 +16,22 @@ from mncs_store.session import (
 )
 
 
+def test_sha256_file_uses_host_digest_for_bulk_verification(tmp_path: Path) -> None:
+    session = object.__new__(StoreSession)
+    payload = bytes((index * 29) % 256 for index in range(128 * 1024))
+    path = tmp_path / "payload.bin"
+    path.write_bytes(payload)
+
+    def unexpected_mncs_call(*_args, **_kwargs):
+        raise AssertionError("bulk SHA-256 must not enter the research-bytecode interpreter")
+
+    session.call = unexpected_mncs_call
+
+    expected = hashlib.sha256(payload).digest()
+    assert session.sha256_file(path) == expected
+    assert session.sha256(payload) == expected
+
+
 def test_store_artifact_compilation_uses_injected_bounded_runner(
     tmp_path: Path, monkeypatch
 ) -> None:
