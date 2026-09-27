@@ -149,7 +149,9 @@ class StoreSession:
         configured = os.environ.get("MNCS_STORE_ARTIFACT_CACHE")
         if configured:
             return Path(configured).expanduser().resolve()
-        return Path(tempfile.gettempdir()) / "mncs-store-artifact-cache"
+        cache_home = os.environ.get("XDG_CACHE_HOME")
+        base = Path(cache_home).expanduser() if cache_home else Path.home() / ".cache"
+        return base / "mncs-store" / "artifacts"
 
     @staticmethod
     def _source_manifest(root: Path) -> list[dict[str, str]]:
@@ -405,6 +407,7 @@ class StoreSession:
         self.artifact_sha256 = hashlib.sha256(artifact).hexdigest()
         self.toolchain = os.environ.get("MNCS_BIN", str(_language_target("mncs")))
         self.call_count = 0
+        self.batch_count = 0
         self.semantic_seconds = 0.0
         open_started = time.perf_counter()
         # This is the artifact admission boundary for both freshly compiled
@@ -439,19 +442,53 @@ class StoreSession:
         step_budget: int = 600_000,
         grants: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        return self.call_batch([{
+            "module": module,
+            "function": function,
+            "args": arguments,
+            "step_budget": step_budget,
+            "grants": grants or [],
+        }])[0]
+
+    def call_batch(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Invoke several typed Store calls through one retained ABI crossing.
+
+        Each request is validated before serialization. Results preserve
+        request order and the whole batch is one call against this retained
+        artifact/session; callers must not use this for dependent requests.
+        """
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store session is closed")
-        started = time.perf_counter()
-        self.call_count += 1
-        request = [
-            {
+        if not isinstance(calls, list) or not calls:
+            raise StoreError(StoreResultCode.DENIED, "Store call batch must be a non-empty list")
+        if len(calls) > 4096:
+            raise StoreError(StoreResultCode.DENIED, "Store call batch exceeds 4096 requests")
+        request: list[dict[str, Any]] = []
+        for index, call in enumerate(calls):
+            if not isinstance(call, dict):
+                raise StoreError(StoreResultCode.DENIED, f"Store batch request {index} must be an object")
+            module = call.get("module")
+            function = call.get("function")
+            arguments = call.get("args", [])
+            grants = call.get("grants", [])
+            step_budget = call.get("step_budget", 600_000)
+            if not isinstance(module, str) or not module or not isinstance(function, str) or not function:
+                raise StoreError(StoreResultCode.DENIED, f"Store batch request {index} needs module and function")
+            if not isinstance(arguments, list) or not isinstance(grants, list):
+                raise StoreError(StoreResultCode.DENIED, f"Store batch request {index} has invalid args or grants")
+            if not isinstance(step_budget, int) or step_budget < 1:
+                raise StoreError(StoreResultCode.DENIED, f"Store batch request {index} has invalid step_budget")
+            request.append({
                 "module": module,
                 "function": function,
                 "args": arguments,
-                "grants": grants or [],
+                "grants": grants,
                 "step_budget": step_budget,
-            }
-        ]
+            })
+
+        started = time.perf_counter()
+        self.call_count += len(request)
+        self.batch_count += 1
         profile = os.environ.get("MNCS_RUNTIME_PROFILE") is not None
         encode_started = time.perf_counter()
         request_bytes = json.dumps(request, separators=(",", ":")).encode()
@@ -489,9 +526,11 @@ class StoreSession:
                 )
         finally:
             self._library.mncs_response_free(response)
-        if not isinstance(values, list) or len(values) != 1:
-            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "invalid retained Store response")
-        return values[0]
+        if not isinstance(values, list) or len(values) != len(request):
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "invalid retained Store batch response")
+        if not all(isinstance(value, dict) for value in values):
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "retained Store batch returned a non-object")
+        return values
 
     def sha256(self, payload: bytes) -> bytes:
         """Hash arbitrary bytes through ``mncs.std.sha256.v1`` via Store."""
@@ -659,26 +698,16 @@ class StoreSession:
         raw = bytes(raw)
         if len(raw) != 172:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store relation width is invalid")
-        output = self.call(
-            "store.relationship",
-            "validate",
-            [bytes_value(raw)],
-        )
-        if as_int(_returned(output)) != 0:
+        outputs = self.call_batch([
+            {"module": "store.relationship", "function": "validate", "args": [bytes_value(raw)]},
+            {"module": "store.relationship", "function": "validate_exact", "args": [bytes_value(raw)]},
+            {"module": "store.relationship", "function": "generation", "args": [bytes_value(raw)]},
+        ])
+        if as_int(_returned(outputs[0])) != 0:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store relation structural validation failed")
-        output = self.call(
-            "store.relationship",
-            "validate_exact",
-            [bytes_value(raw)],
-        )
-        if as_int(_returned(output)) != 0:
+        if as_int(_returned(outputs[1])) != 0:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store relation exact validation failed")
-        output = self.call(
-            "store.relationship",
-            "generation",
-            [bytes_value(raw)],
-        )
-        generation = as_int(_returned(output))
+        generation = as_int(_returned(outputs[2]))
         if expected_generation is not None and generation > expected_generation:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store relation points into a future generation")
         return generation
@@ -719,19 +748,13 @@ class StoreSession:
         raw = bytes(raw)
         if len(raw) != 112:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store provenance width is invalid")
-        output = self.call(
-            "store.provenance.v1",
-            "validate",
-            [bytes_value(raw)],
-        )
-        if as_int(_returned(output)) != 0:
+        outputs = self.call_batch([
+            {"module": "store.provenance.v1", "function": "validate", "args": [bytes_value(raw)]},
+            {"module": "store.provenance.v1", "function": "generation", "args": [bytes_value(raw)]},
+        ])
+        if as_int(_returned(outputs[0])) != 0:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store provenance validation failed")
-        output = self.call(
-            "store.provenance.v1",
-            "generation",
-            [bytes_value(raw)],
-        )
-        generation = as_int(_returned(output))
+        generation = as_int(_returned(outputs[1]))
         if expected_generation is not None and generation > expected_generation:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store provenance points into a future generation")
         return generation

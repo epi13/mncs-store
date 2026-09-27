@@ -117,3 +117,52 @@ def test_store_cache_artifact_and_manifest_reads_have_byte_bounds(
     (entry / "backend.json").write_bytes(b"x")
     monkeypatch.setattr(session_module, "STORE_ARTIFACT_MANIFEST_MAX_BYTES", 16)
     assert StoreSession._read_cached_artifact(key) is None
+
+
+def test_store_artifact_cache_defaults_to_persistent_xdg_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("MNCS_STORE_ARTIFACT_CACHE", raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
+
+    assert StoreSession._artifact_cache_root() == (
+        tmp_path / "xdg-cache" / "mncs-store" / "artifacts"
+    )
+
+
+def test_retained_store_call_batch_uses_one_abi_crossing() -> None:
+    class Library:
+        requests: list[dict[str, object]] = []
+        calls = 0
+
+        def mncs_session_call_batch(self, _handle, request_bytes):
+            self.calls += 1
+            self.requests = json.loads(request_bytes.decode())
+            return 1
+
+        @staticmethod
+        def mncs_response_text(_response):
+            return b'[{"result":1},{"result":2}]'
+
+        @staticmethod
+        def mncs_response_free(_response):
+            return None
+
+    session = object.__new__(StoreSession)
+    session._closed = False
+    session._handle = object()
+    session._library = Library()
+    session.call_count = 0
+    session.batch_count = 0
+    session.semantic_seconds = 0.0
+
+    results = session.call_batch([
+        {"module": "store.example", "function": "one", "args": []},
+        {"module": "store.example", "function": "two", "args": [], "step_budget": 32},
+    ])
+
+    assert results == [{"result": 1}, {"result": 2}]
+    assert session._library.calls == 1
+    assert session.call_count == 2
+    assert session.batch_count == 1
+    assert session._library.requests[1]["step_budget"] == 32
