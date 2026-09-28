@@ -157,6 +157,8 @@ class EmbeddedStore:
         self._logical_ids_by_identity: dict[bytes, tuple[bytes, ...]] = {}
         self._commit_feed_generation: int | None = None
         self._commit_feed: bytes | None = None
+        self._domain_index_generation: int | None = None
+        self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
         for name in (
             "chunks",
             "nodes",
@@ -226,6 +228,12 @@ class EmbeddedStore:
 
     def _hash(self, value: bytes) -> bytes:
         return self.session.sha256(value)
+
+    def _verify_digest(self, value: bytes) -> bytes:
+        """Use Store's optimized canonical digest path for resident read data."""
+
+        fast_hash = getattr(self.session, "sha256_buffer", None)
+        return bytes(fast_hash(value)) if callable(fast_hash) else self._hash(value)
 
     def _cas(self, observed: int, expected: int) -> int:
         output = self.session.call(
@@ -578,6 +586,8 @@ class EmbeddedStore:
         self._logical_ids_by_identity = {}
         self._commit_feed_generation = None
         self._commit_feed = None
+        self._domain_index_generation = None
+        self._domain_index = ()
 
     def _rebuild_lookup_maps(self, projection: tuple[StoredObject, ...]) -> None:
         by_binding = {item.binding_id: item for item in projection}
@@ -825,18 +835,18 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store object manifest is unknown")
         if logical_id != entry.logical_id or binding_id != entry.binding_id:
             raise StoreIntegrityError("Store object manifest binding is inconsistent")
-        if content_id != entry.content_id or self._hash(raw) != entry.representation_root:
+        if content_id != entry.content_id or self._verify_digest(raw) != entry.representation_root:
             raise StoreIntegrityError("Store object manifest root identity mismatch")
         if chunk_size != CHUNK_SIZE or chunk_count < 1:
             raise StoreIntegrityError("Store object manifest geometry is invalid")
         descriptor = (self.path / "descriptors" / f"{descriptor_id.hex()}.desc").read_bytes()
-        if self._hash(descriptor) != descriptor_id:
+        if self._verify_digest(descriptor) != descriptor_id:
             raise StoreIntegrityError("Store descriptor integrity failure")
         return raw, total_length, chunk_count, depth, content_id, tree_root, descriptor
 
     def _read_node(self, digest: bytes, *, level: int, start: int, expected_count: int) -> list[bytes]:
         raw = (self.path / "nodes" / f"{digest.hex()}.node").read_bytes()
-        if self._hash(raw) != digest or len(raw) < NODE_HEADER.size:
+        if self._verify_digest(raw) != digest or len(raw) < NODE_HEADER.size:
             raise StoreIntegrityError("Store content node integrity failure")
         magic, version, reserved, actual_level, actual_start, count = NODE_HEADER.unpack_from(raw)
         if (
@@ -871,7 +881,7 @@ class EmbeddedStore:
                 for index, child in enumerate(children):
                     chunk_index = start + index
                     raw = (self.path / "chunks" / f"{child.hex()}.chunk").read_bytes()
-                    if self._hash(raw) != child:
+                    if self._verify_digest(raw) != child:
                         raise StoreIntegrityError(f"Store content chunk {chunk_index} failed integrity")
                     expected_length = min(CHUNK_SIZE, total_length - chunk_index * CHUNK_SIZE)
                     if expected_length < 0 or len(raw) != expected_length:
@@ -904,7 +914,7 @@ class EmbeddedStore:
             chunk_count=chunk_count,
             total_length=total_length,
         )
-        if verify_payload and (len(payload) != total_length or self._hash(payload) != content_id):
+        if verify_payload and (len(payload) != total_length or self._verify_digest(payload) != content_id):
             raise StoreIntegrityError("Store content identity verification failed")
         return StoredObject(
             domain_schema=schema,
@@ -1342,6 +1352,69 @@ class EmbeddedStore:
             raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
         return item
 
+    def _domain_binding_index(
+        self, generation: int
+    ) -> tuple[tuple[_Entry, bytes, bytes], ...]:
+        if self._domain_index_generation == generation:
+            return self._domain_index
+
+        entries = sorted(
+            self._read_generation(generation, verify_objects=False),
+            key=lambda item: item.ordinal,
+        )
+        indexed: list[tuple[_Entry, bytes, bytes]] = []
+        for entry in entries:
+            schema, identity, logical, content, root, binding_generation = self._read_binding(
+                entry.binding_id
+            )
+            if (
+                logical != entry.logical_id
+                or content != entry.content_id
+                or root != entry.representation_root
+            ):
+                raise StoreIntegrityError("Store binding does not match generation entry")
+            if binding_generation > generation:
+                raise StoreIntegrityError("Store binding points into a future generation")
+            indexed.append((entry, schema, identity))
+
+        self._domain_index_generation = generation
+        self._domain_index = tuple(indexed)
+        return self._domain_index
+
+    def find_bound_objects(
+        self,
+        domain_schema: bytes,
+        domain_identity_prefix: bytes = b"",
+    ) -> list[StoredObject]:
+        """Return fully verified objects matching one generic domain prefix.
+
+        The committed generation and every binding record are checked while
+        locating candidates. A generation-scoped metadata index is reused
+        across related queries. Payload trees are read and verified only for
+        matching objects. Call :meth:`verify` or :meth:`current_objects` when
+        a complete Store integrity pass is required.
+        """
+
+        selected_generation = self.current_generation
+        schema_prefix = bytes(domain_schema)
+        identity_prefix = bytes(domain_identity_prefix)
+        if self._projection_generation == selected_generation:
+            return [
+                item
+                for item in self._projection
+                if item.domain_schema == schema_prefix
+                and item.domain_identity.startswith(identity_prefix)
+            ]
+
+        found: list[StoredObject] = []
+        for entry, schema, identity in self._domain_binding_index(selected_generation):
+            if schema != schema_prefix or not identity.startswith(identity_prefix):
+                continue
+            found.append(
+                self._read_entry(entry, selected_generation, verify_payload=True)
+            )
+        return found
+
     def object_for_binding(self, binding_id: bytes) -> StoredObject | None:
         """Return one current-generation object by its derived binding map."""
 
@@ -1364,6 +1437,20 @@ class EmbeddedStore:
 
     def current_objects(self) -> list[StoredObject]:
         return self._verified_projection()
+
+    def objects_at(self, generation: int) -> list[StoredObject]:
+        """Return the verified immutable object projection at one generation.
+
+        Historical reads use the same integrity checks as current projections.
+        Only committed generations at or below the observed head are readable;
+        callers cannot use this API to inspect an unpublished future generation.
+        """
+
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
+            raise StoreError(StoreResultCode.DENIED, "generation must be a non-negative integer")
+        if generation > self.current_generation:
+            raise StoreError(StoreResultCode.DENIED, "generation is ahead of the committed Store head")
+        return self._verified_projection(generation)
 
     def resident_status(self) -> dict[str, object]:
         """Expose retained generation cardinalities without copying authority."""

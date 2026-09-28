@@ -593,6 +593,18 @@ class StoreSession:
         )
         return as_bytes(final)
 
+    @staticmethod
+    def sha256_buffer(payload: bytes) -> bytes:
+        """Hash already resident bytes with the canonical SHA-256 primitive.
+
+        EmbeddedStore uses this for read-side integrity checks after loading a
+        node, descriptor, chunk, or object payload. New identities and staged
+        content continue through :meth:`sha256`; this avoids routing thousands
+        of tiny verification reads through the MNCS interpreter one at a time.
+        """
+
+        return hashlib.sha256(bytes(payload)).digest()
+
     def sha256_file(self, path: Path) -> bytes:
         """Hash a host file with the platform's optimized SHA-256 primitive.
 

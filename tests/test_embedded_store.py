@@ -16,7 +16,7 @@ from queue import Empty
 import pytest
 
 from mncs_store import BoundObjectInput, EmbeddedStore, StoreError, StoreResultCode
-from mncs_store.embedded import CrashInjected
+from mncs_store.embedded import CrashInjected, StoreIntegrityError
 
 
 class SemanticSessionDouble:
@@ -193,6 +193,35 @@ def test_publication_extends_verified_projection_without_rereading_old_objects(
         assert session.hash_count == after_publication
 
 
+def test_domain_prefix_query_verifies_only_matching_payloads(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(
+            domain_schema=b"session.snapshot/1",
+            domain_identity=b"session-a:snap:0001",
+            descriptor=b"test-descriptor/1",
+            payload=b"selected snapshot",
+            expected_generation=0,
+        )
+        store.put_bound_object(
+            domain_schema=b"unrelated.record/1",
+            domain_identity=b"other",
+            descriptor=b"test-descriptor/1",
+            payload=b"unrelated payload",
+            expected_generation=1,
+        )
+
+    unrelated_chunk = tmp_path / "chunks" / f"{hashlib.sha256(b'unrelated payload').hexdigest()}.chunk"
+    unrelated_chunk.write_bytes(b"corrupted payload")
+
+    with EmbeddedStore(tmp_path, session=_session(), verify_on_open=False) as reopened:
+        matches = reopened.find_bound_objects(b"session.snapshot/1", b"session-a:snap:")
+        assert [(item.domain_identity, item.payload) for item in matches] == [
+            (b"session-a:snap:0001", b"selected snapshot")
+        ]
+        with pytest.raises(StoreIntegrityError):
+            reopened.current_objects()
+
+
 def test_generation_bound_lookup_maps_follow_publication_and_recovery(tmp_path: Path) -> None:
     with EmbeddedStore(tmp_path, session=_session()) as store:
         first = store.put_bound_object(
@@ -225,6 +254,37 @@ def test_generation_bound_lookup_maps_follow_publication_and_recovery(tmp_path: 
             first.logical_id,
             second.logical_id,
         )
+
+
+def test_objects_at_returns_verified_historical_generation(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(
+            domain_schema=b"history/1",
+            domain_identity=b"first",
+            descriptor=b"history-descriptor/1",
+            payload=b"first payload",
+            expected_generation=0,
+        )
+        first_generation = store.current_generation
+        store.put_bound_object(
+            domain_schema=b"history/1",
+            domain_identity=b"second",
+            descriptor=b"history-descriptor/1",
+            payload=b"second payload",
+            expected_generation=first_generation,
+        )
+
+        historical = store.objects_at(first_generation)
+        assert [(item.domain_identity, item.payload) for item in historical] == [
+            (b"first", b"first payload")
+        ]
+        assert [item.domain_identity for item in store.objects_at(store.current_generation)] == [
+            b"first",
+            b"second",
+        ]
+        with pytest.raises(StoreError) as future:
+            store.objects_at(store.current_generation + 1)
+        assert future.value.code is StoreResultCode.DENIED
 
 
 def test_batch_publication_commits_all_objects_in_one_generation(tmp_path: Path) -> None:

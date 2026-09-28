@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 6,
+  "revision": 10,
   "manifest_location": "in-repository",
   "authority": {"note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."},
   "contracts": {
@@ -15,6 +15,6 @@
       {"contract": "semantic-state", "version": "1", "kind": "storage-contract", "stability": "experimental", "fingerprint_sources": ["src/store/semantic_state.mncs"]}
     ],
     "consumes": [{"contract": "mncs-language.source-profile", "envelope": {"op": "compatible-minor", "version": "0.16", "minimum_required": "0.16", "compatibility_ceiling": "0.18"}, "required": true, "evidence_refs": ["src/store/publication.mncs", "tests/mncs_exec.py"]}, {"contract": "mncs.ingest.typed-handoff", "envelope": {"op": "exact", "version": "1"}, "required": false, "scope": "import/migration only; native producers persist directly through persistent-object", "evidence_refs": ["docs/consumer-contracts.md", "docs/pressure-reconciliation.md"]}],
-    "tests": [{"test": "store-native-substrate", "covers": ["persistent-object", "scalable-content", "durable-publication", "typed-relations", "commit-feed", "semantic-state"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/test_native_substrate.py", "-q"]}}, {"test": "store-tests", "covers": ["persistent-object", "scalable-content", "durable-publication"], "obligation": "scheduled", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]}}]
+    "tests": [{"test": "store-native-substrate", "covers": ["persistent-object", "scalable-content", "durable-publication", "typed-relations", "commit-feed", "semantic-state"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/test_native_substrate.py", "-q"]}}, {"test": "store-tests", "covers": ["persistent-object", "scalable-content", "durable-publication"], "obligation": "scheduled", "command": {"argv": ["python3", "-m", "pytest", "tests", "-q"], "environment": {"PYTHONPATH": "python", "MNCS_STORE_PYTHON": "python"}}}, {"test": "store-domain-prefix-query", "covers": ["persistent-object"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/test_embedded_store.py", "-k", "domain_prefix_query", "-q"], "environment": {"PYTHONPATH": "python", "MNCS_STORE_PYTHON": "python"}}}, {"test": "store-historical-object-projection", "covers": ["persistent-object"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/test_embedded_store.py", "-k", "objects_at_returns_verified_historical_generation", "-q"], "environment": {"PYTHONPATH": "python", "MNCS_STORE_PYTHON": "python"}}}]
   }
 }
