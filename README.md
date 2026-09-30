@@ -22,6 +22,17 @@ path. See [docs/pressure-reconciliation.md](docs/pressure-reconciliation.md)
 and
 [docs/machine-native-substrate.md](docs/machine-native-substrate.md).
 
+Store additionally supports **adaptive physical representations**
+([RFC 0019](rfcs/0019-adaptive-representations.md),
+[model guide](docs/adaptive-representations.md)): one logical object may
+own several representations (base chunks, coded blobs, synopses) with a
+256-byte inspectable semantic envelope, semantic block tables for
+selective materialization, generic access intents for cost-aware
+selection, and validated external materialization plans. Physical form
+is replaceable (identity + windowed RLE codecs today) while logical
+identity stays stable; objects stored without adaptive parameters keep
+their v2 bytes and synthesize the same view at read time.
+
 ## Why this exists
 
 MNCS components increasingly need durable state, but repeatedly reducing machine state to JSON, rows, documents, or application-specific blobs throws away information the machine already knows: type, layout, alignment, shape, provenance, relations, generation, placement, integrity, and hardware affinity.

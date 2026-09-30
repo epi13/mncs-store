@@ -24,6 +24,7 @@ STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS = 300
 STORE_ARTIFACT_OUTPUT_BYTES = 128 * 1024 * 1024
 STORE_ARTIFACT_MAX_BYTES = 128 * 1024 * 1024
 STORE_ARTIFACT_MANIFEST_MAX_BYTES = 8 * 1024 * 1024
+STORE_CALL_BATCH_MAX = 4096
 
 
 def _store_root() -> Path:
@@ -461,8 +462,11 @@ class StoreSession:
             raise StoreError(StoreResultCode.DENIED, "Store session is closed")
         if not isinstance(calls, list) or not calls:
             raise StoreError(StoreResultCode.DENIED, "Store call batch must be a non-empty list")
-        if len(calls) > 4096:
-            raise StoreError(StoreResultCode.DENIED, "Store call batch exceeds 4096 requests")
+        if len(calls) > STORE_CALL_BATCH_MAX:
+            raise StoreError(
+                StoreResultCode.DENIED,
+                f"Store call batch exceeds {STORE_CALL_BATCH_MAX} requests",
+            )
         request: list[dict[str, Any]] = []
         for index, call in enumerate(calls):
             if not isinstance(call, dict):
@@ -759,6 +763,665 @@ class StoreSession:
         if as_int(_returned(output)) != 0:
             raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store commit feed validation failed")
         return raw
+
+    # ---- adaptive representations: MNCS-decided, host-transported ----
+    #
+    # Every function below transports values across the retained ABI and
+    # parses results. Record bytes, validation verdicts, cost estimates,
+    # selection ranks, closure masks, and codec windows are all computed by
+    # the Store MNCS modules; the host only moves bytes, folds total
+    # pairwise verdicts, and iterates monotone fixpoints to MNCS-verified
+    # closure.
+
+    def encode_intent(
+        self,
+        fidelity: int,
+        latency: int = 0,
+        compute: int = 0,
+        memory: int = 0,
+        transfer: int = 0,
+        frequency: int = 0,
+        lifetime: int = 0,
+        locality: int = 0,
+    ) -> bytes:
+        """Encode one generic access intent through MNCS."""
+
+        output = self.call(
+            "store.intent.v1",
+            "encode_fields",
+            [
+                u64(fidelity),
+                u64(latency),
+                u64(compute),
+                u64(memory),
+                u64(transfer),
+                u64(frequency),
+                u64(lifetime),
+                u64(locality),
+            ],
+        )
+        return as_bytes(_returned(output))
+
+    def default_intent(self) -> bytes:
+        """Return the MNCS-owned default intent (exact, unconstrained)."""
+
+        output = self.call("store.intent.v1", "default_intent", [])
+        return as_bytes(_returned(output))
+
+    def normalize_intent(self, raw: bytes) -> bytes:
+        """Normalize advisory intent codes onto their known domains."""
+
+        raw = bytes(raw)
+        if len(raw) != 64:
+            raise StoreError(StoreResultCode.DENIED, "Store intent width is invalid")
+        output = self.call("store.intent.v1", "normalize", [bytes_value(raw)])
+        return as_bytes(_returned(output))
+
+    def validate_intent(self, raw: bytes) -> None:
+        """Fail closed on structurally malformed intent bytes."""
+
+        raw = bytes(raw)
+        if len(raw) != 64:
+            raise StoreError(StoreResultCode.DENIED, "Store intent width is invalid")
+        output = self.call("store.intent.v1", "validate", [bytes_value(raw)])
+        if as_int(_returned(output)) != 0:
+            raise StoreError(StoreResultCode.DENIED, "Store intent structural validation failed")
+
+    def intent_fidelity(self, raw: bytes) -> int:
+        output = self.call("store.intent.v1", "fidelity", [bytes_value(bytes(raw))])
+        return as_int(_returned(output))
+
+    def encode_envelope(
+        self,
+        *,
+        logical: bytes,
+        type_identity: bytes,
+        synopsis: bytes,
+        synopsis_bytes: int,
+        rep_count: int,
+        block_count: int,
+        stored_bytes: int,
+        plain_bytes: int,
+        default_root: bytes,
+        provenance: bytes,
+        block_table: bytes,
+        generation: int,
+        fidelity_bits: int,
+        flags: int,
+    ) -> bytes:
+        """Encode one semantic envelope through MNCS."""
+
+        fields = [bytes(logical), bytes(type_identity), bytes(synopsis)]
+        digests = [bytes(default_root), bytes(provenance), bytes(block_table)]
+        if len(fields[0]) != 12 or len(fields[1]) != 32 or len(fields[2]) != 32:
+            raise StoreError(StoreResultCode.DENIED, "Store envelope identity width is invalid")
+        if any(len(item) != 32 for item in digests):
+            raise StoreError(StoreResultCode.DENIED, "Store envelope digest width is invalid")
+        output = self.call(
+            "store.envelope.v1",
+            "encode_fields",
+            [
+                bytes_value(fields[0]),
+                bytes_value(fields[1]),
+                bytes_value(fields[2]),
+                u64(synopsis_bytes),
+                u64(rep_count),
+                u64(block_count),
+                u64(stored_bytes),
+                u64(plain_bytes),
+                bytes_value(digests[0]),
+                bytes_value(digests[1]),
+                bytes_value(digests[2]),
+                u64(generation),
+                u64(fidelity_bits),
+                u64(flags),
+            ],
+        )
+        return as_bytes(_returned(output))
+
+    def validate_envelope(self, raw: bytes) -> None:
+        """Fail closed on malformed or future envelope bytes."""
+
+        raw = bytes(raw)
+        if len(raw) != 256:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store envelope width is invalid")
+        outputs = self.call_batch([
+            {"module": "store.envelope.v1", "function": "validate", "args": [bytes_value(raw)]},
+            {"module": "store.envelope.v1", "function": "validate_exact", "args": [bytes_value(raw)]},
+        ])
+        if as_int(_returned(outputs[0])) != 0:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store envelope structural validation failed")
+        if as_int(_returned(outputs[1])) != 0:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store envelope exact validation failed")
+
+    def default_envelope_for(
+        self,
+        logical: bytes,
+        content: bytes,
+        total: int,
+        generation: int,
+    ) -> bytes:
+        """Synthesize the deterministic legacy envelope through MNCS."""
+
+        logical = bytes(logical)
+        content = bytes(content)
+        if len(logical) != 12 or len(content) != 32:
+            raise StoreError(StoreResultCode.DENIED, "Store envelope synthesis width is invalid")
+        output = self.call(
+            "store.envelope.v1",
+            "envelope_default_for",
+            [bytes_value(logical), bytes_value(content), u64(total), u64(generation)],
+        )
+        return as_bytes(_returned(output))
+
+    def envelope_consistent(
+        self,
+        envelope: bytes,
+        logical: bytes,
+        default_root: bytes,
+        total: int,
+        generation: int,
+    ) -> bool:
+        output = self.call(
+            "store.envelope.v1",
+            "envelope_consistent",
+            [
+                bytes_value(bytes(envelope)),
+                bytes_value(bytes(logical)),
+                bytes_value(bytes(default_root)),
+                u64(total),
+                u64(generation),
+            ],
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def envelope_offers(self, envelope: bytes, level: int) -> bool:
+        output = self.call(
+            "store.envelope.v1", "offers", [bytes_value(bytes(envelope)), u64(level)]
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def fidelity_bitmap_with(self, bits: int, level: int) -> int:
+        """Set one fidelity bit through the MNCS bitmap fold helper."""
+
+        output = self.call("store.envelope.v1", "bitmap_with", [u64(bits), u64(level)])
+        return as_int(_returned(output))
+
+    def envelope_fields(self, envelope: bytes) -> dict[str, int | bytes]:
+        """Project the scalar envelope fields through one batched MNCS call."""
+
+        envelope = bytes(envelope)
+        if len(envelope) != 256:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store envelope width is invalid")
+        names = [
+            "rep_count", "block_count", "stored_bytes", "plain_bytes",
+            "synopsis_bytes", "generation", "fidelity_bits", "flags",
+        ]
+        outputs = self.call_batch([
+            {"module": "store.envelope.v1", "function": name, "args": [bytes_value(envelope)]}
+            for name in names
+        ] + [
+            {"module": "store.envelope.v1", "function": name, "args": [bytes_value(envelope)]}
+            for name in ("logical", "type_identity", "synopsis", "default_root", "provenance", "block_table")
+        ])
+        fields: dict[str, int | bytes] = {
+            name: as_int(_returned(output)) for name, output in zip(names, outputs)
+        }
+        for name, output in zip(
+            ("logical", "type_identity", "synopsis", "default_root", "provenance", "block_table"),
+            outputs[len(names):],
+        ):
+            fields[name] = as_bytes(_returned(output))
+        return fields
+
+    def encode_representation(
+        self,
+        *,
+        fidelity: int,
+        codec: int,
+        codec_identity: bytes,
+        stored: int,
+        plain: int,
+        decode_class: int,
+        first_block: int,
+        block_count: int,
+        root: bytes,
+        flags: int,
+    ) -> bytes:
+        """Encode one representation descriptor through MNCS."""
+
+        codec_identity = bytes(codec_identity)
+        root = bytes(root)
+        if len(codec_identity) != 32 or len(root) != 32:
+            raise StoreError(StoreResultCode.DENIED, "Store representation identity width is invalid")
+        output = self.call(
+            "store.representation.v1",
+            "encode_fields",
+            [
+                u64(fidelity),
+                u64(codec),
+                bytes_value(codec_identity),
+                u64(stored),
+                u64(plain),
+                u64(decode_class),
+                u64(first_block),
+                u64(block_count),
+                bytes_value(root),
+                u64(flags),
+            ],
+        )
+        return as_bytes(_returned(output))
+
+    def validate_representation(self, raw: bytes) -> None:
+        """Fail closed on malformed or future representation bytes."""
+
+        raw = bytes(raw)
+        if len(raw) != 128:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store representation width is invalid")
+        outputs = self.call_batch([
+            {"module": "store.representation.v1", "function": "validate", "args": [bytes_value(raw)]},
+            {"module": "store.representation.v1", "function": "validate_exact", "args": [bytes_value(raw)]},
+        ])
+        if as_int(_returned(outputs[0])) != 0:
+            raise StoreError(
+                StoreResultCode.INTEGRITY_FAILURE, "Store representation structural validation failed"
+            )
+        if as_int(_returned(outputs[1])) != 0:
+            raise StoreError(
+                StoreResultCode.INTEGRITY_FAILURE, "Store representation exact validation failed"
+            )
+
+    def representation_fields(self, raw: bytes) -> dict[str, int | bytes]:
+        """Project the scalar representation fields through one batched call."""
+
+        raw = bytes(raw)
+        if len(raw) != 128:
+            raise StoreError(StoreResultCode.INTEGRITY_FAILURE, "Store representation width is invalid")
+        names = ["fidelity", "codec", "stored", "plain", "decode_class", "first_block", "block_count", "flags"]
+        outputs = self.call_batch([
+            {"module": "store.representation.v1", "function": name, "args": [bytes_value(raw)]}
+            for name in names
+        ] + [
+            {"module": "store.representation.v1", "function": name, "args": [bytes_value(raw)]}
+            for name in ("codec_identity", "root")
+        ])
+        fields: dict[str, int | bytes] = {
+            name: as_int(_returned(output)) for name, output in zip(names, outputs)
+        }
+        fields["codec_identity"] = as_bytes(_returned(outputs[len(names)]))
+        fields["root"] = as_bytes(_returned(outputs[len(names) + 1]))
+        output = self.call("store.representation.v1", "is_exact", [bytes_value(raw)])
+        fields["exact"] = int(bool(_returned(output)["boolean"]["value"]))
+        return fields
+
+    def representation_satisfies(self, raw: bytes, required: int) -> bool:
+        output = self.call(
+            "store.representation.v1", "satisfies", [bytes_value(bytes(raw)), u64(required)]
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def estimate_cost(self, representation: bytes, intent: bytes) -> int:
+        output = self.call(
+            "store.representation.v1",
+            "estimate_cost",
+            [bytes_value(bytes(representation)), bytes_value(bytes(intent))],
+        )
+        return as_int(_returned(output))
+
+    def rank_representations(self, left: bytes, right: bytes, intent: bytes) -> int:
+        """Return the MNCS pairwise tournament verdict (0/1/2)."""
+
+        output = self.call(
+            "store.representation.v1",
+            "rank",
+            [bytes_value(bytes(left)), bytes_value(bytes(right)), bytes_value(bytes(intent))],
+        )
+        return as_int(_returned(output))
+
+    def select_representation(
+        self, records: list[bytes], intent: bytes
+    ) -> tuple[int, bool, int]:
+        """Fold the MNCS tournament over validated records.
+
+        Returns (winning index, satisfies required fidelity, estimated
+        cost). Every comparison verdict is MNCS-computed; the host only
+        folds the total pairwise order.
+        """
+
+        records = [bytes(item) for item in records]
+        intent = bytes(intent)
+        if not records:
+            raise StoreError(StoreResultCode.DENIED, "Store representation table is empty")
+        for record in records:
+            self.validate_representation(record)
+        self.validate_intent(intent)
+        winner = 0
+        for index in range(1, len(records)):
+            verdict = self.rank_representations(records[winner], records[index], intent)
+            if verdict == 1:
+                winner = index
+            elif verdict != 0:
+                raise StoreError(
+                    StoreResultCode.INTEGRITY_FAILURE,
+                    "Store representation tournament reached no verdict",
+                )
+        required = self.intent_fidelity(intent)
+        satisfied = self.representation_satisfies(records[winner], required)
+        return winner, satisfied, self.estimate_cost(records[winner], intent)
+
+    def encode_block(
+        self,
+        *,
+        index: int,
+        digest: bytes,
+        stored: int,
+        plain: int,
+        tag: int,
+        start: int,
+        length: int,
+        depcount: int = 0,
+        deps: tuple[int, int, int, int] = (0, 0, 0, 0),
+        flags: int = 0,
+    ) -> bytes:
+        """Encode one block descriptor through MNCS."""
+
+        digest = bytes(digest)
+        if len(digest) != 32:
+            raise StoreError(StoreResultCode.DENIED, "Store block digest width is invalid")
+        if len(deps) != 4:
+            raise StoreError(StoreResultCode.DENIED, "Store block dependencies must number four")
+        output = self.call(
+            "store.block.v1",
+            "encode_fields",
+            [
+                u64(index),
+                bytes_value(digest),
+                u64(stored),
+                u64(plain),
+                u64(tag),
+                u64(start),
+                u64(length),
+                u64(depcount),
+                u64(deps[0]),
+                u64(deps[1]),
+                u64(deps[2]),
+                u64(deps[3]),
+                u64(flags),
+            ],
+        )
+        return as_bytes(_returned(output))
+
+    def validate_block_table(self, table: bytes, count: int) -> None:
+        """Fail closed on a malformed block table."""
+
+        table = bytes(table)
+        output = self.call(
+            "store.block.v1", "table_validate", [bytes_value(table), u64(count)]
+        )
+        code = as_int(_returned(output))
+        if code != 0:
+            raise StoreError(
+                StoreResultCode.INTEGRITY_FAILURE,
+                f"Store block table validation failed with code {code}",
+            )
+
+    def block_spans_within(self, table: bytes, count: int, total: int) -> bool:
+        output = self.call(
+            "store.block.v1",
+            "spans_within",
+            [bytes_value(bytes(table)), u64(count), u64(total)],
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def closure_step(self, table: bytes, count: int, mask: int) -> int:
+        output = self.call(
+            "store.block.v1",
+            "closure_step",
+            [bytes_value(bytes(table)), u64(count), u64(mask)],
+        )
+        return as_int(_returned(output))
+
+    def closure_closed(self, table: bytes, count: int, mask: int) -> bool:
+        output = self.call(
+            "store.block.v1",
+            "closure_closed",
+            [bytes_value(bytes(table)), u64(count), u64(mask)],
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def closure_fixpoint(self, tables: list[tuple[bytes, int]], mask: int) -> int:
+        """Iterate MNCS closure rounds across tables to a verified fixpoint.
+
+        Closure is monotone (rounds only add bits over a u64 domain), so at
+        most 64 rounds can change the mask; the host then verifies closure
+        through MNCS before returning.
+        """
+
+        tables = [(bytes(table), int(count)) for table, count in tables]
+        grown = int(mask)
+        for _ in range(65):
+            advanced = grown
+            for table, count in tables:
+                advanced = self.closure_step(table, count, advanced)
+            if advanced == grown:
+                break
+            grown = advanced
+        for table, count in tables:
+            if not self.closure_closed(table, count, grown):
+                raise StoreError(
+                    StoreResultCode.INTEGRITY_FAILURE,
+                    "Store block closure did not reach a verified fixpoint",
+                )
+        return grown
+
+    def blocks_with_tag(self, table: bytes, count: int, tag: int) -> int:
+        output = self.call(
+            "store.block.v1",
+            "blocks_with_tag",
+            [bytes_value(bytes(table)), u64(count), u64(tag)],
+        )
+        return as_int(_returned(output))
+
+    def mask_bytes(self, table: bytes, count: int, mask: int) -> tuple[int, int]:
+        """Return MNCS-computed (stored, plain) byte sums for a mask."""
+
+        outputs = self.call_batch([
+            {
+                "module": "store.block.v1",
+                "function": "mask_stored",
+                "args": [bytes_value(bytes(table)), u64(count), u64(mask)],
+            },
+            {
+                "module": "store.block.v1",
+                "function": "mask_plain",
+                "args": [bytes_value(bytes(table)), u64(count), u64(mask)],
+            },
+        ])
+        return as_int(_returned(outputs[0])), as_int(_returned(outputs[1]))
+
+    def mask_count(self, mask: int) -> int:
+        output = self.call("store.block.v1", "mask_count", [u64(mask)])
+        return as_int(_returned(output))
+
+    def range_mask(self, first: int, count: int) -> int:
+        """Return the MNCS mask for a contiguous block range."""
+
+        output = self.call("store.block.v1", "range_mask", [u64(first), u64(count)])
+        return as_int(_returned(output))
+
+    def mask_within(self, mask: int, first: int, count: int) -> bool:
+        """Ask MNCS whether a mask lies within a representation range."""
+
+        output = self.call(
+            "store.block.v1", "mask_within", [u64(mask), u64(first), u64(count)]
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def plan_fields(self, plan: bytes) -> dict[str, int | bytes]:
+        """Project a materialization plan's scalar fields through MNCS."""
+
+        plan = bytes(plan)
+        if len(plan) != 128:
+            raise StoreError(StoreResultCode.DENIED, "Store plan width is invalid")
+        outputs = self.call_batch([
+            {"module": "store.plan.v1", "function": name, "args": [bytes_value(plan)]}
+            for name in ("fidelity", "mask", "cap")
+        ] + [
+            {"module": "store.plan.v1", "function": name, "args": [bytes_value(plan)]}
+            for name in ("root", "authority")
+        ])
+        return {
+            "fidelity": as_int(_returned(outputs[0])),
+            "mask": as_int(_returned(outputs[1])),
+            "cap": as_int(_returned(outputs[2])),
+            "root": as_bytes(_returned(outputs[3])),
+            "authority": as_bytes(_returned(outputs[4])),
+        }
+
+    def slot_span(self, table: bytes, count: int, slot: int) -> dict[str, int | bytes]:
+        """Project one table slot's span fields through one batched call."""
+
+        table = bytes(table)
+        outputs = self.call_batch([
+            {"module": "store.block.v1", "function": name, "args": [bytes_value(table), u64(count), u64(slot)]}
+            for name in ("slot_index", "slot_tag", "slot_start", "slot_length", "slot_stored", "slot_plain")
+        ] + [
+            {"module": "store.block.v1", "function": "slot_digest",
+             "args": [bytes_value(table), u64(count), u64(slot)]}
+        ])
+        names = ("index", "tag", "start", "length", "stored", "plain")
+        fields: dict[str, int | bytes] = {
+            name: as_int(_returned(output)) for name, output in zip(names, outputs)
+        }
+        fields["digest"] = as_bytes(_returned(outputs[len(names)]))
+        return fields
+
+    def encode_plan(
+        self,
+        *,
+        fidelity: int,
+        root: bytes,
+        mask: int,
+        cap: int,
+        authority: bytes,
+    ) -> bytes:
+        """Encode one materialization plan through MNCS."""
+
+        root = bytes(root)
+        authority = bytes(authority)
+        if len(root) != 32 or len(authority) != 32:
+            raise StoreError(StoreResultCode.DENIED, "Store plan identity width is invalid")
+        output = self.call(
+            "store.plan.v1",
+            "encode_fields",
+            [u64(fidelity), bytes_value(root), u64(mask), u64(cap), bytes_value(authority)],
+        )
+        return as_bytes(_returned(output))
+
+    def plan_validate(self, plan: bytes, envelope: bytes, representation: bytes) -> int:
+        """Return the MNCS plan-admission code (0 admits)."""
+
+        output = self.call(
+            "store.plan.v1",
+            "plan_validate",
+            [bytes_value(bytes(plan)), bytes_value(bytes(envelope)), bytes_value(bytes(representation))],
+        )
+        return as_int(_returned(output))
+
+    def plan_blocks_validate(self, plan: bytes, table: bytes, count: int) -> int:
+        """Return the MNCS plan block-admission code (0 admits)."""
+
+        output = self.call(
+            "store.plan.v1",
+            "plan_blocks_validate",
+            [bytes_value(bytes(plan)), bytes_value(bytes(table)), u64(count)],
+        )
+        return as_int(_returned(output))
+
+    def codec_identity_for(self, code: int) -> bytes:
+        output = self.call("store.codec.v1", "codec_identity_for", [u64(code)])
+        return as_bytes(_returned(output))
+
+    def codec_is_supported(self, code: int) -> bool:
+        output = self.call("store.codec.v1", "codec_is_supported", [u64(code)])
+        return bool(_returned(output)["boolean"]["value"])
+
+    def rle_encode_windows(self, payload: bytes) -> list[bytes]:
+        """Encode each 64-byte window through MNCS; return encoded windows."""
+
+        payload = bytes(payload)
+        windows = [payload[start : start + 64] for start in range(0, len(payload), 64)]
+        if not windows:
+            return []
+        # Two requests per window; chunk so no crossing exceeds the batch cap.
+        encoded: list[bytes] = []
+        for base in range(0, len(windows), STORE_CALL_BATCH_MAX // 2):
+            group = windows[base : base + STORE_CALL_BATCH_MAX // 2]
+            outputs = self.call_batch([
+                {"module": "store.codec.v1", "function": "rle_encode_block", "args": [bytes_value(window)]}
+                for window in group
+            ] + [
+                {"module": "store.codec.v1", "function": "rle_encode_block_len", "args": [bytes_value(window)]}
+                for window in group
+            ])
+            raws = [as_bytes(_returned(output)) for output in outputs[: len(group)]]
+            lengths = [as_int(_returned(output)) for output in outputs[len(group):]]
+            encoded.extend(raw[:length] for raw, length in zip(raws, lengths))
+        return encoded
+
+    def rle_decode_windows(self, windows: list[tuple[bytes, int]]) -> bytes:
+        """Decode framed windows through MNCS; fail closed on any bad window."""
+
+        windows = [(bytes(data), int(plain)) for data, plain in windows]
+        if not windows:
+            return b""
+        outputs: list[dict[str, Any]] = []
+        for base in range(0, len(windows), STORE_CALL_BATCH_MAX):
+            group = windows[base : base + STORE_CALL_BATCH_MAX]
+            outputs.extend(self.call_batch([
+                {
+                    "module": "store.codec.v1",
+                    "function": "rle_decode_block",
+                    "args": [bytes_value(data), u64(len(data)), u64(plain)],
+                }
+                for data, plain in group
+            ]))
+        plain_parts: list[bytes] = []
+        for (data, plain), output in zip(windows, outputs):
+            raw = as_bytes(_returned(output))
+            if raw[0] != 0:
+                raise StoreError(
+                    StoreResultCode.INTEGRITY_FAILURE,
+                    f"Store RLE window decode failed with status {raw[0]}",
+                )
+            plain_parts.append(raw[1 : 1 + plain])
+        return b"".join(plain_parts)
+
+    def canonical_sort(self, table: bytes, width: int, count: int) -> bytes:
+        """Return the MNCS canonical byte order for a fixed-record table."""
+
+        output = self.call(
+            "store.canonical.v1",
+            "canonical_sort",
+            [bytes_value(bytes(table)), u64(width), u64(count)],
+        )
+        return as_bytes(_returned(output))
+
+    def rows_sorted(self, table: bytes, width: int, count: int) -> int:
+        output = self.call(
+            "store.canonical.v1",
+            "rows_sorted",
+            [bytes_value(bytes(table)), u64(width), u64(count)],
+        )
+        return as_int(_returned(output))
+
+    def canonical_equal(self, left: bytes, right: bytes, width: int, count: int) -> bool:
+        output = self.call(
+            "store.canonical.v1",
+            "canonical_equal",
+            [bytes_value(bytes(left)), bytes_value(bytes(right)), u64(width), u64(count)],
+        )
+        return bool(_returned(output)["boolean"]["value"])
 
     def recovery_decide(self, previous_valid: bool, candidate_class: int) -> int:
         """Ask native Store whether a durable candidate stays or promotes."""

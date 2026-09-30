@@ -14,6 +14,13 @@ use store.provenance;
 use store.commit_feed;
 use store.semantic_state;
 use store.content;
+use store.codec;
+use store.intent;
+use store.envelope;
+use store.representation;
+use store.block;
+use store.plan;
+use store.canonical;
 
 fn provider_version() -> (result: u64) {
     return 1;

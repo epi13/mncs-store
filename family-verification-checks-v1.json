@@ -19,6 +19,12 @@
       "contract_identity": "mncs.store.provenance/1",
       "runner": "native-corpus",
       "surface": "source-producer-transformation-evidence-ancestry"
+    },
+    {
+      "identity": "mncs-store:adaptive-representations-v1",
+      "contract_identity": "mncs.store.adaptive-representations/1",
+      "runner": "native-corpus",
+      "surface": "envelope-representation-intent-block-plan-codec-canonical"
     }
   ]
 }

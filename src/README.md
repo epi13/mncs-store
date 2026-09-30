@@ -26,6 +26,13 @@ The current semantic modules are:
 | `store/generation.mncs` (`store.generation.v1`) | 0005 | Generation headers; CAS decisions + conflict tokens; snapshot tokens + binding; commit state machine; reclamation membership scans |
 | `store/recovery.mncs` (`store.recovery.v1`) | 0015 | current native old/new recovery selection and historical triage vectors |
 | `store/relationship.mncs` (`store.relationship`) | current relation path | one generic 172-byte relation representation: type identity, endpoints, generation, provenance, ordinal, optional typed metadata |
+| `store/codec.mncs` (`store.codec.v1`) | RFC 0019 | codec identities + bounded windowed RLE encode/decode with fail-closed validation |
+| `store/intent.mncs` (`store.intent.v1`) | RFC 0019 | generic 64-byte access-intent records: fidelity, weights, lifetime; defaults + normalization |
+| `store/envelope.mncs` (`store.envelope.v1`) | RFC 0019 | 256-byte semantic envelopes: inspect identity/inventory/costs/fidelity without payload |
+| `store/representation.mncs` (`store.representation.v1`) | RFC 0019 | 128-byte representation descriptors + cost estimation + selection tournament |
+| `store/block.mncs` (`store.block.v1`) | RFC 0019 | 128-byte block spans/tags/deps + tables + verified dependency closure + accounting |
+| `store/plan.mncs` (`store.plan.v1`) | RFC 0019 | 128-byte external materialization plans, validated against Store facts |
+| `store/canonical.mncs` (`store.canonical.v1`) | RFC 0019 | canonical row order + equality for bounded fixed-record tables |
 
 Profile: current Store semantic modules use Source 0.18 where granted
 filesystem effects are required; frozen compatibility modules retain their

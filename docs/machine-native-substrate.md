@@ -11,6 +11,13 @@ representations that are not reinterpretations of the old object bytes.
 | `store.provenance.v1` | 112 bytes | source, producer, transformation, generation, evidence, ancestry | source/producer/transformation/evidence |
 | `store.commit_feed.v1` | 56 bytes | deterministic Store-to-Index change metadata | Store generation vs Index-through generation |
 | `store.semantic_state.v1` | 164 bytes | producer-supplied lifecycle/severity, evidence-set and supersession-set identities, generation, completeness | Store persists codes and set identities; Commons owns their meanings |
+| `store.envelope.v1` | 256 bytes | semantic envelope: identity, type, synopsis, inventory, topology, costs, fidelity bitmap | envelope facts vs payload bytes |
+| `store.representation.v1` | 128 bytes | representation descriptor + cost/selection decisions | logical identity vs physical form |
+| `store.intent.v1` | 64 bytes | generic access intent (fidelity, weights, lifetime) | caller constraints vs Store mechanics |
+| `store.block.v1` | 128 bytes | block spans, tags, dependencies, closure, accounting | wanted sets vs fetched closure |
+| `store.plan.v1` | 128 bytes | external materialization proposals, validated | authority proposal vs Store facts |
+| `store.codec.v1` | identities + 64-byte RLE windows | replaceable physical codecs | codec procedure vs content identity |
+| `store.canonical.v1` | 256-byte tables | canonical row order for fixed-record tables | canonical form vs source order |
 
 `store.relationship` is the one current reusable consumer representation:
 Store carries the relation type identity and optional typed metadata

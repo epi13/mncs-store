@@ -32,16 +32,36 @@ MANIFEST_MAGIC = b"SM"
 NODE_MAGIC = b"SN"
 BINDING_MAGIC = b"SB"
 VERSION = 2
+MANIFEST_VERSION_V3 = 3
 
 # 20-byte node header + 31 * 32-byte child identities = 1012 bytes.
 NODE_HEADER = struct.Struct(">2sBBIIQ")
 MANIFEST = struct.Struct(">2sBBQIQI32s32s32s32s12s")
+MANIFEST_V2 = MANIFEST
+# V3 extends the v2 manifest with the content digests of the adaptive
+# sidecars (envelope + representation table). Block tables and opaque
+# representation payloads are addressed from the envelope and
+# representation records themselves, so no further manifest growth is
+# needed. V2 manifests remain readable; their adaptive view is
+# synthesized deterministically through MNCS.
+MANIFEST_V3 = struct.Struct(">2sBBQIQI32s32s32s32s12s32s32s")
 GENERATION_HEADER = struct.Struct(">2sBBQIII")
 GENERATION_ENTRY = struct.Struct(">12s32s32s32sQQ")
 BINDING_HEADER = struct.Struct(">2sBBII")
 JOURNAL = struct.Struct(">2sBBQQ32s")
 RELATION_SIZE = 172
 PROVENANCE_SIZE = 112
+ENVELOPE_SIZE = 256
+REPRESENTATION_SIZE = 128
+BLOCK_SIZE = 128
+REPS_HEADER = struct.Struct(">I")
+BLOCKS_HEADER = struct.Struct(">I")
+IDENTITY_CODEC_CODE = 0
+RLE_CODEC_CODE = 1
+RLE_WINDOW = 64
+RLE_FRAME = struct.Struct(">HH")
+MAX_BLOCKS_PER_TABLE = 8
+MAX_SYNOPSIS_BYTES = 64 * 1024
 
 
 class CrashInjected(RuntimeError):
@@ -75,6 +95,81 @@ class BoundObjectInput:
     payload: bytes
     relations: tuple[bytes, ...] = ()
     provenance: tuple[bytes, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RepresentationInput:
+    """Producer material for one non-default representation.
+
+    ``payload`` is the plain (pre-codec) bytes. The codec, sizes, decode
+    class, and exactness flag are Store-computed through MNCS; a
+    fidelity-5 claim is admitted only when the payload hashes to the
+    object's content identity.
+    """
+
+    fidelity: int
+    codec: str
+    payload: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class BlockInput:
+    """Producer material for one semantic block of the base payload."""
+
+    index: int
+    tag: int
+    start: int
+    length: int
+
+
+@dataclass(frozen=True, slots=True)
+class EnvelopeView:
+    """A verified semantic envelope with its decoded fields."""
+
+    raw: bytes
+    fields: dict
+    stored_bytes_touched: int
+
+
+@dataclass(frozen=True, slots=True)
+class RepresentationView:
+    """One verified representation record with its decoded fields."""
+
+    index: int
+    raw: bytes
+    fields: dict
+
+
+@dataclass(frozen=True, slots=True)
+class Selection:
+    """An MNCS-tournament representation selection."""
+
+    index: int
+    record: bytes
+    fields: dict
+    satisfied: bool
+    estimated_cost: int
+
+
+@dataclass(frozen=True, slots=True)
+class MaterializedView:
+    """Materialized bytes with honest acquisition accounting.
+
+    ``stored_bytes_touched`` counts durable payload bytes read (chunks,
+    blobs, tables); ``materialized_bytes`` counts plain bytes produced.
+    Envelope/manifest/binding bytes are counted separately as
+    ``inspect_bytes`` so decode amplification is measurable.
+    """
+
+    payload: bytes
+    representation_index: int
+    fidelity: int
+    satisfied: bool
+    mask: int
+    stored_bytes_touched: int
+    materialized_bytes: int
+    inspect_bytes: int
+    exact_verified: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +262,10 @@ class EmbeddedStore:
             "bindings",
             "generations",
             "staging",
+            "envelopes",
+            "representations",
+            "blocks",
+            "reps",
         ):
             (self.path / name).mkdir(mode=0o700, parents=True, exist_ok=True)
         self._initialize_files()
@@ -336,10 +435,29 @@ class EmbeddedStore:
         descriptor_id: bytes,
         binding_id: bytes,
         logical_id: bytes,
+        envelope_digest: bytes | None = None,
+        reps_digest: bytes | None = None,
     ) -> bytes:
-        return MANIFEST.pack(
+        if (envelope_digest is None) != (reps_digest is None):
+            raise StoreIntegrityError("Store manifest v3 sidecars must be paired")
+        if envelope_digest is None or reps_digest is None:
+            return MANIFEST_V2.pack(
+                MANIFEST_MAGIC,
+                VERSION,
+                0,
+                total_length,
+                CHUNK_SIZE,
+                chunk_count,
+                depth,
+                content_id,
+                tree_root,
+                descriptor_id,
+                binding_id,
+                logical_id,
+            )
+        return MANIFEST_V3.pack(
             MANIFEST_MAGIC,
-            VERSION,
+            MANIFEST_VERSION_V3,
             0,
             total_length,
             CHUNK_SIZE,
@@ -350,6 +468,8 @@ class EmbeddedStore:
             descriptor_id,
             binding_id,
             logical_id,
+            envelope_digest,
+            reps_digest,
         )
 
     def _build_content(
@@ -359,6 +479,8 @@ class EmbeddedStore:
         descriptor: bytes,
         binding_id: bytes,
         logical_id: bytes,
+        envelope_digest: bytes | None = None,
+        reps_digest: bytes | None = None,
     ) -> tuple[bytes, bytes, bytes, int, int]:
         """Stage immutable chunks/nodes and return content/root metadata."""
 
@@ -408,6 +530,8 @@ class EmbeddedStore:
             descriptor_id=descriptor_id,
             binding_id=binding_id,
             logical_id=logical_id,
+            envelope_digest=envelope_digest,
+            reps_digest=reps_digest,
         )
         representation_root = self._hash(manifest)
         self._write_immutable(self.path / "descriptors" / f"{descriptor_id.hex()}.desc", descriptor)
@@ -812,27 +936,52 @@ class EmbeddedStore:
         generation = struct.unpack(">Q", raw[end + 76 : end + 84])[0]
         return schema, identity, logical, content, root, generation
 
-    def _read_manifest(self, entry: _Entry) -> tuple[bytes, int, int, int, bytes, bytes, bytes]:
+    def _read_manifest(
+        self, entry: _Entry
+    ) -> tuple[bytes, int, int, int, bytes, bytes, bytes, tuple[bytes, bytes] | None]:
         raw = (self.path / "objects" / f"{entry.logical_id.hex()}.manifest").read_bytes()
-        if len(raw) != MANIFEST.size:
+        adaptive: tuple[bytes, bytes] | None = None
+        if len(raw) == MANIFEST_V2.size:
+            values = MANIFEST_V2.unpack(raw)
+            (
+                magic,
+                version,
+                reserved,
+                total_length,
+                chunk_size,
+                chunk_count,
+                depth,
+                content_id,
+                tree_root,
+                descriptor_id,
+                binding_id,
+                logical_id,
+            ) = values
+            if magic != MANIFEST_MAGIC or version != VERSION or reserved != 0:
+                raise StoreIntegrityError("Store object manifest is unknown")
+        elif len(raw) == MANIFEST_V3.size:
+            values = MANIFEST_V3.unpack(raw)
+            (
+                magic,
+                version,
+                reserved,
+                total_length,
+                chunk_size,
+                chunk_count,
+                depth,
+                content_id,
+                tree_root,
+                descriptor_id,
+                binding_id,
+                logical_id,
+                envelope_digest,
+                reps_digest,
+            ) = values
+            if magic != MANIFEST_MAGIC or version != MANIFEST_VERSION_V3 or reserved != 0:
+                raise StoreIntegrityError("Store object manifest is unknown")
+            adaptive = (envelope_digest, reps_digest)
+        else:
             raise StoreIntegrityError("Store object manifest has an invalid size")
-        values = MANIFEST.unpack(raw)
-        (
-            magic,
-            version,
-            reserved,
-            total_length,
-            chunk_size,
-            chunk_count,
-            depth,
-            content_id,
-            tree_root,
-            descriptor_id,
-            binding_id,
-            logical_id,
-        ) = values
-        if magic != MANIFEST_MAGIC or version != VERSION or reserved != 0:
-            raise StoreIntegrityError("Store object manifest is unknown")
         if logical_id != entry.logical_id or binding_id != entry.binding_id:
             raise StoreIntegrityError("Store object manifest binding is inconsistent")
         if content_id != entry.content_id or self._verify_digest(raw) != entry.representation_root:
@@ -842,7 +991,7 @@ class EmbeddedStore:
         descriptor = (self.path / "descriptors" / f"{descriptor_id.hex()}.desc").read_bytes()
         if self._verify_digest(descriptor) != descriptor_id:
             raise StoreIntegrityError("Store descriptor integrity failure")
-        return raw, total_length, chunk_count, depth, content_id, tree_root, descriptor
+        return raw, total_length, chunk_count, depth, content_id, tree_root, descriptor, adaptive
 
     def _read_node(self, digest: bytes, *, level: int, start: int, expected_count: int) -> list[bytes]:
         raw = (self.path / "nodes" / f"{digest.hex()}.node").read_bytes()
@@ -905,7 +1054,9 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store binding does not match generation entry")
         if binding_generation > generation:
             raise StoreIntegrityError("Store binding points into a future generation")
-        raw, total_length, chunk_count, depth, content_id, tree_root, descriptor = self._read_manifest(entry)
+        _raw, total_length, chunk_count, depth, content_id, tree_root, descriptor, _adaptive = (
+            self._read_manifest(entry)
+        )
         if total_length != entry.total_length:
             raise StoreIntegrityError("Store generation length does not match its manifest")
         payload = self._read_tree(
@@ -929,6 +1080,308 @@ class EmbeddedStore:
             payload=payload,
         )
 
+    # ---- adaptive representations ------------------------------------
+    #
+    # Logical identity stays stable while physical form varies: one object
+    # may own several representations (base chunks, coded blobs, synopses)
+    # selected under a generic access intent, with independently
+    # retrievable semantic blocks. All record bytes, validation verdicts,
+    # cost estimates, selection ranks, closure masks, and codec windows
+    # are MNCS-computed through the retained session; this layer only
+    # transports bytes, stages immutable files, and folds total MNCS
+    # verdicts. Objects stored without adaptive parameters keep the exact
+    # v2 manifest bytes; their adaptive view is synthesized
+    # deterministically through MNCS at read time.
+
+    def _frame_rle(self, payload: bytes) -> bytes:
+        """Encode payload windows through MNCS RLE into framed blob bytes."""
+
+        encoded = self.session.rle_encode_windows(bytes(payload))
+        framed = bytearray()
+        offset = 0
+        for window in encoded:
+            plain_length = min(RLE_WINDOW, len(payload) - offset)
+            framed += RLE_FRAME.pack(len(window), plain_length)
+            framed += window
+            offset += plain_length
+        if offset != len(payload):
+            raise StoreIntegrityError("Store RLE framing does not cover its payload")
+        return bytes(framed)
+
+    def _parse_rle_framed(self, blob: bytes) -> list[tuple[bytes, int]]:
+        """Split framed RLE bytes into (window, plain length) transport units."""
+
+        blob = bytes(blob)
+        windows: list[tuple[bytes, int]] = []
+        offset = 0
+        while offset < len(blob):
+            if offset + RLE_FRAME.size > len(blob):
+                raise StoreIntegrityError("Store RLE framing is truncated")
+            encoded_length, plain_length = RLE_FRAME.unpack_from(blob, offset)
+            offset += RLE_FRAME.size
+            if encoded_length > 65 or plain_length > RLE_WINDOW:
+                raise StoreIntegrityError("Store RLE framing lengths are out of range")
+            if offset + encoded_length > len(blob):
+                raise StoreIntegrityError("Store RLE framing overruns its blob")
+            windows.append((blob[offset : offset + encoded_length], plain_length))
+            offset += encoded_length
+        return windows
+
+    def _decode_rle_blob(self, blob: bytes) -> bytes:
+        """Decode framed RLE bytes through MNCS; fail closed on any window."""
+
+        return self.session.rle_decode_windows(self._parse_rle_framed(blob))
+
+    def _check_block_inputs(
+        self, blocks: list[BlockInput], total_length: int
+    ) -> None:
+        """Validate producer block spans as input (DENIED), before MNCS."""
+
+        if len(blocks) > MAX_BLOCKS_PER_TABLE:
+            raise StoreError(
+                StoreResultCode.DENIED,
+                f"Store block tables hold at most {MAX_BLOCKS_PER_TABLE} blocks",
+            )
+        seen: set[int] = set()
+        for block in blocks:
+            if not 0 <= block.index < 64:
+                raise StoreError(StoreResultCode.DENIED, "Store block index is out of range")
+            if block.index in seen:
+                raise StoreError(StoreResultCode.DENIED, "Store block indices must be unique")
+            seen.add(block.index)
+            if block.start < 0 or block.length < 0:
+                raise StoreError(StoreResultCode.DENIED, "Store block span is negative")
+            if block.start + block.length > total_length:
+                raise StoreError(
+                    StoreResultCode.DENIED, "Store block span exceeds its payload"
+                )
+            if block.tag < 0 or block.tag >= 1 << 64:
+                raise StoreError(StoreResultCode.DENIED, "Store block tag is out of range")
+        # V1 covers one table whose indices tile 0..N-1, so a
+        # representation range always names exactly the described blocks.
+        # The MNCS layer stays general (sparse multi-table indices);
+        # lifting this restriction is transport work, not new semantics.
+        if seen != set(range(len(blocks))):
+            raise StoreError(
+                StoreResultCode.DENIED,
+                "Store v1 block indices must tile 0..N-1",
+            )
+        for left_pos, left in enumerate(blocks):
+            for right in blocks[left_pos + 1 :]:
+                if left.length == 0 or right.length == 0:
+                    continue
+                if left.start < right.start + right.length and right.start < left.start + left.length:
+                    raise StoreError(StoreResultCode.DENIED, "Store block spans overlap")
+
+    def _build_adaptive_sidecars(
+        self,
+        *,
+        payload: bytes,
+        descriptor_id: bytes,
+        logical_id: bytes,
+        content_id: bytes,
+        new_generation: int,
+        synopsis: bytes | None,
+        representations: list[RepresentationInput],
+        blocks: list[BlockInput],
+        relations: list[bytes],
+        provenance: list[bytes],
+    ) -> tuple[bytes, bytes]:
+        """Stage immutable adaptive sidecars; return (envelope, reps) digests.
+
+        Every record is MNCS-encoded and MNCS-validated before staging.
+        Producer-input violations raise DENIED; a failure after successful
+        validation indicates a Store defect and raises INTEGRITY_FAILURE.
+        """
+
+        payload = bytes(payload)
+        total_length = len(payload)
+        self._check_block_inputs(blocks, total_length)
+        if synopsis is not None and len(synopsis) == 0:
+            raise StoreError(StoreResultCode.DENIED, "Store synopsis must be nonempty")
+        if synopsis is not None and len(synopsis) > MAX_SYNOPSIS_BYTES:
+            raise StoreError(StoreResultCode.DENIED, "Store synopsis exceeds its bound")
+        for rep in representations:
+            if rep.fidelity < 0 or rep.fidelity > 5:
+                raise StoreError(StoreResultCode.DENIED, "Store representation fidelity is unknown")
+            if rep.codec not in ("identity", "rle"):
+                raise StoreError(
+                    StoreResultCode.DENIED, f"Store representation codec is unknown: {rep.codec}"
+                )
+
+        identity_codec = self.session.codec_identity_for(IDENTITY_CODEC_CODE)
+        rle_codec = self.session.codec_identity_for(RLE_CODEC_CODE)
+        if not self.session.codec_is_supported(
+            IDENTITY_CODEC_CODE
+        ) or not self.session.codec_is_supported(RLE_CODEC_CODE):
+            raise StoreIntegrityError("Store well-known codecs are unsupported")
+
+        # Opaque representation blobs: synopsis plus producer payloads.
+        records: list[bytes] = []
+        synopsis_root = bytes(32)
+        synopsis_bytes = 0
+        if synopsis is not None:
+            synopsis = bytes(synopsis)
+            synopsis_root = self._hash(synopsis)
+            synopsis_bytes = len(synopsis)
+            self._write_immutable(self.path / "reps" / f"{synopsis_root.hex()}.payload", synopsis)
+            records.append(
+                self.session.encode_representation(
+                    fidelity=1,
+                    codec=IDENTITY_CODEC_CODE,
+                    codec_identity=identity_codec,
+                    stored=len(synopsis),
+                    plain=len(synopsis),
+                    decode_class=0,
+                    first_block=0,
+                    block_count=0,
+                    root=synopsis_root,
+                    flags=0,
+                )
+            )
+        for rep in representations:
+            plain = bytes(rep.payload)
+            plain_id = self._hash(plain)
+            if rep.fidelity == 5 and plain_id != content_id:
+                raise StoreError(
+                    StoreResultCode.DENIED,
+                    "Store fidelity-5 representation does not match its object content",
+                )
+            if rep.codec == "rle":
+                framed = self._frame_rle(plain)
+                # Codec correctness is verified before admission: the MNCS
+                # decode of the staged bytes must reproduce the payload.
+                if self._hash(self._decode_rle_blob(framed)) != plain_id:
+                    raise StoreIntegrityError("Store RLE round trip failed before admission")
+                stored = framed
+                codec_code = RLE_CODEC_CODE
+                codec_identity = rle_codec
+                decode_class = 1
+            else:
+                stored = plain
+                codec_code = IDENTITY_CODEC_CODE
+                codec_identity = identity_codec
+                decode_class = 0
+            root = self._hash(stored)
+            self._write_immutable(self.path / "reps" / f"{root.hex()}.payload", stored)
+            exact = rep.fidelity == 5 and plain_id == content_id
+            records.append(
+                self.session.encode_representation(
+                    fidelity=rep.fidelity,
+                    codec=codec_code,
+                    codec_identity=codec_identity,
+                    stored=len(stored),
+                    plain=len(plain),
+                    decode_class=decode_class,
+                    first_block=0,
+                    block_count=0,
+                    root=root,
+                    flags=1 if exact else 0,
+                )
+            )
+
+        # Object block table over base-payload spans.
+        table = b""
+        table_digest = bytes(32)
+        if blocks:
+            encoded_blocks = []
+            for block in blocks:
+                span = payload[block.start : block.start + block.length]
+                digest = self._hash(span)
+                if digest == bytes(32):
+                    raise StoreError(StoreResultCode.DENIED, "Store block digest is degenerate")
+                encoded_blocks.append(
+                    self.session.encode_block(
+                        index=block.index,
+                        digest=digest,
+                        stored=len(span),
+                        plain=len(span),
+                        tag=block.tag,
+                        start=block.start,
+                        length=block.length,
+                        flags=2,
+                    )
+                )
+            table = b"".join(encoded_blocks)
+            self.session.validate_block_table(table, len(blocks))
+            if not self.session.block_spans_within(table, len(blocks), total_length):
+                raise StoreError(
+                    StoreResultCode.DENIED, "Store block spans exceed their payload"
+                )
+            table_file = BLOCKS_HEADER.pack(len(blocks)) + table
+            table_digest = self._hash(table_file)
+            self._write_immutable(self.path / "blocks" / f"{table_digest.hex()}.table", table_file)
+
+        # Base representation first by convention: exact identity bytes
+        # over the chunk tree, with block coverage when a table exists.
+        base = self.session.encode_representation(
+            fidelity=5,
+            codec=IDENTITY_CODEC_CODE,
+            codec_identity=identity_codec,
+            stored=total_length,
+            plain=total_length,
+            decode_class=0,
+            first_block=0,
+            block_count=len(blocks) if blocks else 1,
+            root=content_id,
+            flags=1 | (2 if blocks else 0),
+        )
+        records.insert(0, base)
+        for record in records:
+            self.session.validate_representation(record)
+        fields = [self.session.representation_fields(record) for record in records]
+        # Representation roots must be unique: plans address
+        # representations by root, and duplicates would make that
+        # lookup ambiguous.
+        roots = [entry["root"] for entry in fields]
+        if len(set(roots)) != len(roots):
+            raise StoreError(
+                StoreResultCode.DENIED, "Store representation roots must be unique"
+            )
+        reps_file = REPS_HEADER.pack(len(records)) + b"".join(records)
+        reps_digest = self._hash(reps_file)
+        self._write_immutable(
+            self.path / "representations" / f"{reps_digest.hex()}.reps", reps_file
+        )
+
+        # Envelope: fidelity bitmap folded through MNCS over validated
+        # representation fidelities plus the structural level.
+        bitmap = 1
+        bitmap = self.session.fidelity_bitmap_with(bitmap, 2)
+        for entry in fields:
+            fidelity = entry["fidelity"]
+            assert isinstance(fidelity, int)
+            bitmap = self.session.fidelity_bitmap_with(bitmap, fidelity)
+        provenance_digest = (
+            self._hash(b"".join(relations) + b"".join(provenance))
+            if relations or provenance
+            else bytes(32)
+        )
+        envelope = self.session.encode_envelope(
+            logical=logical_id,
+            type_identity=descriptor_id,
+            synopsis=synopsis_root,
+            synopsis_bytes=synopsis_bytes,
+            rep_count=len(records),
+            block_count=len(blocks) if blocks else 1,
+            stored_bytes=total_length,
+            plain_bytes=total_length,
+            default_root=content_id,
+            provenance=provenance_digest,
+            block_table=table_digest,
+            generation=new_generation,
+            fidelity_bits=bitmap,
+            flags=(1 if synopsis is not None else 0)
+            | (2 if len(records) > 1 else 0)
+            | (4 if blocks else 0),
+        )
+        self.session.validate_envelope(envelope)
+        envelope_digest = self._hash(envelope)
+        self._write_immutable(
+            self.path / "envelopes" / f"{envelope_digest.hex()}.envelope", envelope
+        )
+        return envelope_digest, reps_digest
+
     def put_bound_object(
         self,
         *,
@@ -939,6 +1392,9 @@ class EmbeddedStore:
         expected_generation: int,
         relations: list[bytes] | tuple[bytes, ...] = (),
         provenance: list[bytes] | tuple[bytes, ...] = (),
+        synopsis: bytes | None = None,
+        representations: list[RepresentationInput] | tuple[RepresentationInput, ...] = (),
+        blocks: list[BlockInput] | tuple[BlockInput, ...] = (),
     ) -> CommitResult:
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
@@ -950,6 +1406,8 @@ class EmbeddedStore:
         payload = bytes(payload)
         relations = [bytes(value) for value in relations]
         provenance = [bytes(value) for value in provenance]
+        representations = list(representations)
+        blocks = list(blocks)
         binding_id = self._binding_id(domain_schema, domain_identity)
         logical_id = self._logical_id(binding_id)
         with self._publication_lock():
@@ -1010,11 +1468,32 @@ class EmbeddedStore:
                 new_generation,
                 require_current_generation=True,
             )
+            adaptive = synopsis is not None or bool(representations) or bool(blocks)
+            envelope_digest: bytes | None = None
+            reps_digest: bytes | None = None
+            if adaptive:
+                # Content identity is known before chunk staging; the
+                # sidecars bind to it and the manifest binds to them.
+                staged_content = self._hash(payload)
+                envelope_digest, reps_digest = self._build_adaptive_sidecars(
+                    payload=payload,
+                    descriptor_id=self._hash(descriptor),
+                    logical_id=logical_id,
+                    content_id=staged_content,
+                    new_generation=new_generation,
+                    synopsis=synopsis,
+                    representations=representations,
+                    blocks=blocks,
+                    relations=relations,
+                    provenance=provenance,
+                )
             content_id, root, _descriptor_id, _chunks, _depth = self._build_content(
                 payload=payload,
                 descriptor=descriptor,
                 binding_id=binding_id,
                 logical_id=logical_id,
+                envelope_digest=envelope_digest,
+                reps_digest=reps_digest,
             )
             next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
             new_entry = _Entry(logical_id, binding_id, root, content_id, len(payload), next_ordinal)
@@ -1344,6 +1823,743 @@ class EmbeddedStore:
                 observed,
             )
 
+    def _resolve_entry(
+        self, domain_schema: bytes, domain_identity: bytes
+    ) -> tuple[_Entry, int, int, int]:
+        """Resolve one current entry without reading any payload.
+
+        Returns (entry, head generation, commit generation, bytes read
+        for resolution). Binding consistency is checked exactly as in
+        the whole-object path. The commit generation comes from the
+        verified binding: envelopes claim the generation that committed
+        their object version, which may precede the current head.
+        """
+
+        binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
+        generation = self.current_generation
+        generation_path = self.path / "generations" / f"{generation:016x}"
+        generation_raw = generation_path.read_bytes()
+        resolve_bytes = len(generation_raw)
+        entries = self._parse_generation(generation_raw, generation)
+        try:
+            entry = next(item for item in entries if item.binding_id == binding_id)
+        except StopIteration as exc:
+            raise StoreError(
+                StoreResultCode.DENIED, "Store object binding is not current"
+            ) from exc
+        binding_path = self._binding_path(binding_id)
+        binding_raw = binding_path.read_bytes()
+        resolve_bytes += len(binding_raw)
+        schema, identity, logical, content, root, binding_generation = self._read_binding(
+            binding_id
+        )
+        if logical != entry.logical_id or content != entry.content_id or root != entry.representation_root:
+            raise StoreIntegrityError("Store binding does not match generation entry")
+        if binding_generation > generation:
+            raise StoreIntegrityError("Store binding points into a future generation")
+        if schema != bytes(domain_schema) or identity != bytes(domain_identity):
+            raise StoreIntegrityError("Store binding does not match its domain identity")
+        return entry, generation, binding_generation, resolve_bytes
+
+    def _read_envelope_part(
+        self, entry: _Entry, commit_generation: int
+    ) -> dict[str, object]:
+        """Read manifest + envelope only; never chunks, blobs, or tables."""
+
+        (
+            manifest_raw,
+            total_length,
+            chunk_count,
+            depth,
+            content_id,
+            tree_root,
+            descriptor,
+            adaptive,
+        ) = self._read_manifest(entry)
+        if total_length != entry.total_length:
+            raise StoreIntegrityError("Store generation length does not match its manifest")
+        inspect_bytes = len(manifest_raw)
+        if adaptive is None:
+            envelope = self.session.default_envelope_for(
+                entry.logical_id, content_id, total_length, commit_generation
+            )
+            self.session.validate_envelope(envelope)
+            envelope_digest: bytes | None = None
+            reps_digest: bytes | None = None
+        else:
+            envelope_digest, reps_digest = adaptive
+            envelope_path = self.path / "envelopes" / f"{envelope_digest.hex()}.envelope"
+            envelope = envelope_path.read_bytes()
+            inspect_bytes += len(envelope)
+            if self._verify_digest(envelope) != envelope_digest:
+                raise StoreIntegrityError("Store envelope integrity failure")
+            self.session.validate_envelope(envelope)
+            if not self.session.envelope_consistent(
+                envelope, entry.logical_id, content_id, total_length, commit_generation
+            ):
+                raise StoreIntegrityError("Store envelope does not match its manifest")
+        fields = self.session.envelope_fields(envelope)
+        return {
+            "manifest": manifest_raw,
+            "total_length": total_length,
+            "chunk_count": chunk_count,
+            "depth": depth,
+            "content_id": content_id,
+            "tree_root": tree_root,
+            "descriptor": descriptor,
+            "adaptive": adaptive is not None,
+            "envelope_digest": envelope_digest,
+            "reps_digest": reps_digest,
+            "envelope": envelope,
+            "envelope_fields": fields,
+            "inspect_bytes": inspect_bytes,
+        }
+
+    def _read_rep_tables(self, part: dict[str, object]) -> dict[str, object]:
+        """Load representation + block tables named by a verified envelope."""
+
+        envelope = part["envelope"]
+        assert isinstance(envelope, bytes)
+        fields = part["envelope_fields"]
+        assert isinstance(fields, dict)
+        content_id = part["content_id"]
+        assert isinstance(content_id, bytes)
+        total_length = part["total_length"]
+        assert isinstance(total_length, int)
+        inspect_bytes = part["inspect_bytes"]
+        assert isinstance(inspect_bytes, int)
+        representations: list[bytes] = []
+        rep_fields: list[dict] = []
+        tables: list[tuple[bytes, int]] = []
+        if not part["adaptive"]:
+            identity_codec = self.session.codec_identity_for(IDENTITY_CODEC_CODE)
+            base = self.session.encode_representation(
+                fidelity=5,
+                codec=IDENTITY_CODEC_CODE,
+                codec_identity=identity_codec,
+                stored=total_length,
+                plain=total_length,
+                decode_class=0,
+                first_block=0,
+                block_count=1,
+                root=content_id,
+                flags=1,
+            )
+            self.session.validate_representation(base)
+            representations.append(base)
+            rep_fields.append(self.session.representation_fields(base))
+        else:
+            reps_digest = part["reps_digest"]
+            assert isinstance(reps_digest, bytes)
+            reps_path = self.path / "representations" / f"{reps_digest.hex()}.reps"
+            reps_raw = reps_path.read_bytes()
+            inspect_bytes += len(reps_raw)
+            if self._verify_digest(reps_raw) != reps_digest:
+                raise StoreIntegrityError("Store representation table integrity failure")
+            if len(reps_raw) < REPS_HEADER.size:
+                raise StoreIntegrityError("Store representation table is truncated")
+            (count,) = REPS_HEADER.unpack_from(reps_raw)
+            if count < 1 or len(reps_raw) != REPS_HEADER.size + count * REPRESENTATION_SIZE:
+                raise StoreIntegrityError("Store representation table has a torn tail")
+            for index in range(count):
+                record = reps_raw[
+                    REPS_HEADER.size + index * REPRESENTATION_SIZE : REPS_HEADER.size
+                    + (index + 1) * REPRESENTATION_SIZE
+                ]
+                self.session.validate_representation(record)
+                representations.append(record)
+                rep_fields.append(self.session.representation_fields(record))
+            if fields["rep_count"] != count:
+                raise StoreIntegrityError("Store envelope representation count mismatch")
+            base_fields = rep_fields[0]
+            if (
+                base_fields["root"] != content_id
+                or base_fields["fidelity"] != 5
+                or base_fields["codec"] != IDENTITY_CODEC_CODE
+            ):
+                raise StoreIntegrityError("Store base representation violates its convention")
+            for record_fields in rep_fields:
+                fidelity = record_fields["fidelity"]
+                assert isinstance(fidelity, int)
+                if not self.session.envelope_offers(envelope, fidelity):
+                    raise StoreIntegrityError("Store envelope omits a stored fidelity")
+            table_digest = fields["block_table"]
+            assert isinstance(table_digest, bytes)
+            if table_digest != bytes(32):
+                table_path = self.path / "blocks" / f"{table_digest.hex()}.table"
+                table_raw = table_path.read_bytes()
+                inspect_bytes += len(table_raw)
+                if self._verify_digest(table_raw) != table_digest:
+                    raise StoreIntegrityError("Store block table integrity failure")
+                if len(table_raw) < BLOCKS_HEADER.size:
+                    raise StoreIntegrityError("Store block table is truncated")
+                (table_count,) = BLOCKS_HEADER.unpack_from(table_raw)
+                table = table_raw[BLOCKS_HEADER.size :]
+                if table_count < 1 or len(table) != table_count * BLOCK_SIZE:
+                    raise StoreIntegrityError("Store block table has a torn tail")
+                self.session.validate_block_table(table, table_count)
+                if not self.session.block_spans_within(table, table_count, total_length):
+                    raise StoreIntegrityError("Store block spans exceed their payload")
+                if fields["block_count"] != table_count:
+                    raise StoreIntegrityError("Store envelope block count mismatch")
+                tables.append((table, table_count))
+        if not tables:
+            # The implicit whole-payload block becomes a real one-block
+            # table, synthesized deterministically through MNCS. Every
+            # downstream path (closure, caps, plans, digests) then runs
+            # uniformly whether or not a table was stored.
+            implicit = self.session.encode_block(
+                index=0,
+                digest=content_id,
+                stored=total_length,
+                plain=total_length,
+                tag=0,
+                start=0,
+                length=total_length,
+                flags=2,
+            )
+            self.session.validate_block_table(implicit, 1)
+            if not self.session.block_spans_within(implicit, 1, total_length):
+                raise StoreIntegrityError("Store implicit block span is invalid")
+            tables.append((implicit, 1))
+        part["representations"] = representations
+        part["rep_fields"] = rep_fields
+        part["tables"] = tables
+        part["inspect_bytes"] = inspect_bytes
+        return part
+
+    def _read_tree_ranges(
+        self,
+        *,
+        tree_root: bytes,
+        depth: int,
+        chunk_count: int,
+        total_length: int,
+        wanted: frozenset[int],
+    ) -> tuple[dict[int, bytes], int]:
+        """Fetch only wanted chunks, verifying every node and chunk on path."""
+
+        for chunk_index in wanted:
+            if chunk_index < 0 or chunk_index >= chunk_count:
+                raise StoreIntegrityError("Store selective read names an unknown chunk")
+        found: dict[int, bytes] = {}
+        touched = 0
+        if not wanted:
+            return found, touched
+
+        def visit(digest: bytes, level: int, start: int) -> None:
+            nonlocal touched
+            span = FANOUT**level
+            remaining = chunk_count - start
+            expected_count = min(FANOUT, (remaining + span - 1) // span)
+            if expected_count < 1:
+                raise StoreIntegrityError("Store content tree contains an empty branch")
+            node_path = self.path / "nodes" / f"{digest.hex()}.node"
+            touched += node_path.stat().st_size
+            children = self._read_node(
+                digest, level=level, start=start, expected_count=expected_count
+            )
+            if level == 0:
+                for index, child in enumerate(children):
+                    chunk_index = start + index
+                    if chunk_index not in wanted:
+                        continue
+                    chunk_path = self.path / "chunks" / f"{child.hex()}.chunk"
+                    raw = chunk_path.read_bytes()
+                    touched += len(raw)
+                    if self._verify_digest(raw) != child:
+                        raise StoreIntegrityError(
+                            f"Store content chunk {chunk_index} failed integrity"
+                        )
+                    expected_length = min(CHUNK_SIZE, total_length - chunk_index * CHUNK_SIZE)
+                    if expected_length < 0 or len(raw) != expected_length:
+                        raise StoreIntegrityError("Store content chunk length binding failed")
+                    found[chunk_index] = raw
+                return
+            for index, child in enumerate(children):
+                child_start = start + index * span
+                child_end = min(child_start + span, chunk_count)
+                if any(child_start <= item < child_end for item in wanted):
+                    visit(child, level - 1, child_start)
+
+        visit(tree_root, depth, 0)
+        if set(found) != set(wanted):
+            raise StoreIntegrityError("Store selective read missed wanted chunks")
+        return found, touched
+
+    def _span_bytes(
+        self,
+        chunks: dict[int, bytes],
+        total_length: int,
+        start: int,
+        length: int,
+    ) -> bytes:
+        """Assemble one span from fetched chunks (spans may cross chunks)."""
+
+        if length == 0:
+            return b""
+        assembled = bytearray()
+        cursor = start
+        while cursor < start + length:
+            chunk_index = cursor // CHUNK_SIZE
+            chunk = chunks.get(chunk_index)
+            if chunk is None:
+                raise StoreIntegrityError("Store span references an unfetched chunk")
+            within = cursor - chunk_index * CHUNK_SIZE
+            take = min(len(chunk) - within, start + length - cursor)
+            assembled += chunk[within : within + take]
+            cursor += take
+        if len(assembled) != length or start + length > total_length:
+            raise StoreIntegrityError("Store span assembly failed its bounds")
+        return bytes(assembled)
+
+    def _fetch_block_spans(
+        self,
+        part: dict[str, object],
+        mask: int,
+    ) -> tuple[bytes, list[tuple[int, int, int]], int]:
+        """Fetch in-mask block spans in index order; return (payload, spans, touched)."""
+
+        tables = part["tables"]
+        assert isinstance(tables, list)
+        total_length = part["total_length"]
+        assert isinstance(total_length, int)
+        tree_root = part["tree_root"]
+        assert isinstance(tree_root, bytes)
+        depth = part["depth"]
+        assert isinstance(depth, int)
+        chunk_count = part["chunk_count"]
+        assert isinstance(chunk_count, int)
+        slots: list[tuple[int, int, int, bytes]] = []
+        for table, count in tables:
+            for slot in range(count):
+                projected = self.session.slot_span(table, count, slot)
+                index = projected["index"]
+                assert isinstance(index, int)
+                if (mask >> index) & 1 == 0:
+                    continue
+                start = projected["start"]
+                length = projected["length"]
+                digest = projected["digest"]
+                assert isinstance(start, int) and isinstance(length, int)
+                assert isinstance(digest, bytes)
+                slots.append((index, start, length, digest))
+        slots.sort(key=lambda item: item[0])
+        wanted: set[int] = set()
+        for _index, start, length, _digest in slots:
+            if length == 0:
+                continue
+            wanted.update(range(start // CHUNK_SIZE, (start + length - 1) // CHUNK_SIZE + 1))
+        chunks, touched = self._read_tree_ranges(
+            tree_root=tree_root,
+            depth=depth,
+            chunk_count=chunk_count,
+            total_length=total_length,
+            wanted=frozenset(wanted),
+        )
+        payload_parts: list[bytes] = []
+        spans: list[tuple[int, int, int]] = []
+        for index, start, length, digest in slots:
+            span_bytes = self._span_bytes(chunks, total_length, start, length)
+            if self._verify_digest(span_bytes) != digest:
+                raise StoreIntegrityError(f"Store block {index} failed its digest check")
+            payload_parts.append(span_bytes)
+            spans.append((index, start, length))
+        return b"".join(payload_parts), spans, touched
+
+    @staticmethod
+    def _spans_tile_full(spans: list[tuple[int, int, int]], total_length: int) -> bool:
+        """Decide whether fetched spans tile [0, total) exactly once."""
+
+        if total_length == 0:
+            return all(length == 0 for _index, _start, length in spans)
+        ordered = sorted(spans, key=lambda item: item[1])
+        cursor = 0
+        for _index, start, length in ordered:
+            if start != cursor or length <= 0:
+                return False
+            cursor += length
+        return cursor == total_length
+
+    def get_envelope(
+        self, domain_schema: bytes, domain_identity: bytes
+    ) -> EnvelopeView:
+        """Inspect an object without touching any payload, blob, or table."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_envelope_part(entry, commit_generation)
+        envelope = part["envelope"]
+        assert isinstance(envelope, bytes)
+        fields = part["envelope_fields"]
+        assert isinstance(fields, dict)
+        inspect_bytes = part["inspect_bytes"]
+        assert isinstance(inspect_bytes, int)
+        return EnvelopeView(
+            raw=envelope, fields=fields, stored_bytes_touched=resolve_bytes + inspect_bytes
+        )
+
+    def get_representations(
+        self, domain_schema: bytes, domain_identity: bytes
+    ) -> list[RepresentationView]:
+        """Return every verified representation of one current object."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        entry, _generation, commit_generation, _resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
+        representations = part["representations"]
+        rep_fields = part["rep_fields"]
+        assert isinstance(representations, list) and isinstance(rep_fields, list)
+        return [
+            RepresentationView(index=index, raw=record, fields=record_fields)
+            for index, (record, record_fields) in enumerate(zip(representations, rep_fields))
+        ]
+
+    def read_synopsis(self, domain_schema: bytes, domain_identity: bytes) -> bytes:
+        """Fetch only the producer synopsis blob, never the payload."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        entry, _generation, commit_generation, _resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_envelope_part(entry, commit_generation)
+        fields = part["envelope_fields"]
+        assert isinstance(fields, dict)
+        synopsis = fields["synopsis"]
+        synopsis_bytes = fields["synopsis_bytes"]
+        assert isinstance(synopsis, bytes) and isinstance(synopsis_bytes, int)
+        if synopsis == bytes(32):
+            raise StoreError(StoreResultCode.DENIED, "Store object has no synopsis")
+        blob = (self.path / "reps" / f"{synopsis.hex()}.payload").read_bytes()
+        if self._verify_digest(blob) != synopsis or len(blob) != synopsis_bytes:
+            raise StoreIntegrityError("Store synopsis integrity failure")
+        return blob
+
+    def select_representation(
+        self, domain_schema: bytes, domain_identity: bytes, intent: bytes | None = None
+    ) -> Selection:
+        """Select the winning representation under an intent (default: exact)."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        entry, _generation, commit_generation, _resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
+        representations = part["representations"]
+        assert isinstance(representations, list)
+        if intent is None:
+            intent_bytes = self.session.default_intent()
+        else:
+            self.session.validate_intent(bytes(intent))
+            intent_bytes = self.session.normalize_intent(bytes(intent))
+        winner, satisfied, cost = self.session.select_representation(representations, intent_bytes)
+        rep_fields = part["rep_fields"]
+        assert isinstance(rep_fields, list)
+        return Selection(
+            index=winner,
+            record=representations[winner],
+            fields=rep_fields[winner],
+            satisfied=satisfied,
+            estimated_cost=cost,
+        )
+
+    def read_blocks(
+        self, domain_schema: bytes, domain_identity: bytes, mask: int
+    ) -> MaterializedView:
+        """Fetch base-representation blocks by mask with verified closure."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        if not isinstance(mask, int) or mask < 0 or mask >= 1 << 64:
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+        entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
+        tables = part["tables"]
+        rep_fields = part["rep_fields"]
+        assert isinstance(tables, list) and isinstance(rep_fields, list)
+        base_fields = rep_fields[0]
+        first_block = base_fields["first_block"]
+        block_count = base_fields["block_count"]
+        base_fidelity = base_fields["fidelity"]
+        assert isinstance(first_block, int) and isinstance(block_count, int)
+        assert isinstance(base_fidelity, int)
+        content_id = part["content_id"]
+        assert isinstance(content_id, bytes)
+        total_length = part["total_length"]
+        assert isinstance(total_length, int)
+        inspect_bytes = part["inspect_bytes"]
+        assert isinstance(inspect_bytes, int)
+        if not self.session.mask_within(mask, first_block, block_count):
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+        closed = self.session.closure_fixpoint(
+            [(table, count) for table, count in tables], mask
+        )
+        if not self.session.mask_within(closed, first_block, block_count):
+            raise StoreError(
+                StoreResultCode.DENIED, "Store block closure escapes its representation"
+            )
+        payload, spans, touched = self._fetch_block_spans(part, closed)
+        exact_verified = False
+        if self._spans_tile_full(spans, total_length):
+            if self._hash(payload) != content_id:
+                raise StoreIntegrityError("Store selective full read failed exactness")
+            exact_verified = True
+        return MaterializedView(
+            payload=payload,
+            representation_index=0,
+            fidelity=base_fidelity,
+            satisfied=True,
+            mask=closed,
+            stored_bytes_touched=touched,
+            materialized_bytes=len(payload),
+            inspect_bytes=resolve_bytes + inspect_bytes,
+            exact_verified=exact_verified,
+        )
+
+    def materialize(
+        self,
+        domain_schema: bytes,
+        domain_identity: bytes,
+        *,
+        intent: bytes | None = None,
+        mask: int | None = None,
+        tag: int | None = None,
+    ) -> MaterializedView:
+        """Select a representation under an intent and materialize it.
+
+        Opaque representations (synopses, coded blobs) materialize whole;
+        block-covered representations materialize the dependency closure
+        of the requested mask, tag, or full range.
+        """
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        if mask is not None and tag is not None:
+            raise StoreError(StoreResultCode.DENIED, "Store materialize takes mask or tag, not both")
+        if mask is not None and (not isinstance(mask, int) or mask < 0 or mask >= 1 << 64):
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+        if tag is not None and (not isinstance(tag, int) or tag < 0 or tag >= 1 << 64):
+            raise StoreError(StoreResultCode.DENIED, "Store block tag is out of range")
+        entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
+        representations = part["representations"]
+        rep_fields = part["rep_fields"]
+        tables = part["tables"]
+        assert isinstance(representations, list) and isinstance(rep_fields, list)
+        assert isinstance(tables, list)
+        content_id = part["content_id"]
+        assert isinstance(content_id, bytes)
+        total_length = part["total_length"]
+        assert isinstance(total_length, int)
+        inspect_bytes = part["inspect_bytes"]
+        assert isinstance(inspect_bytes, int)
+        if intent is None:
+            intent_bytes = self.session.default_intent()
+        else:
+            self.session.validate_intent(bytes(intent))
+            intent_bytes = self.session.normalize_intent(bytes(intent))
+        winner, satisfied, _cost = self.session.select_representation(
+            representations, intent_bytes
+        )
+        winner_fields = rep_fields[winner]
+        fidelity = winner_fields["fidelity"]
+        block_count = winner_fields["block_count"]
+        first_block = winner_fields["first_block"]
+        codec = winner_fields["codec"]
+        root = winner_fields["root"]
+        exact = winner_fields["exact"]
+        assert isinstance(fidelity, int) and isinstance(block_count, int)
+        assert isinstance(first_block, int) and isinstance(codec, int)
+        assert isinstance(root, bytes) and isinstance(exact, int)
+        if block_count == 0:
+            if mask is not None or tag is not None:
+                raise StoreError(
+                    StoreResultCode.DENIED,
+                    "Store opaque representation has no block coverage",
+                )
+            blob = (self.path / "reps" / f"{root.hex()}.payload").read_bytes()
+            if self._verify_digest(blob) != root:
+                raise StoreIntegrityError("Store representation blob integrity failure")
+            if codec == RLE_CODEC_CODE:
+                payload = self._decode_rle_blob(blob)
+            elif codec == IDENTITY_CODEC_CODE:
+                payload = blob
+            else:
+                raise StoreIntegrityError(f"Store cannot decode codec {codec}")
+            exact_verified = False
+            if exact:
+                if self._hash(payload) != content_id:
+                    raise StoreIntegrityError("Store exact representation failed exactness")
+                exact_verified = True
+            return MaterializedView(
+                payload=payload,
+                representation_index=winner,
+                fidelity=fidelity,
+                satisfied=satisfied,
+                mask=0,
+                stored_bytes_touched=len(blob),
+                materialized_bytes=len(payload),
+                inspect_bytes=resolve_bytes + inspect_bytes,
+                exact_verified=exact_verified,
+            )
+        if tag is not None:
+            wanted = 0
+            for table, count in tables:
+                wanted |= self.session.blocks_with_tag(table, count, tag)
+        elif mask is not None:
+            wanted = mask
+        else:
+            wanted = self.session.range_mask(first_block, block_count)
+        if not self.session.mask_within(wanted, first_block, block_count):
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+        closed = self.session.closure_fixpoint(
+            [(table, count) for table, count in tables], wanted
+        )
+        if not self.session.mask_within(closed, first_block, block_count):
+            raise StoreError(
+                StoreResultCode.DENIED, "Store block closure escapes its representation"
+            )
+        payload, spans, touched = self._fetch_block_spans(part, closed)
+        exact_verified = False
+        if self._spans_tile_full(spans, total_length) and winner == 0:
+            if self._hash(payload) != content_id:
+                raise StoreIntegrityError("Store selective full read failed exactness")
+            exact_verified = True
+        return MaterializedView(
+            payload=payload,
+            representation_index=winner,
+            fidelity=fidelity,
+            satisfied=satisfied,
+            mask=closed,
+            stored_bytes_touched=touched,
+            materialized_bytes=len(payload),
+            inspect_bytes=resolve_bytes + inspect_bytes,
+            exact_verified=exact_verified,
+        )
+
+    def materialize_plan(
+        self, domain_schema: bytes, domain_identity: bytes, plan: bytes
+    ) -> MaterializedView:
+        """Execute a validated external materialization plan, or refuse it."""
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        plan = bytes(plan)
+        if len(plan) != 128:
+            raise StoreError(StoreResultCode.DENIED, "Store plan width is invalid")
+        entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
+            domain_schema, domain_identity
+        )
+        part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
+        envelope = part["envelope"]
+        assert isinstance(envelope, bytes)
+        representations = part["representations"]
+        rep_fields = part["rep_fields"]
+        tables = part["tables"]
+        assert isinstance(representations, list) and isinstance(rep_fields, list)
+        assert isinstance(tables, list)
+        content_id = part["content_id"]
+        assert isinstance(content_id, bytes)
+        total_length = part["total_length"]
+        assert isinstance(total_length, int)
+        inspect_bytes = part["inspect_bytes"]
+        assert isinstance(inspect_bytes, int)
+        fields = self.session.plan_fields(plan)
+        root = fields["root"]
+        assert isinstance(root, bytes)
+        winner: int | None = None
+        for index, record_fields in enumerate(rep_fields):
+            if record_fields["root"] == root:
+                winner = index
+                break
+        if winner is None:
+            raise StoreError(StoreResultCode.DENIED, "Store plan names no stored representation")
+        code = self.session.plan_validate(plan, envelope, representations[winner])
+        if code != 0:
+            raise StoreError(StoreResultCode.DENIED, f"Store plan refused with code {code}")
+        winner_fields = rep_fields[winner]
+        fidelity = winner_fields["fidelity"]
+        block_count = winner_fields["block_count"]
+        first_block = winner_fields["first_block"]
+        codec = winner_fields["codec"]
+        exact = winner_fields["exact"]
+        assert isinstance(fidelity, int) and isinstance(block_count, int)
+        assert isinstance(first_block, int) and isinstance(codec, int)
+        assert isinstance(exact, int)
+        wanted = fields["mask"]
+        assert isinstance(wanted, int)
+        if block_count == 0:
+            # MNCS plan admission already forced a zero mask for opaque
+            # representations (code 8 otherwise); the whole blob follows.
+            blob = (self.path / "reps" / f"{root.hex()}.payload").read_bytes()
+            if self._verify_digest(blob) != root:
+                raise StoreIntegrityError("Store representation blob integrity failure")
+            if codec == RLE_CODEC_CODE:
+                payload = self._decode_rle_blob(blob)
+            elif codec == IDENTITY_CODEC_CODE:
+                payload = blob
+            else:
+                raise StoreIntegrityError(f"Store cannot decode codec {codec}")
+            exact_verified = False
+            if exact:
+                if self._hash(payload) != content_id:
+                    raise StoreIntegrityError("Store exact representation failed exactness")
+                exact_verified = True
+            return MaterializedView(
+                payload=payload,
+                representation_index=winner,
+                fidelity=fidelity,
+                satisfied=True,
+                mask=0,
+                stored_bytes_touched=len(blob),
+                materialized_bytes=len(payload),
+                inspect_bytes=resolve_bytes + inspect_bytes,
+                exact_verified=exact_verified,
+            )
+        if len(tables) > 1:
+            # V1 stores at most one table per object; a spanning mask
+            # needs composed multi-table validation (future work).
+            raise StoreError(
+                StoreResultCode.DENIED, "Store multi-table plans are not implemented"
+            )
+        for table, count in tables:
+            table_code = self.session.plan_blocks_validate(plan, table, count)
+            if table_code != 0:
+                raise StoreError(
+                    StoreResultCode.DENIED, f"Store plan block check refused with code {table_code}"
+                )
+        if not self.session.mask_within(wanted, first_block, block_count):
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+        payload, spans, touched = self._fetch_block_spans(part, wanted)
+        exact_verified = False
+        if self._spans_tile_full(spans, total_length) and winner == 0:
+            if self._hash(payload) != content_id:
+                raise StoreIntegrityError("Store selective full read failed exactness")
+            exact_verified = True
+        return MaterializedView(
+            payload=payload,
+            representation_index=winner,
+            fidelity=fidelity,
+            satisfied=True,
+            mask=wanted,
+            stored_bytes_touched=touched,
+            materialized_bytes=len(payload),
+            inspect_bytes=resolve_bytes + inspect_bytes,
+            exact_verified=exact_verified,
+        )
+
     def get_bound_object(self, domain_schema: bytes, domain_identity: bytes) -> StoredObject:
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
         self._verified_projection()
@@ -1478,7 +2694,9 @@ class EmbeddedStore:
             entry = next(item for item in entries if item.binding_id == binding_id)
         except StopIteration as exc:
             raise StoreError(StoreResultCode.DENIED, "Store object binding is not current") from exc
-        manifest, total_length, chunk_count, depth, _content, tree_root, descriptor = self._read_manifest(entry)
+        manifest, total_length, chunk_count, depth, _content, tree_root, descriptor, _adaptive = self._read_manifest(
+            entry
+        )
         node_bytes = 0
         chunk_bytes = 0
         nodes: set[bytes] = set()

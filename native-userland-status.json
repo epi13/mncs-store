@@ -12,6 +12,13 @@
     "typed_provenance": "src/store/provenance.mncs",
     "index_change_feed": "src/store/commit_feed.mncs",
     "typed_semantic_state": "src/store/semantic_state.mncs",
+    "adaptive_envelopes": "src/store/envelope.mncs",
+    "adaptive_representations": "src/store/representation.mncs",
+    "adaptive_intents": "src/store/intent.mncs",
+    "adaptive_blocks": "src/store/block.mncs",
+    "adaptive_plans": "src/store/plan.mncs",
+    "adaptive_codecs": "src/store/codec.mncs",
+    "adaptive_canonical_forms": "src/store/canonical.mncs",
     "publication_admission": "src/store/publication.mncs",
     "typed_record_persistence": "tests/store_phase2.py::persist_typed_commit",
     "retained_execution": "tests/retained_session.py::RetainedEngine"

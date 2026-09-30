@@ -1,0 +1,265 @@
+mncs 0.13;
+
+// store.intent.v1 — generic access-intent records.
+//
+// A caller communicates constraints and hints WITHOUT naming an
+// implementation: required fidelity, cost weights, and lifecycle hints.
+// Store selects among the representations an object actually offers; an
+// intent never names a codec, a sibling project, or a ranking model.
+//
+// Fixed representation (64 bytes):
+//
+//   0..1    magic "AI"
+//   2       representation version (1)
+//   3       flags (reserved, zero)
+//   4..11   required fidelity (u64, 0..5; see below)
+//   12..19  latency weight (u64, 0 = unspecified)
+//   20..27  compute weight (u64, 0 = unspecified)
+//   28..35  memory weight (u64, 0 = unspecified)
+//   36..43  transfer weight (u64, 0 = unspecified)
+//   44..51  expected frequency (u64: 0 unknown, 1 once, 2 warm, 3 hot)
+//   52..59  expected lifetime (u64: 0 unknown, 1 transient, 2 session,
+//           3 durable, 4 archival)
+//   60..63  locality domain (u32, 0 = unspecified; opaque producer code)
+//
+// Fidelity ladder (cumulative: each level includes all lower information):
+//
+//   0 identity   logical identity only, no bytes
+//   1 synopsis   producer-supplied summary bytes
+//   2 structural envelope, representation table, block topology
+//   3 normalized canonical representation bytes
+//   4 payload    decoded representation bytes (not necessarily original)
+//   5 exact      bit-exact original bytes
+//
+// Weights are relative costs, not physical units: a higher transfer weight
+// makes stored size matter more in cost comparison. Zero means unspecified
+// and normalizes to the neutral weight 1 during estimation.
+module store.intent.v1;
+
+fn fidelity_identity() -> (result: u64) {
+    return 0;
+}
+
+fn fidelity_synopsis() -> (result: u64) {
+    return 1;
+}
+
+fn fidelity_structural() -> (result: u64) {
+    return 2;
+}
+
+fn fidelity_normalized() -> (result: u64) {
+    return 3;
+}
+
+fn fidelity_payload() -> (result: u64) {
+    return 4;
+}
+
+fn fidelity_exact() -> (result: u64) {
+    return 5;
+}
+
+fn fidelity_is_known(level: u64) -> (result: bool) {
+    return level <= 5;
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn u32_bytes(value: u64) -> (result: [byte; 4]) {
+    let b0: byte = (value / 16777216) as byte;
+    let r0: u64 = value % 16777216;
+    let b1: byte = (r0 / 65536) as byte;
+    let r1: u64 = r0 % 65536;
+    let b2: byte = (r1 / 256) as byte;
+    let b3: byte = (r1 % 256) as byte;
+    return [b0, b1, b2, b3];
+}
+
+fn copy8(out: [byte; 64], offset: u64, value: [byte; 8]) -> (result: [byte; 64]) {
+    iterate i over value carrying row: [byte; 64] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy4(out: [byte; 64], offset: u64, value: [byte; 4]) -> (result: [byte; 64]) {
+    iterate i over value carrying row: [byte; 64] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+record Intent {
+    fidelity: u64,
+    latency: u64,
+    compute: u64,
+    memory: u64,
+    transfer: u64,
+    frequency: u64,
+    lifetime: u64,
+    locality: u64
+}
+
+fn encode(value: Intent) -> (result: [byte; 64]) {
+    let seed: [byte; 64] = [0; 64];
+    let tagged: [byte; 64] = replace(replace(replace(replace(seed,
+        0, 65), 1, 73), 2, 1), 3, 0);
+    let f: [byte; 64] = copy8(tagged, 4, u64_bytes(value.fidelity));
+    let l: [byte; 64] = copy8(f, 12, u64_bytes(value.latency));
+    let c: [byte; 64] = copy8(l, 20, u64_bytes(value.compute));
+    let m: [byte; 64] = copy8(c, 28, u64_bytes(value.memory));
+    let t: [byte; 64] = copy8(m, 36, u64_bytes(value.transfer));
+    let q: [byte; 64] = copy8(t, 44, u64_bytes(value.frequency));
+    let e: [byte; 64] = copy8(q, 52, u64_bytes(value.lifetime));
+    return copy4(e, 60, u32_bytes(value.locality));
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+// Hint values are never structurally invalid: unknown codes normalize to
+// "unspecified" instead of failing, because an intent is advisory input,
+// not canonical state.
+fn validate(view: [byte; up_to 64]) -> (result: u64) {
+    if view.len != 64 { return 1; }
+    if view[0] != 65 || view[1] != 73 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    return 0;
+}
+
+fn word(view: [byte; 64], offset: u64) -> (result: u64) {
+    let b0: u64 = (view[offset] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[offset +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[offset +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[offset +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[offset +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[offset +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[offset +% 6] as u64) *% 256);
+    return b6 +% (view[offset +% 7] as u64);
+}
+
+fn fidelity(view: [byte; 64]) -> (result: u64) {
+    return word(view, 4);
+}
+
+fn latency(view: [byte; 64]) -> (result: u64) {
+    return word(view, 12);
+}
+
+fn compute(view: [byte; 64]) -> (result: u64) {
+    return word(view, 20);
+}
+
+fn memory(view: [byte; 64]) -> (result: u64) {
+    return word(view, 28);
+}
+
+fn transfer(view: [byte; 64]) -> (result: u64) {
+    return word(view, 36);
+}
+
+fn frequency(view: [byte; 64]) -> (result: u64) {
+    return word(view, 44);
+}
+
+fn lifetime(view: [byte; 64]) -> (result: u64) {
+    return word(view, 52);
+}
+
+fn locality(view: [byte; 64]) -> (result: u64) {
+    return ((view[60] as u64) *% 16777216)
+        +% ((view[61] as u64) *% 65536)
+        +% ((view[62] as u64) *% 256)
+        +% (view[63] as u64);
+}
+
+// The default intent requests exact fidelity with no constraints. Store
+// behaves sensibly when the caller supplies no hints by normalizing to
+// this intent.
+fn default_intent() -> (result: [byte; 64]) {
+    return encode(Intent {
+        fidelity: 5,
+        latency: 0,
+        compute: 0,
+        memory: 0,
+        transfer: 0,
+        frequency: 0,
+        lifetime: 0,
+        locality: 0
+    });
+}
+
+// Normalize advisory codes onto their known domains. Unknown fidelity
+// levels clamp to exact (the only level guaranteed to satisfy any read),
+// unknown frequency/lifetime codes reset to unknown, and locality passes
+// through opaquely. Weights pass through: estimation treats 0 as neutral.
+fn normalize(view: [byte; 64]) -> (result: [byte; 64]) {
+    let known_fidelity: u64 = select(fidelity(view) <= 5, fidelity(view), 5);
+    let known_frequency: u64 = select(frequency(view) <= 3, frequency(view), 0);
+    let known_lifetime: u64 = select(lifetime(view) <= 4, lifetime(view), 0);
+    return encode(Intent {
+        fidelity: known_fidelity,
+        latency: latency(view),
+        compute: compute(view),
+        memory: memory(view),
+        transfer: transfer(view),
+        frequency: known_frequency,
+        lifetime: known_lifetime,
+        locality: locality(view)
+    });
+}
+
+fn roundtrip(value: Intent) -> (result: bool) {
+    let bytes: [byte; 64] = encode(value);
+    return validate(bytes) == 0
+        && fidelity(bytes) == value.fidelity
+        && latency(bytes) == value.latency
+        && compute(bytes) == value.compute
+        && memory(bytes) == value.memory
+        && transfer(bytes) == value.transfer
+        && frequency(bytes) == value.frequency
+        && lifetime(bytes) == value.lifetime
+        && locality(bytes) == (value.locality % 4294967296);
+}
+
+fn encode_fields(fidelity_value: u64, latency_value: u64, compute_value: u64, memory_value: u64, transfer_value: u64, frequency_value: u64, lifetime_value: u64, locality_value: u64) -> (result: [byte; 64]) {
+    return encode(Intent {
+        fidelity: fidelity_value,
+        latency: latency_value,
+        compute: compute_value,
+        memory: memory_value,
+        transfer: transfer_value,
+        frequency: frequency_value,
+        lifetime: lifetime_value,
+        locality: locality_value
+    });
+}
+
+fn roundtrip_fields(fidelity_value: u64, latency_value: u64, compute_value: u64, memory_value: u64, transfer_value: u64, frequency_value: u64, lifetime_value: u64, locality_value: u64) -> (result: bool) {
+    return roundtrip(Intent {
+        fidelity: fidelity_value,
+        latency: latency_value,
+        compute: compute_value,
+        memory: memory_value,
+        transfer: transfer_value,
+        frequency: frequency_value,
+        lifetime: lifetime_value,
+        locality: locality_value
+    });
+}

@@ -55,3 +55,9 @@ Pressure is useful evidence, not a reason to hide the core implementation in ano
 - `P2-007` — observation granularity: 64 B reads, one root per
   capability (new).
 - `P2-008` — measured step-cost and boundary-crossing pressure (new).
+
+## Phase 3 campaign index
+
+- `P3-001` — bulk codec-window and canonical-compute pressure at store
+  scale: JSON window transport dominates coded throughput; canonical
+  sort needs explicit budgets (new).

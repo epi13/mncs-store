@@ -1,0 +1,648 @@
+mncs 0.13;
+
+// store.block.v1 — content block descriptors and selective materialization.
+//
+// A representation's payload is partitioned into independently describable
+// blocks. Each block names its byte span, codec-agnostic sizes, semantic
+// tag, content digest, and dependencies on other blocks (for delta-coded
+// or derived blocks). Materialization fetches only the dependency closure
+// of the wanted blocks instead of the whole payload.
+//
+// Fixed representation (128 bytes):
+//
+//   0..1    magic "BL"
+//   2       representation version (1)
+//   3       flags (bit0 delta, bit1 independently_verifiable)
+//   4..11   block index (u64, < 64 within a closure domain)
+//   12..43  block content digest (32)
+//   44..51  stored bytes (u64)
+//   52..59  plain bytes when materialized (u64)
+//   60..67  semantic tag (u64, 0 = unclassified; opaque producer code)
+//   68..75  plain byte offset of this block's span (u64)
+//   76..83  plain byte length of this block's span (u64)
+//   84..91  dependency count (u64, 0..4)
+//   92..123 dependency block indices (4 x u64)
+//   124..127 reserved (zero)
+//
+// A block table is `count` concatenated records (count <= 8 per call).
+// Larger objects use several tables; closure is monotone so the host can
+// iterate `closure_step` across tables to a fixpoint and then verify it
+// with `closure_closed`. Wanted sets are u64 bitmasks over block indices.
+module store.block.v1;
+
+record Block {
+    index: u64,
+    digest: [byte; 32],
+    stored: u64,
+    plain: u64,
+    tag: u64,
+    start: u64,
+    length: u64,
+    depcount: u64,
+    dep0: u64,
+    dep1: u64,
+    dep2: u64,
+    dep3: u64,
+    flags: u64
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy32(out: [byte; 128], offset: u64, value: [byte; 32]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy8(out: [byte; 128], offset: u64, value: [byte; 8]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: Block) -> (result: [byte; 128]) {
+    let seed: [byte; 128] = [0; 128];
+    let tagged: [byte; 128] = replace(replace(replace(replace(seed,
+        0, 66), 1, 76), 2, 1), 3, (value.flags % 256) as byte);
+    let x: [byte; 128] = copy8(tagged, 4, u64_bytes(value.index));
+    let d: [byte; 128] = copy32(x, 12, value.digest);
+    let s: [byte; 128] = copy8(d, 44, u64_bytes(value.stored));
+    let p: [byte; 128] = copy8(s, 52, u64_bytes(value.plain));
+    let t: [byte; 128] = copy8(p, 60, u64_bytes(value.tag));
+    let b: [byte; 128] = copy8(t, 68, u64_bytes(value.start));
+    let l: [byte; 128] = copy8(b, 76, u64_bytes(value.length));
+    let n: [byte; 128] = copy8(l, 84, u64_bytes(value.depcount));
+    let d0: [byte; 128] = copy8(n, 92, u64_bytes(value.dep0));
+    let d1: [byte; 128] = copy8(d0, 100, u64_bytes(value.dep1));
+    let d2: [byte; 128] = copy8(d1, 108, u64_bytes(value.dep2));
+    return copy8(d2, 116, u64_bytes(value.dep3));
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 128]) -> (result: u64) {
+    if view.len != 128 { return 1; }
+    if view[0] != 66 || view[1] != 76 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] > 3 { return 4; }
+    if !reserved_zero(view) { return 4; }
+    return 0;
+}
+
+fn reserved_zero(view: [byte; up_to 128]) -> (result: bool) {
+    return view[124] == 0 && view[125] == 0 && view[126] == 0 && view[127] == 0;
+}
+
+fn word(view: [byte; 128], offset: u64) -> (result: u64) {
+    let b0: u64 = (view[offset] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[offset +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[offset +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[offset +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[offset +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[offset +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[offset +% 6] as u64) *% 256);
+    return b6 +% (view[offset +% 7] as u64);
+}
+
+fn flags(view: [byte; 128]) -> (result: u64) {
+    return view[3] as u64;
+}
+
+fn index(view: [byte; 128]) -> (result: u64) {
+    return word(view, 4);
+}
+
+fn digest(view: [byte; 128]) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[12 +% i]);
+    }
+    return row;
+}
+
+fn stored(view: [byte; 128]) -> (result: u64) {
+    return word(view, 44);
+}
+
+fn plain(view: [byte; 128]) -> (result: u64) {
+    return word(view, 52);
+}
+
+fn tag(view: [byte; 128]) -> (result: u64) {
+    return word(view, 60);
+}
+
+fn start(view: [byte; 128]) -> (result: u64) {
+    return word(view, 68);
+}
+
+fn length(view: [byte; 128]) -> (result: u64) {
+    return word(view, 76);
+}
+
+fn depcount(view: [byte; 128]) -> (result: u64) {
+    return word(view, 84);
+}
+
+fn dep(view: [byte; 128], which: u64) -> (result: u64) {
+    if which == 0 { return word(view, 92); }
+    if which == 1 { return word(view, 100); }
+    if which == 2 { return word(view, 108); }
+    return word(view, 116);
+}
+
+fn is_delta(view: [byte; 128]) -> (result: bool) {
+    return (view[3] as u64) % 2 == 1;
+}
+
+fn zero32(value: [byte; 32]) -> (result: bool) {
+    iterate i over value carrying zero: bool = true {
+        next zero = zero && value[i] == 0;
+    }
+    return zero;
+}
+
+// Full validation over the exact width. Codes extend the structural
+// validator: 5 index out of range, 6 dependency-count out of range,
+// 7 dependency out of range or self-referential, 8 zero content digest,
+// 9 delta flag/dependency-count mismatch. Code 4 covers the flags byte
+// and the reserved tail, matching `validate`.
+fn validate_exact(view: [byte; 128]) -> (result: u64) {
+    if view[0] != 66 || view[1] != 76 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] > 3 { return 4; }
+    if !reserved_zero(view) { return 4; }
+    if index(view) >= 64 { return 5; }
+    if depcount(view) > 4 { return 6; }
+    if !deps_valid(view) { return 7; }
+    if zero32(digest(view)) { return 8; }
+    if is_delta(view) != (depcount(view) > 0) { return 9; }
+    return 0;
+}
+
+fn dep_valid(view: [byte; 128], which: u64) -> (result: bool) {
+    if which >= depcount(view) {
+        return true;
+    }
+    let target: u64 = dep(view, which);
+    return target < 64 && target != index(view);
+}
+
+fn deps_valid(view: [byte; 128]) -> (result: bool) {
+    return dep_valid(view, 0) && dep_valid(view, 1) && dep_valid(view, 2) && dep_valid(view, 3);
+}
+
+// --- Bitmask helpers ---------------------------------------------------
+
+// 2^which for which < 64 via binary expansion (no loop, exact).
+fn bit(which: u64) -> (result: u64) {
+    let b0: u64 = which % 2;
+    let b1: u64 = (which / 2) % 2;
+    let b2: u64 = (which / 4) % 2;
+    let b3: u64 = (which / 8) % 2;
+    let b4: u64 = (which / 16) % 2;
+    let b5: u64 = (which / 32) % 2;
+    let f0: u64 = select(b0 == 1, 2, 1);
+    let f1: u64 = select(b1 == 1, 4, 1);
+    let f2: u64 = select(b2 == 1, 16, 1);
+    let f3: u64 = select(b3 == 1, 256, 1);
+    let f4: u64 = select(b4 == 1, 65536, 1);
+    let f5: u64 = select(b5 == 1, 4294967296, 1);
+    return f0 *% f1 *% f2 *% f3 *% f4 *% f5;
+}
+
+fn bit_set(mask: u64, which: u64) -> (result: bool) {
+    if which >= 64 {
+        return false;
+    }
+    return (mask / bit(which)) % 2 == 1;
+}
+
+fn bit_add(mask: u64, which: u64) -> (result: u64) {
+    if which >= 64 {
+        return mask;
+    }
+    if bit_set(mask, which) {
+        return mask;
+    }
+    return mask +% bit(which);
+}
+
+fn mask_count(mask: u64) -> (result: u64) {
+    let seed: [u64; 64] = [0; 64];
+    iterate b over seed carrying count: u64 = 0 {
+        next count = count +% select(bit_set(mask, b), 1, 0);
+    }
+    return count;
+}
+
+// Mask for the contiguous block range [first, first + count). Indices at
+// or above 64 contribute nothing, so over-wide ranges clamp instead of
+// trapping.
+fn range_mask(first: u64, count: u64) -> (result: u64) {
+    let seed: [u64; 64] = [0; 64];
+    iterate b over seed carrying mask: u64 = 0 {
+        next mask = range_bit(mask, b, first, count);
+    }
+    return mask;
+}
+
+fn range_bit(mask: u64, b: u64, first: u64, count: u64) -> (result: u64) {
+    if b < first || b >= first +% count {
+        return mask;
+    }
+    return bit_add(mask, b);
+}
+
+// A mask lies within a representation's block range when every set bit
+// names a covered index. Materialization refuses out-of-range masks
+// rather than silently fetching a subset of what was asked.
+fn mask_within(mask: u64, first: u64, count: u64) -> (result: bool) {
+    let seed: [u64; 64] = [0; 64];
+    iterate b over seed carrying inside: bool = true {
+        next inside = mask_within_bit(inside, mask, b, first, count);
+    }
+    return inside;
+}
+
+fn mask_within_bit(inside: bool, mask: u64, b: u64, first: u64, count: u64) -> (result: bool) {
+    if !bit_set(mask, b) {
+        return inside;
+    }
+    return inside && b >= first && b < first +% count;
+}
+
+fn sat_add(left: u64, right: u64) -> (result: u64) {
+    let sum: u64 = left +% right;
+    if sum < left {
+        return 0 -% 1;
+    }
+    return sum;
+}
+
+// --- Block tables ------------------------------------------------------
+
+// Copy slot `slot` out of a flat table (zeros when out of range: total,
+// never a trap, so hosts can probe without pre-checking).
+fn slot_bytes(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: [byte; 128]) {
+    let out: [byte; 128] = [0; 128];
+    if slot >= count || slot >= 8 {
+        return out;
+    }
+    let base: u64 = slot *% 128;
+    if base +% 128 > table.len {
+        return out;
+    }
+    iterate i over out carrying row: [byte; 128] = out {
+        next row = replace(row, i, table[base +% i]);
+    }
+    return row;
+}
+
+fn slot_index(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return index(slot_bytes(table, count, slot));
+}
+
+fn slot_tag(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return tag(slot_bytes(table, count, slot));
+}
+
+fn slot_start(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return start(slot_bytes(table, count, slot));
+}
+
+fn slot_length(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return length(slot_bytes(table, count, slot));
+}
+
+fn slot_stored(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return stored(slot_bytes(table, count, slot));
+}
+
+fn slot_plain(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return plain(slot_bytes(table, count, slot));
+}
+
+fn slot_digest(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: [byte; 32]) {
+    return digest(slot_bytes(table, count, slot));
+}
+
+// Read one u64 word directly from a flat table without copying the slot.
+// The pairwise scan uses this: copying 128-byte records per pair would
+// cost over 500k steps (see pressure P2-008), while word reads keep the
+// full 8-slot validation near 50k steps.
+fn table_word(table: [byte; up_to 1024], count: u64, slot: u64, field: u64) -> (result: u64) {
+    if slot >= count || slot >= 8 {
+        return 0;
+    }
+    let base: u64 = slot *% 128 +% field;
+    if base +% 8 > table.len {
+        return 0;
+    }
+    let b0: u64 = (table[base] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((table[base +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((table[base +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((table[base +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((table[base +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((table[base +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((table[base +% 6] as u64) *% 256);
+    return b6 +% (table[base +% 7] as u64);
+}
+
+fn table_index(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return table_word(table, count, slot, 4);
+}
+
+fn table_start(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return table_word(table, count, slot, 68);
+}
+
+fn table_length(table: [byte; up_to 1024], count: u64, slot: u64) -> (result: u64) {
+    return table_word(table, count, slot, 76);
+}
+
+// Table validation. Codes: 0 OK, 1 length/count mismatch, 2 count out of
+// range, 3..10 slot (code - 3) failed exact validation, 11 duplicate
+// block index, 12 span overlap, 13 reserved.
+record PairState { duplicate: bool, overlap: bool }
+
+fn table_validate(table: [byte; up_to 1024], count: u64) -> (result: u64) {
+    if count > 8 {
+        return 2;
+    }
+    if table.len != count *% 128 {
+        return 1;
+    }
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying code: u64 = 0 {
+        next code = slot_check(table, count, s, code);
+    }
+    if code != 0 {
+        return code;
+    }
+    // One pairwise scan serves both verdicts; running it twice would
+    // double the dominant cost of this function.
+    let pairs: PairState = pair_scan(table, count);
+    if pairs.duplicate {
+        return 11;
+    }
+    if pairs.overlap {
+        return 12;
+    }
+    return 0;
+}
+
+fn slot_check(table: [byte; up_to 1024], count: u64, slot: u64, prior: u64) -> (result: u64) {
+    if prior != 0 || slot >= count {
+        return prior;
+    }
+    if validate_exact(slot_bytes(table, count, slot)) != 0 {
+        return 3 +% slot;
+    }
+    return prior;
+}
+
+// Pairwise slot comparison over one flat 64-step pass (pair p compares
+// slots p/8 and p%8). No nested iteration: each step checks one pair.
+fn pair_step(state: PairState, p: u64, table: [byte; up_to 1024], count: u64) -> (result: PairState) {
+    let a: u64 = p / 8;
+    let b: u64 = p % 8;
+    if a >= b || a >= count || b >= count {
+        return state;
+    }
+    let dup: bool = table_index(table, count, a) == table_index(table, count, b);
+    let crossed: bool = spans_overlap(
+        table_start(table, count, a), table_length(table, count, a),
+        table_start(table, count, b), table_length(table, count, b));
+    return PairState {
+        duplicate: state.duplicate || dup,
+        overlap: state.overlap || crossed
+    };
+}
+
+fn pair_scan(table: [byte; up_to 1024], count: u64) -> (result: PairState) {
+    let seed: [u64; 64] = [0; 64];
+    let initial: PairState = PairState { duplicate: false, overlap: false };
+    iterate p over seed carrying state: PairState = initial {
+        next state = pair_step(state, p, table, count);
+    }
+    return state;
+}
+
+fn has_duplicate(table: [byte; up_to 1024], count: u64) -> (result: bool) {
+    return pair_scan(table, count).duplicate;
+}
+
+fn has_overlap(table: [byte; up_to 1024], count: u64) -> (result: bool) {
+    return pair_scan(table, count).overlap;
+}
+
+// Span overlap with saturating ends. Gigantic spans that saturate fail
+// closed (reported overlapping); zero-length spans never overlap.
+fn spans_overlap(a_start: u64, a_len: u64, b_start: u64, b_len: u64) -> (result: bool) {
+    if a_len == 0 || b_len == 0 {
+        return false;
+    }
+    let a_end: u64 = sat_add(a_start, a_len);
+    let b_end: u64 = sat_add(b_start, b_len);
+    return a_start < b_end && b_start < a_end;
+}
+
+// Every span must lie within the representation's plain length.
+fn spans_within(table: [byte; up_to 1024], count: u64, total: u64) -> (result: bool) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying ok: bool = true {
+        next ok = span_within_step(ok, table, count, s, total);
+    }
+    return ok;
+}
+
+fn span_within_step(ok: bool, table: [byte; up_to 1024], count: u64, slot: u64, total: u64) -> (result: bool) {
+    if slot >= count {
+        return ok;
+    }
+    let base: u64 = slot_start(table, count, slot);
+    let extent: u64 = sat_add(base, slot_length(table, count, slot));
+    return ok && base <= total && extent <= total;
+}
+
+// --- Closure and selection ---------------------------------------------
+
+// One monotone closure round: add every dependency of every in-mask block
+// described by this table. The host iterates to a fixpoint across tables.
+fn closure_step(table: [byte; up_to 1024], count: u64, mask: u64) -> (result: u64) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying grown: u64 = mask {
+        next grown = closure_slot(table, count, s, grown);
+    }
+    return grown;
+}
+
+fn closure_slot(table: [byte; up_to 1024], count: u64, slot: u64, mask: u64) -> (result: u64) {
+    if slot >= count {
+        return mask;
+    }
+    let entry: [byte; 128] = slot_bytes(table, count, slot);
+    if !bit_set(mask, index(entry)) {
+        return mask;
+    }
+    let m0: u64 = select(depcount(entry) > 0, bit_add(mask, dep(entry, 0)), mask);
+    let m1: u64 = select(depcount(entry) > 1, bit_add(m0, dep(entry, 1)), m0);
+    let m2: u64 = select(depcount(entry) > 2, bit_add(m1, dep(entry, 2)), m1);
+    return select(depcount(entry) > 3, bit_add(m2, dep(entry, 3)), m2);
+}
+
+// A mask is closed when every dependency of every in-mask block is also
+// in-mask. Materialization must verify closure before trusting that the
+// fetched set is sufficient.
+fn closure_closed(table: [byte; up_to 1024], count: u64, mask: u64) -> (result: bool) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying closed: bool = true {
+        next closed = closed_slot(table, count, s, mask, closed);
+    }
+    return closed;
+}
+
+fn closed_slot(table: [byte; up_to 1024], count: u64, slot: u64, mask: u64, prior: bool) -> (result: bool) {
+    if slot >= count {
+        return prior;
+    }
+    let entry: [byte; 128] = slot_bytes(table, count, slot);
+    if !bit_set(mask, index(entry)) {
+        return prior;
+    }
+    let n: u64 = depcount(entry);
+    let ok0: bool = n <= 0 || bit_set(mask, dep(entry, 0));
+    let ok1: bool = n <= 1 || bit_set(mask, dep(entry, 1));
+    let ok2: bool = n <= 2 || bit_set(mask, dep(entry, 2));
+    let ok3: bool = n <= 3 || bit_set(mask, dep(entry, 3));
+    return prior && ok0 && ok1 && ok2 && ok3;
+}
+
+// Select blocks by semantic tag without touching payload.
+fn blocks_with_tag(table: [byte; up_to 1024], count: u64, want: u64) -> (result: u64) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying mask: u64 = 0 {
+        next mask = tag_slot(table, count, s, mask, want);
+    }
+    return mask;
+}
+
+fn tag_slot(table: [byte; up_to 1024], count: u64, slot: u64, mask: u64, want: u64) -> (result: u64) {
+    if slot >= count {
+        return mask;
+    }
+    let entry: [byte; 128] = slot_bytes(table, count, slot);
+    if tag(entry) != want {
+        return mask;
+    }
+    return bit_add(mask, index(entry));
+}
+
+// Honest byte accounting for a wanted set: saturating sums over in-mask
+// blocks described by this table.
+fn mask_stored(table: [byte; up_to 1024], count: u64, mask: u64) -> (result: u64) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying total: u64 = 0 {
+        next total = mask_sum_slot(total, table, count, s, mask, true);
+    }
+    return total;
+}
+
+fn mask_plain(table: [byte; up_to 1024], count: u64, mask: u64) -> (result: u64) {
+    let seed: [u64; 8] = [0; 8];
+    iterate s over seed carrying total: u64 = 0 {
+        next total = mask_sum_slot(total, table, count, s, mask, false);
+    }
+    return total;
+}
+
+fn mask_sum_slot(total: u64, table: [byte; up_to 1024], count: u64, slot: u64, mask: u64, use_stored: bool) -> (result: u64) {
+    if slot >= count {
+        return total;
+    }
+    let entry: [byte; 128] = slot_bytes(table, count, slot);
+    if !bit_set(mask, index(entry)) {
+        return total;
+    }
+    let addend: u64 = select(use_stored, stored(entry), plain(entry));
+    return sat_add(total, addend);
+}
+
+fn identity_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn roundtrip(value: Block) -> (result: bool) {
+    let bytes: [byte; 128] = encode(value);
+    return validate(bytes) == 0
+        && index(bytes) == value.index
+        && identity_equal(digest(bytes), value.digest)
+        && stored(bytes) == value.stored
+        && plain(bytes) == value.plain
+        && tag(bytes) == value.tag
+        && start(bytes) == value.start
+        && length(bytes) == value.length
+        && depcount(bytes) == value.depcount
+        && dep(bytes, 0) == value.dep0
+        && dep(bytes, 1) == value.dep1
+        && dep(bytes, 2) == value.dep2
+        && dep(bytes, 3) == value.dep3
+        && flags(bytes) == (value.flags % 256);
+}
+
+fn encode_fields(index_value: u64, digest_value: [byte; 32], stored_value: u64, plain_value: u64, tag_value: u64, start_value: u64, length_value: u64, depcount_value: u64, dep0_value: u64, dep1_value: u64, dep2_value: u64, dep3_value: u64, flags_value: u64) -> (result: [byte; 128]) {
+    return encode(Block {
+        index: index_value,
+        digest: digest_value,
+        stored: stored_value,
+        plain: plain_value,
+        tag: tag_value,
+        start: start_value,
+        length: length_value,
+        depcount: depcount_value,
+        dep0: dep0_value,
+        dep1: dep1_value,
+        dep2: dep2_value,
+        dep3: dep3_value,
+        flags: flags_value
+    });
+}
+
+fn roundtrip_fields(index_value: u64, digest_value: [byte; 32], stored_value: u64, plain_value: u64, tag_value: u64, start_value: u64, length_value: u64, depcount_value: u64, dep0_value: u64, dep1_value: u64, dep2_value: u64, dep3_value: u64, flags_value: u64) -> (result: bool) {
+    return roundtrip(Block {
+        index: index_value,
+        digest: digest_value,
+        stored: stored_value,
+        plain: plain_value,
+        tag: tag_value,
+        start: start_value,
+        length: length_value,
+        depcount: depcount_value,
+        dep0: dep0_value,
+        dep1: dep1_value,
+        dep2: dep2_value,
+        dep3: dep3_value,
+        flags: flags_value
+    });
+}

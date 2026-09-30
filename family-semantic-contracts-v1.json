@@ -1,7 +1,7 @@
 {
   "schema_version": "commons.mncs.semantic-contract-declarations/v1",
   "repository_id": "mncs-store",
-  "revision": "2",
+  "revision": "3",
   "provides": [
     {
       "contract_identity": "mncs.store.persistent-object/1",
@@ -44,6 +44,12 @@
       "contract_revision": "1",
       "exported_identity": "mncs-store:commit-feed",
       "evidence": "src/store/commit_feed.mncs"
+    },
+    {
+      "contract_identity": "mncs.store.adaptive-representations/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-store:adaptive-representations",
+      "evidence": "src/store/envelope.mncs"
     }
   ],
   "consumes": [

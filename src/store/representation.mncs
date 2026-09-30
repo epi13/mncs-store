@@ -1,0 +1,373 @@
+mncs 0.13;
+
+// store.representation.v1 — representation descriptors and selection.
+//
+// One logical object may own several representations at different costs
+// and fidelities. Each representation is described by a fixed 128-byte
+// record; logical identity never depends on which physical forms exist.
+//
+// Fixed representation (128 bytes):
+//
+//   0..1    magic "RP"
+//   2       representation version (1)
+//   3       flags (bit0 exact, bit1 selective)
+//   4..11   fidelity (u64, 0..5; see store.intent)
+//   12..19  codec code (u64; see store.codec)
+//   20..51  codec identity (32)
+//   52..59  stored bytes (u64)
+//   60..67  plain bytes when materialized (u64)
+//   68..75  decode cost class (u64: 0 copy, 1 cheap, 2 moderate, 3 heavy)
+//   76..83  first block in the object block table (u64)
+//   84..91  block count covered (u64; 0 = one opaque payload blob
+//            addressed by the root, with no block-table coverage)
+//   92..123 content/root identity (32)
+//   124..127 reserved (zero)
+//
+// Selection is a total pairwise tournament: `rank` deterministically
+// prefers one of two representations under an access intent, and the host
+// folds it over the table. Every comparison verdict is computed here; the
+// host only iterates.
+module store.representation.v1;
+
+use store.codec;
+use store.intent;
+
+record Representation {
+    fidelity: u64,
+    codec: u64,
+    codec_identity: [byte; 32],
+    stored: u64,
+    plain: u64,
+    decode_class: u64,
+    first_block: u64,
+    block_count: u64,
+    root: [byte; 32],
+    flags: u64
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy32(out: [byte; 128], offset: u64, value: [byte; 32]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy8(out: [byte; 128], offset: u64, value: [byte; 8]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: Representation) -> (result: [byte; 128]) {
+    let seed: [byte; 128] = [0; 128];
+    let tagged: [byte; 128] = replace(replace(replace(replace(seed,
+        0, 82), 1, 80), 2, 1), 3, (value.flags % 256) as byte);
+    let f: [byte; 128] = copy8(tagged, 4, u64_bytes(value.fidelity));
+    let c: [byte; 128] = copy8(f, 12, u64_bytes(value.codec));
+    let ci: [byte; 128] = copy32(c, 20, value.codec_identity);
+    let s: [byte; 128] = copy8(ci, 52, u64_bytes(value.stored));
+    let p: [byte; 128] = copy8(s, 60, u64_bytes(value.plain));
+    let d: [byte; 128] = copy8(p, 68, u64_bytes(value.decode_class));
+    let fb: [byte; 128] = copy8(d, 76, u64_bytes(value.first_block));
+    let bc: [byte; 128] = copy8(fb, 84, u64_bytes(value.block_count));
+    return copy32(bc, 92, value.root);
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 128]) -> (result: u64) {
+    if view.len != 128 { return 1; }
+    if view[0] != 82 || view[1] != 80 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] > 3 { return 4; }
+    if !reserved_zero(view) { return 4; }
+    return 0;
+}
+
+fn reserved_zero(view: [byte; up_to 128]) -> (result: bool) {
+    return view[124] == 0 && view[125] == 0 && view[126] == 0 && view[127] == 0;
+}
+
+fn word(view: [byte; 128], offset: u64) -> (result: u64) {
+    let b0: u64 = (view[offset] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[offset +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[offset +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[offset +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[offset +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[offset +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[offset +% 6] as u64) *% 256);
+    return b6 +% (view[offset +% 7] as u64);
+}
+
+fn bytes32(view: [byte; 128], offset: u64) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[offset +% i]);
+    }
+    return row;
+}
+
+fn flags(view: [byte; 128]) -> (result: u64) {
+    return view[3] as u64;
+}
+
+fn fidelity(view: [byte; 128]) -> (result: u64) {
+    return word(view, 4);
+}
+
+fn codec(view: [byte; 128]) -> (result: u64) {
+    return word(view, 12);
+}
+
+fn codec_identity(view: [byte; 128]) -> (result: [byte; 32]) {
+    return bytes32(view, 20);
+}
+
+fn stored(view: [byte; 128]) -> (result: u64) {
+    return word(view, 52);
+}
+
+fn plain(view: [byte; 128]) -> (result: u64) {
+    return word(view, 60);
+}
+
+fn decode_class(view: [byte; 128]) -> (result: u64) {
+    return word(view, 68);
+}
+
+fn first_block(view: [byte; 128]) -> (result: u64) {
+    return word(view, 76);
+}
+
+fn block_count(view: [byte; 128]) -> (result: u64) {
+    return word(view, 84);
+}
+
+fn root(view: [byte; 128]) -> (result: [byte; 32]) {
+    return bytes32(view, 92);
+}
+
+fn is_exact(view: [byte; 128]) -> (result: bool) {
+    return (view[3] as u64) % 2 == 1;
+}
+
+fn is_selective(view: [byte; 128]) -> (result: bool) {
+    return ((view[3] as u64) % 4) / 2 == 1;
+}
+
+fn identity_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn zero32(value: [byte; 32]) -> (result: bool) {
+    iterate i over value carrying zero: bool = true {
+        next zero = zero && value[i] == 0;
+    }
+    return zero;
+}
+
+// Full validation over the exact width. Codes extend the structural
+// validator: 5 unknown fidelity, 6 unsupported codec, 7 codec identity
+// mismatch, 8 decode class out of range, 9 first-block without coverage
+// (a zero block count requires first_block zero: the payload is one
+// opaque blob, not a block-table range), 10 exact flag without exact
+// fidelity, 11 zero content root. Code 4 covers the flags byte and the
+// reserved tail, matching `validate`.
+fn validate_exact(view: [byte; 128]) -> (result: u64) {
+    if view[0] != 82 || view[1] != 80 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] > 3 { return 4; }
+    if !reserved_zero(view) { return 4; }
+    if fidelity(view) > 5 { return 5; }
+    if !store.codec.codec_is_supported(codec(view)) { return 6; }
+    if !identity_equal(codec_identity(view), store.codec.codec_identity_for(codec(view))) { return 7; }
+    if decode_class(view) > 3 { return 8; }
+    if block_count(view) == 0 && first_block(view) != 0 { return 9; }
+    if is_exact(view) && fidelity(view) != 5 { return 10; }
+    if zero32(root(view)) { return 11; }
+    return 0;
+}
+
+// Fidelity levels are cumulative: a representation satisfies a required
+// level when its own level meets or exceeds it.
+fn satisfies(view: [byte; 128], required: u64) -> (result: bool) {
+    return fidelity(view) >= required;
+}
+
+// Saturating arithmetic for cost scores. Scores are heuristic orderings,
+// not physical quantities, but saturation (rather than wrapping) keeps
+// larger costs larger, which wrapping would not guarantee.
+fn sat_add(left: u64, right: u64) -> (result: u64) {
+    let sum: u64 = left +% right;
+    if sum < left {
+        return 0 -% 1;
+    }
+    return sum;
+}
+
+fn sat_mul(left: u64, right: u64) -> (result: u64) {
+    if left == 0 || right == 0 {
+        return 0;
+    }
+    let product: u64 = left *% right;
+    if product / left != right {
+        return 0 -% 1;
+    }
+    return product;
+}
+
+fn neutral_weight(value: u64) -> (result: u64) {
+    return select(value == 0, 1, value);
+}
+
+// Estimated materialization cost under an intent:
+//
+//   stored * transfer_weight
+//   + plain * memory_weight
+//   + decode_class * plain * compute_weight
+//
+// All weights default to 1 when unspecified. Latency is a constraint,
+// not a weight (see `latency_permits`).
+fn estimate_cost(rep: [byte; 128], intent: [byte; 64]) -> (result: u64) {
+    let transfer: u64 = sat_mul(stored(rep), neutral_weight(store.intent.transfer(intent)));
+    let resident: u64 = sat_mul(plain(rep), neutral_weight(store.intent.memory(intent)));
+    let decode: u64 = sat_mul(sat_mul(decode_class(rep), plain(rep)), neutral_weight(store.intent.compute(intent)));
+    return sat_add(transfer, sat_add(resident, decode));
+}
+
+// Latency classes constrain decode work: 0 unspecified (any class),
+// 1 interactive (copy/cheap only), 2 batch (up to moderate), 3+ any.
+fn latency_permits(intent: [byte; 64], rep: [byte; 128]) -> (result: bool) {
+    let budget: u64 = store.intent.latency(intent);
+    if budget == 0 || budget >= 3 {
+        return true;
+    }
+    if budget == 1 {
+        return decode_class(rep) <= 1;
+    }
+    return decode_class(rep) <= 2;
+}
+
+// Pairwise tournament verdict under an intent: 0 prefers A, 1 prefers B,
+// 2 both records invalid. Total and deterministic: invalid records lose
+// to valid ones, satisfying records beat unsatisfying ones, then lower
+// estimated cost wins, with exact stored/plain/codec tie-breaks. The
+// winner may still not satisfy the intent (graceful degradation); the
+// caller checks `satisfies` on the winner to detect that.
+fn rank(a: [byte; 128], b: [byte; 128], intent: [byte; 64]) -> (result: u64) {
+    let a_valid: bool = validate_exact(a) == 0;
+    let b_valid: bool = validate_exact(b) == 0;
+    if !a_valid && !b_valid {
+        return 2;
+    }
+    if a_valid && !b_valid {
+        return 0;
+    }
+    if !a_valid && b_valid {
+        return 1;
+    }
+    let required: u64 = store.intent.fidelity(intent);
+    let a_sat: bool = satisfies(a, required);
+    let b_sat: bool = satisfies(b, required);
+    if a_sat && !b_sat {
+        return 0;
+    }
+    if !a_sat && b_sat {
+        return 1;
+    }
+    if !a_sat && !b_sat && fidelity(a) != fidelity(b) {
+        // Neither satisfies: prefer the closer (higher) fidelity so the
+        // caller degrades gracefully toward the richest available form.
+        // Equal-fidelity pairs fall through to cost comparison below.
+        return select(fidelity(a) > fidelity(b), 0, 1);
+    }
+    let a_lat: bool = latency_permits(intent, a);
+    let b_lat: bool = latency_permits(intent, b);
+    if a_lat && !b_lat {
+        return 0;
+    }
+    if !a_lat && b_lat {
+        return 1;
+    }
+    let a_cost: u64 = estimate_cost(a, intent);
+    let b_cost: u64 = estimate_cost(b, intent);
+    if a_cost != b_cost {
+        return select(a_cost < b_cost, 0, 1);
+    }
+    if stored(a) != stored(b) {
+        return select(stored(a) < stored(b), 0, 1);
+    }
+    if plain(a) != plain(b) {
+        return select(plain(a) < plain(b), 0, 1);
+    }
+    if codec(a) != codec(b) {
+        return select(codec(a) < codec(b), 0, 1);
+    }
+    return 0;
+}
+
+fn roundtrip(value: Representation) -> (result: bool) {
+    let bytes: [byte; 128] = encode(value);
+    return validate(bytes) == 0
+        && fidelity(bytes) == value.fidelity
+        && codec(bytes) == value.codec
+        && identity_equal(codec_identity(bytes), value.codec_identity)
+        && stored(bytes) == value.stored
+        && plain(bytes) == value.plain
+        && decode_class(bytes) == value.decode_class
+        && first_block(bytes) == value.first_block
+        && block_count(bytes) == value.block_count
+        && identity_equal(root(bytes), value.root)
+        && flags(bytes) == (value.flags % 256);
+}
+
+fn encode_fields(fidelity_value: u64, codec_value: u64, codec_identity_value: [byte; 32], stored_value: u64, plain_value: u64, decode_class_value: u64, first_block_value: u64, block_count_value: u64, root_value: [byte; 32], flags_value: u64) -> (result: [byte; 128]) {
+    return encode(Representation {
+        fidelity: fidelity_value,
+        codec: codec_value,
+        codec_identity: codec_identity_value,
+        stored: stored_value,
+        plain: plain_value,
+        decode_class: decode_class_value,
+        first_block: first_block_value,
+        block_count: block_count_value,
+        root: root_value,
+        flags: flags_value
+    });
+}
+
+fn roundtrip_fields(fidelity_value: u64, codec_value: u64, codec_identity_value: [byte; 32], stored_value: u64, plain_value: u64, decode_class_value: u64, first_block_value: u64, block_count_value: u64, root_value: [byte; 32], flags_value: u64) -> (result: bool) {
+    return roundtrip(Representation {
+        fidelity: fidelity_value,
+        codec: codec_value,
+        codec_identity: codec_identity_value,
+        stored: stored_value,
+        plain: plain_value,
+        decode_class: decode_class_value,
+        first_block: first_block_value,
+        block_count: block_count_value,
+        root: root_value,
+        flags: flags_value
+    });
+}

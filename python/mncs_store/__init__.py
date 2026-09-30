@@ -5,7 +5,17 @@ Store operation surface while filesystem calls remain a platform realization.
 Consumers do not import Store tests or the historical Phase-1/Phase-2 drivers.
 """
 
-from .embedded import BoundObjectInput, EmbeddedStore, StoredObject
+from .embedded import (
+    BlockInput,
+    BoundObjectInput,
+    EmbeddedStore,
+    EnvelopeView,
+    MaterializedView,
+    RepresentationInput,
+    RepresentationView,
+    Selection,
+    StoredObject,
+)
 from .errors import (
     BatchCommitResult,
     CommitResult,
@@ -18,9 +28,15 @@ from .session import StoreSession
 
 __all__ = [
     "BatchCommitResult",
+    "BlockInput",
     "BoundObjectInput",
     "CommitResult",
     "EmbeddedStore",
+    "EnvelopeView",
+    "MaterializedView",
+    "RepresentationInput",
+    "RepresentationView",
+    "Selection",
     "StoreConflict",
     "StoreError",
     "StoreIntegrityError",

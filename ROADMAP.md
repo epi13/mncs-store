@@ -67,6 +67,17 @@ measured separately in `docs/scalable-content-measurement.md`.
 
 ## Phase 3 — native views and representation-aware I/O
 
+- [x] multiple representations per object with stable logical identity
+  (adaptive representations v1: base + opaque coded/synopsis forms,
+  RFC 0019)
+- [x] representation selection under generic access intents
+  (fidelity/cost/lifetime, total deterministic tournament)
+- [x] selective materialization (semantic blocks, verified dependency
+  closure, tag/mask reads, external plan admission)
+- [x] replaceable physical codecs (identity + windowed RLE v1 with
+  verified exactness; unknown codecs fail closed)
+- [x] canonical forms for fixed-record tables (stable identities for
+  reordered-but-equal structures)
 - [ ] mmap-compatible representations
 - [ ] typed slices/struct arrays/tensors
 - [ ] alignment and endianness rules
@@ -74,6 +85,10 @@ measured separately in `docs/scalable-content-measurement.md`.
 - [ ] copy/allocation instrumentation
 
 **Exit proof:** eligible values can be reopened as safe typed views without document deserialization.
+Representation-aware I/O is partially met: objects expose inspectable
+envelopes and selective reads with measured decode amplification (see
+`docs/adaptive-representations.md` and
+`tests/measure_adaptive_store.py`); zero-copy views remain open.
 
 ## Phase 4 — relationships, provenance, index and query contracts
 

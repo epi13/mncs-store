@@ -1,0 +1,191 @@
+mncs 0.13;
+
+// store.canonical.v1 — canonical forms for fixed-record tables.
+//
+// Equivalent structures written differently share a canonical form even
+// when their source bytes differ. This module canonicalizes one concrete
+// class: flat tables of fixed-width rows (relation sets, capability
+// lists, small catalogs) by sorting rows into byte-lexicographic order.
+// Canonical bytes hash to stable identities, so reordered-but-equal
+// tables deduplicate and compress identically downstream.
+//
+// Bounds (explicit, not incidental): tables hold at most 256 bytes,
+// rows are 1..32 bytes wide, and row counts run 0..16. A canonical table
+// is EXACTLY its rows: `width * count` must equal the table length, so
+// trailing garbage can never smuggle nondeterminism into an identity.
+// Callers with larger tables canonicalize per segment and hash the
+// concatenation through the existing streaming digest path.
+module store.canonical.v1;
+
+fn table_max() -> (result: u64) {
+    return 256;
+}
+
+fn row_width_max() -> (result: u64) {
+    return 32;
+}
+
+fn row_count_max() -> (result: u64) {
+    return 16;
+}
+
+// Bounds verdict shared by every entry point.
+fn bounds_ok(length: u64, width: u64, count: u64) -> (result: bool) {
+    if width == 0 || width > 32 {
+        return false;
+    }
+    if count > 16 {
+        return false;
+    }
+    return width *% count == length;
+}
+
+fn load(table: [byte; up_to 256]) -> (result: [byte; 256]) {
+    let seed: [u64; 256] = [0; 256];
+    let blank: [byte; 256] = [0; 256];
+    iterate b over seed carrying out: [byte; 256] = blank {
+        next out = load_step(out, b, table);
+    }
+    return out;
+}
+
+fn load_step(out: [byte; 256], b: u64, table: [byte; up_to 256]) -> (result: [byte; 256]) {
+    if b >= table.len {
+        return out;
+    }
+    return replace(out, b, table[b]);
+}
+
+record OrderState { decided: bool, before: bool }
+
+fn row_compare_step(state: OrderState, k: u64, arr: [byte; 256], ra: u64, rb: u64, width: u64) -> (result: OrderState) {
+    if k >= width {
+        return state;
+    }
+    let a: byte = arr[ra *% width +% k];
+    let b: byte = arr[rb *% width +% k];
+    let different: bool = a != b;
+    let first: bool = !state.decided && different;
+    let below: bool = a < b;
+    return OrderState {
+        decided: state.decided || different,
+        before: state.before || (first && below)
+    };
+}
+
+// Strict byte-lexicographic row order. Internal: callers establish
+// width*count <= 256 with both rows below count, so every probed index
+// stays under 256. The total entry points below all establish this.
+fn row_less(arr: [byte; 256], ra: u64, rb: u64, width: u64) -> (result: bool) {
+    let seed: [u64; 32] = [0; 32];
+    let initial: OrderState = OrderState { decided: false, before: false };
+    iterate k over seed carrying state: OrderState = initial {
+        next state = row_compare_step(state, k, arr, ra, rb, width);
+    }
+    return state.decided && state.before;
+}
+
+// Orderedness witness. Codes: 0 sorted, 1 bad bounds, 2 unsorted.
+fn rows_sorted(table: [byte; up_to 256], width: u64, count: u64) -> (result: u64) {
+    if !bounds_ok(table.len, width, count) {
+        return 1;
+    }
+    let arr: [byte; 256] = load(table);
+    let seed: [u64; 16] = [0; 16];
+    iterate r over seed carrying ok: bool = true {
+        next ok = sorted_step(ok, arr, r, width, count);
+    }
+    if ok {
+        return 0;
+    }
+    return 2;
+}
+
+fn sorted_step(ok: bool, arr: [byte; 256], r: u64, width: u64, count: u64) -> (result: bool) {
+    if r +% 1 >= count {
+        return ok;
+    }
+    return ok && !row_less(arr, r +% 1, r, width);
+}
+
+// Insertion rank of row r among rows 0..r: the count of earlier rows
+// less than or equal to it. Stability falls out of the <= comparison:
+// equal rows keep their relative order.
+fn count_le(arr: [byte; 256], width: u64, r: u64) -> (result: u64) {
+    let seed: [u64; 16] = [0; 16];
+    iterate k over seed carrying rank: u64 = 0 {
+        next rank = le_step(rank, arr, k, width, r);
+    }
+    return rank;
+}
+
+fn le_step(rank: u64, arr: [byte; 256], k: u64, width: u64, r: u64) -> (result: u64) {
+    // Note: `&&` does not short-circuit callee evaluation, so `row_less`
+    // runs even when k >= r. The probe row is clamped into range and the
+    // verdict discarded by the guard, so no evaluation can trap.
+    // See pressure P2-008.
+    let probe: u64 = select(k < r, k, 0);
+    let counts: bool = k < r && !row_less(arr, r, probe, width);
+    return rank +% select(counts, 1, 0);
+}
+
+// Insert row r at its rank, shifting rows rank..r-1 right by one. Bytes
+// outside the row region pass through unchanged.
+fn insert_row(arr: [byte; 256], width: u64, count: u64, r: u64) -> (result: [byte; 256]) {
+    if r >= count {
+        return arr;
+    }
+    let rank: u64 = count_le(arr, width, r);
+    let seed: [u64; 256] = [0; 256];
+    let blank: [byte; 256] = [0; 256];
+    iterate b over seed carrying out: [byte; 256] = blank {
+        next out = insert_byte(out, b, arr, width, count, r, rank);
+    }
+    return out;
+}
+
+fn insert_byte(out: [byte; 256], b: u64, arr: [byte; 256], width: u64, count: u64, r: u64, rank: u64) -> (result: [byte; 256]) {
+    if b >= width *% count {
+        return replace(out, b, arr[b]);
+    }
+    let row: u64 = b / width;
+    let col: u64 = b % width;
+    if row < rank || row > r {
+        return replace(out, b, arr[b]);
+    }
+    if row == rank {
+        return replace(out, b, arr[r *% width +% col]);
+    }
+    return replace(out, b, arr[(row -% 1) *% width +% col]);
+}
+
+// Canonical form: rows in stable sorted order, zero-padded to 256 bytes.
+// Total: on bad bounds the input passes through unchanged (still padded),
+// so callers MUST confirm `rows_sorted(output) == 0` before treating the
+// output as canonical.
+fn canonical_sort(table: [byte; up_to 256], width: u64, count: u64) -> (result: [byte; 256]) {
+    let arr: [byte; 256] = load(table);
+    if !bounds_ok(table.len, width, count) {
+        return arr;
+    }
+    let seed: [u64; 16] = [0; 16];
+    iterate r over seed carrying sorted: [byte; 256] = arr {
+        next sorted = insert_row(sorted, width, count, r);
+    }
+    return sorted;
+}
+
+// Canonical equality: two tables name the same canonical bytes. The
+// deduplication verdict for reordered-but-equal inputs.
+fn canonical_equal(a: [byte; up_to 256], b: [byte; up_to 256], width: u64, count: u64) -> (result: bool) {
+    if !bounds_ok(a.len, width, count) || !bounds_ok(b.len, width, count) {
+        return false;
+    }
+    let sorted_a: [byte; 256] = canonical_sort(a, width, count);
+    let sorted_b: [byte; 256] = canonical_sort(b, width, count);
+    let seed: [u64; 256] = [0; 256];
+    iterate i over seed carrying same: bool = true {
+        next same = same && sorted_a[i] == sorted_b[i];
+    }
+    return same;
+}

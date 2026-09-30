@@ -138,19 +138,22 @@ def run_corpus(source, corpus, backend, grants=(), corpus_path=None):
                 pass
 
 
-def call_many(source, module, calls, backend, grants=()):
+def call_many(source, module, calls, backend, grants=(), budget=STEP_BUDGET):
     """Batch N (case_id, function, args) calls into one CLI invocation.
 
     Returns {case_id: case_result}. Raises StoreHarnessError on transport
-    failure (missing CLI output, missing case).
+    failure (missing CLI output, missing case). A per-call budget may be
+    supplied as an optional fourth tuple element, overriding `budget`.
     """
+    cases = []
+    for call in calls:
+        cid, fn, args = call[0], call[1], call[2]
+        case_budget = call[3] if len(call) > 3 else budget
+        cases.append({"id": cid, "request": req(module, fn, args, case_budget)})
     corpus = {
         "schema_version": "0.1",
         "name": "mncs-store-batch",
-        "cases": [
-            {"id": cid, "request": req(module, fn, args)}
-            for cid, fn, args in calls
-        ],
+        "cases": cases,
     }
     code, result, stderr = run_corpus(source, corpus, backend, grants=grants)
     if result is None or "cases" not in result:
@@ -158,7 +161,7 @@ def call_many(source, module, calls, backend, grants=()):
             f"mncs run produced no result JSON (exit={code}): {stderr[-2000:]}"
         )
     out = {c["case_id"]: c for c in result["cases"]}
-    missing = [cid for cid, _, _ in calls if cid not in out]
+    missing = [call[0] for call in calls if call[0] not in out]
     if missing:
         raise StoreHarnessError(f"mncs run dropped cases: {missing}")
     return out

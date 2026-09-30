@@ -1,0 +1,466 @@
+mncs 0.13;
+
+// store.codec.v1 — codec identities and bounded byte codecs.
+//
+// Store never hard-codes one physical encoding. A representation names its
+// codec by a stable 32-byte identity plus a small numeric code used for
+// in-language dispatch. Codes 0 (identity) and 1 (RLE v1) are well-known;
+// unknown codes fail closed at every decision point, so a future codec is
+// a registry addition, never a reinterpretation of stored bytes.
+//
+// The RLE v1 codec is deliberately small: it operates on independent
+// windows of at most 64 bytes so that every encode/decode is a bounded
+// operation with no cross-window state. Independence is load-bearing for
+// selective materialization: any window decodes without its neighbors.
+//
+// RLE v1 token stream (all arithmetic over one window):
+//
+//   control < 128:  literal run; the next (control + 1) bytes are literal.
+//   control >= 128: repeat run; the next byte repeats
+//                   (control - 128 + 3) times.
+//
+// The encoder emits a repeat token only for runs of length >= 3 and caps a
+// literal token at the 64-byte window, so any 64-byte window encodes to at
+// most 65 bytes (one literal token). Encoding is total: every input has an
+// encoding. Decoding validates structure and length and fails closed with
+// a status byte; malformed input yields zeros, never partial bytes.
+module store.codec.v1;
+
+// Well-known codec codes. Unknown codes are refused, never guessed.
+fn codec_identity_code() -> (result: u64) {
+    return 0;
+}
+
+fn codec_rle_code() -> (result: u64) {
+    return 1;
+}
+
+fn codec_unknown_code() -> (result: u64) {
+    return 0 -% 1;
+}
+
+fn codec_is_supported(code: u64) -> (result: bool) {
+    return code == 0 || code == 1;
+}
+
+// Stable 32-byte codec identities. These are well-known nominal
+// constants (ASCII tag, zero-padded), not digests: they name the decoding
+// procedure, while content digests continue to name bytes.
+fn codec_identity_identity() -> (result: [byte; 32]) {
+    return [77, 78, 67, 83, 45, 83, 84, 79, 82, 69, 45, 67, 79, 68, 69, 67,
+        45, 73, 68, 69, 78, 84, 73, 84, 89, 45, 48, 49, 0, 0, 0, 0];
+}
+
+fn codec_rle_identity() -> (result: [byte; 32]) {
+    return [77, 78, 67, 83, 45, 83, 84, 79, 82, 69, 45, 67, 79, 68, 69, 67,
+        45, 82, 76, 69, 45, 86, 49, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+}
+
+fn codec_zero_identity() -> (result: [byte; 32]) {
+    return [0; 32];
+}
+
+fn identity_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn codec_identity_for(code: u64) -> (result: [byte; 32]) {
+    if code == 0 {
+        return codec_identity_identity();
+    }
+    if code == 1 {
+        return codec_rle_identity();
+    }
+    return codec_zero_identity();
+}
+
+fn codec_code_for(identity: [byte; 32]) -> (result: u64) {
+    if identity_equal(identity, codec_identity_identity()) {
+        return 0;
+    }
+    if identity_equal(identity, codec_rle_identity()) {
+        return 1;
+    }
+    return 0 -% 1;
+}
+
+// Decode cost class: 0 copy/trivial, 1 cheap, 2 moderate, 3 heavy.
+// Unknown codecs report heavy so cost comparison never prefers them;
+// validity gates exclude them before ranking.
+fn codec_decode_class(code: u64) -> (result: u64) {
+    if code == 0 {
+        return 0;
+    }
+    if code == 1 {
+        return 1;
+    }
+    return 3;
+}
+
+// --- RLE v1 ------------------------------------------------------------
+
+// Classify the run starting at `at`: 1, 2, or 3 meaning "3 or more".
+// Total over any `at`, including positions past the end (which report 0).
+fn run_short(window: [byte; up_to 64], wlen: u64, at: u64) -> (result: u64) {
+    if at >= wlen {
+        return 0;
+    }
+    let first: byte = window[select(at < window.len, at, 0)];
+    if at +% 1 >= wlen {
+        return 1;
+    }
+    let second: byte = window[select(at +% 1 < window.len, at +% 1, 0)];
+    if second != first {
+        return 1;
+    }
+    if at +% 2 >= wlen {
+        return 2;
+    }
+    let third: byte = window[select(at +% 2 < window.len, at +% 2, 0)];
+    if third != first {
+        return 2;
+    }
+    return 3;
+}
+
+record RunState { count: u64, stopped: bool }
+
+// Full run length of the byte at `at`, capped by the window end. Only
+// invoked when `run_short` reports 3+, so the common path stays cheap.
+fn run_step(state: RunState, j: u64, window: [byte; up_to 64], wlen: u64, at: u64, first: byte) -> (result: RunState) {
+    let k: u64 = at +% j;
+    let inside: bool = k < wlen;
+    let value: byte = window[select(k < window.len, k, 0)];
+    let hit: bool = inside && !state.stopped && value == first;
+    let miss: bool = inside && !state.stopped && value != first;
+    return RunState {
+        count: state.count +% select(hit, 1, 0),
+        stopped: state.stopped || miss
+    };
+}
+
+fn run_length(window: [byte; up_to 64], wlen: u64, at: u64) -> (result: u64) {
+    if at >= wlen {
+        return 0;
+    }
+    let first: byte = window[select(at < window.len, at, 0)];
+    let seed: [u64; 64] = [0; 64];
+    let initial: RunState = RunState { count: 0, stopped: false };
+    iterate j over seed carrying state: RunState = initial {
+        next state = run_step(state, j, window, wlen, at, first);
+    }
+    return state.count;
+}
+
+record EncodeState {
+    out: [byte; 65],
+    olen: u64,
+    pos: u64,
+    lit_len: u64,
+    control: u64
+}
+
+fn encode_initial() -> (result: EncodeState) {
+    return EncodeState {
+        out: [0; 65],
+        olen: 0,
+        pos: 0,
+        lit_len: 0,
+        control: 0
+    };
+}
+
+// Flush a pending literal run's control byte. Literal bytes are written
+// incrementally as they accumulate, so a flush only patches the control
+// slot reserved when the run opened.
+fn flush_literal(state: EncodeState) -> (result: EncodeState) {
+    if state.lit_len == 0 {
+        return state;
+    }
+    let patched: [byte; 65] = replace(state.out, state.control, (state.lit_len -% 1) as byte);
+    return EncodeState {
+        out: patched,
+        olen: state.olen,
+        pos: state.pos,
+        lit_len: 0,
+        control: 0
+    };
+}
+
+fn encode_step(state: EncodeState, i: u64, window: [byte; up_to 64], wlen: u64) -> (result: EncodeState) {
+    if i >= wlen {
+        return state;
+    }
+    if i < state.pos {
+        return state;
+    }
+    let here: byte = window[select(i < window.len, i, 0)];
+    if run_short(window, wlen, i) >= 3 {
+        let length: u64 = run_length(window, wlen, i);
+        let flushed: EncodeState = flush_literal(state);
+        let token: byte = (128 +% (length -% 3)) as byte;
+        let first: [byte; 65] = replace(flushed.out, flushed.olen, token);
+        let both: [byte; 65] = replace(first, flushed.olen +% 1, here);
+        return EncodeState {
+            out: both,
+            olen: flushed.olen +% 2,
+            pos: i +% length,
+            lit_len: 0,
+            control: 0
+        };
+    }
+    let opening: bool = state.lit_len == 0;
+    let slot: u64 = select(opening, state.olen, state.control);
+    let reserved: u64 = select(opening, state.olen +% 1, state.olen);
+    let grown: [byte; 65] = replace(state.out, reserved, here);
+    let lit_len: u64 = state.lit_len +% 1;
+    let last: bool = i +% 1 >= wlen;
+    let follows_run: bool = !last && run_short(window, wlen, i +% 1) >= 3;
+    let full: bool = lit_len >= 64;
+    let grown_state: EncodeState = EncodeState {
+        out: grown,
+        olen: reserved +% 1,
+        pos: i +% 1,
+        lit_len: lit_len,
+        control: slot
+    };
+    if last || follows_run || full {
+        return flush_literal(grown_state);
+    }
+    return grown_state;
+}
+
+// Encode one window. Output is zero-padded to 65 bytes; the exact length
+// comes from `rle_encode_block_len`. Total: every window has an encoding.
+fn rle_encode_block(window: [byte; up_to 64]) -> (result: [byte; 65]) {
+    let wlen: u64 = window.len;
+    let seed: [u64; 64] = [0; 64];
+    iterate i over seed carrying state: EncodeState = encode_initial() {
+        next state = encode_step(state, i, window, wlen);
+    }
+    return flush_literal(state).out;
+}
+
+record EncodeLenState { olen: u64, pos: u64, lit_len: u64 }
+
+fn encode_len_step(state: EncodeLenState, i: u64, window: [byte; up_to 64], wlen: u64) -> (result: EncodeLenState) {
+    if i >= wlen {
+        return state;
+    }
+    if i < state.pos {
+        return state;
+    }
+    if run_short(window, wlen, i) >= 3 {
+        let length: u64 = run_length(window, wlen, i);
+        return EncodeLenState {
+            olen: state.olen +% 2,
+            pos: i +% length,
+            lit_len: 0
+        };
+    }
+    let opening: bool = state.lit_len == 0;
+    let reserved: u64 = select(opening, state.olen +% 1, state.olen);
+    let lit_len: u64 = state.lit_len +% 1;
+    let last: bool = i +% 1 >= wlen;
+    let follows_run: bool = !last && run_short(window, wlen, i +% 1) >= 3;
+    let full: bool = lit_len >= 64;
+    let flushed: bool = last || follows_run || full;
+    return EncodeLenState {
+        olen: reserved +% 1,
+        pos: i +% 1,
+        lit_len: select(flushed, 0, lit_len)
+    };
+}
+
+// Exact encoded length of one window: 0 for the empty window, else 1..65.
+fn rle_encode_block_len(window: [byte; up_to 64]) -> (result: u64) {
+    let wlen: u64 = window.len;
+    if wlen == 0 {
+        return 0;
+    }
+    let seed: [u64; 64] = [0; 64];
+    let initial: EncodeLenState = EncodeLenState { olen: 0, pos: 0, lit_len: 0 };
+    iterate i over seed carrying state: EncodeLenState = initial {
+        next state = encode_len_step(state, i, window, wlen);
+    }
+    return state.olen;
+}
+
+record DecodeState {
+    out: [byte; 65],
+    epos: u64,
+    remaining: u64,
+    rep: byte,
+    lit: bool,
+    bad: bool,
+    emitted: u64
+}
+
+fn decode_initial() -> (result: DecodeState) {
+    return DecodeState {
+        out: [0; 65],
+        epos: 0,
+        remaining: 0,
+        rep: 0,
+        lit: true,
+        bad: false,
+        emitted: 0
+    };
+}
+
+// Fetch the next token when no run is active. Bounds failures latch `bad`
+// instead of trapping: encoded bytes are untrusted input.
+fn decode_fetch(state: DecodeState, encoded: [byte; up_to 65], elen: u64) -> (result: DecodeState) {
+    if state.remaining != 0 || state.bad {
+        return state;
+    }
+    if state.epos >= elen {
+        return DecodeState {
+            out: state.out,
+            epos: state.epos,
+            remaining: state.remaining,
+            rep: state.rep,
+            lit: state.lit,
+            bad: true,
+            emitted: state.emitted
+        };
+    }
+    let control: byte = encoded[select(state.epos < encoded.len, state.epos, 0)];
+    if control < 128 {
+        return DecodeState {
+            out: state.out,
+            epos: state.epos +% 1,
+            remaining: (control as u64) +% 1,
+            rep: 0,
+            lit: true,
+            bad: false,
+            emitted: state.emitted
+        };
+    }
+    if state.epos +% 1 >= elen {
+        return DecodeState {
+            out: state.out,
+            epos: state.epos,
+            remaining: state.remaining,
+            rep: state.rep,
+            lit: state.lit,
+            bad: true,
+            emitted: state.emitted
+        };
+    }
+    let value: byte = encoded[select(state.epos +% 1 < encoded.len, state.epos +% 1, 0)];
+    return DecodeState {
+        out: state.out,
+        epos: state.epos +% 2,
+        remaining: ((control as u64) -% 128) +% 3,
+        rep: value,
+        lit: false,
+        bad: false,
+        emitted: state.emitted
+    };
+}
+
+fn decode_step(state: DecodeState, p: u64, encoded: [byte; up_to 65], elen: u64, plen: u64) -> (result: DecodeState) {
+    if p >= plen {
+        return state;
+    }
+    let fed: DecodeState = decode_fetch(state, encoded, elen);
+    if fed.bad {
+        return fed;
+    }
+    if fed.lit {
+        if fed.epos >= elen {
+            return DecodeState {
+                out: fed.out,
+                epos: fed.epos,
+                remaining: fed.remaining,
+                rep: fed.rep,
+                lit: fed.lit,
+                bad: true,
+                emitted: fed.emitted
+            };
+        }
+        let value: byte = encoded[select(fed.epos < encoded.len, fed.epos, 0)];
+        let grown: [byte; 65] = replace(fed.out, 1 +% p, value);
+        return DecodeState {
+            out: grown,
+            epos: fed.epos +% 1,
+            remaining: fed.remaining -% 1,
+            rep: fed.rep,
+            lit: fed.lit,
+            bad: false,
+            emitted: fed.emitted +% 1
+        };
+    }
+    let grown: [byte; 65] = replace(fed.out, 1 +% p, fed.rep);
+    return DecodeState {
+        out: grown,
+        epos: fed.epos,
+        remaining: fed.remaining -% 1,
+        rep: fed.rep,
+        lit: fed.lit,
+        bad: false,
+        emitted: fed.emitted +% 1
+    };
+}
+
+// Decode one window. Byte 0 is the status (0 OK, 1 BAD_LEN,
+// 2 BAD_TOKEN, 3 LENGTH_MISMATCH); bytes 1..64 carry the plain window on
+// success and zeros on failure. `encoded_len` must equal the view length
+// and `plain_len` must not exceed 64.
+fn rle_decode_block(encoded: [byte; up_to 65], encoded_len: u64, plain_len: u64) -> (result: [byte; 65]) {
+    let bad_len: bool = encoded_len != encoded.len || encoded_len > 65 || plain_len > 64;
+    let seed: [u64; 64] = [0; 64];
+    iterate p over seed carrying state: DecodeState = decode_initial() {
+        next state = decode_step(state, p, encoded, encoded_len, plain_len);
+    }
+    let consumed: bool = state.epos == encoded_len && state.remaining == 0;
+    let status: u64 = select(bad_len, 1, select(state.bad, 2, select(consumed, 0, 3)));
+    let clean: [byte; 65] = select(status == 0, state.out, [0; 65]);
+    return replace(clean, 0, status as byte);
+}
+
+record DecodeLenState { epos: u64, total: u64, bad: bool }
+
+// Length the token stream decodes to without materializing it, or u64::MAX
+// when the stream is malformed. Lets cost estimation size coded blocks
+// without paying for a decode.
+fn rle_decoded_length(encoded: [byte; up_to 65], encoded_len: u64) -> (result: u64) {
+    if encoded_len != encoded.len || encoded_len > 65 {
+        return 0 -% 1;
+    }
+    let seed: [u64; 65] = [0; 65];
+    let initial: DecodeLenState = DecodeLenState { epos: 0, total: 0, bad: false };
+    iterate i over seed carrying state: DecodeLenState = initial {
+        next state = decode_len_step(state, i, encoded, encoded_len);
+    }
+    if state.bad {
+        return 0 -% 1;
+    }
+    return state.total;
+}
+
+fn decode_len_step(state: DecodeLenState, i: u64, encoded: [byte; up_to 65], elen: u64) -> (result: DecodeLenState) {
+    if state.bad || i >= elen || i < state.epos {
+        return state;
+    }
+    if i != state.epos {
+        return state;
+    }
+    let control: byte = encoded[select(i < encoded.len, i, 0)];
+    if control < 128 {
+        let run: u64 = (control as u64) +% 1;
+        if i +% 1 +% run > elen {
+            return DecodeLenState { epos: state.epos, total: state.total, bad: true };
+        }
+        return DecodeLenState { epos: i +% 1 +% run, total: state.total +% run, bad: false };
+    }
+    if i +% 1 >= elen {
+        return DecodeLenState { epos: state.epos, total: state.total, bad: true };
+    }
+    let run: u64 = ((control as u64) -% 128) +% 3;
+    return DecodeLenState { epos: i +% 2, total: state.total +% run, bad: false };
+}

@@ -1,0 +1,294 @@
+mncs 0.13;
+
+// store.plan.v1 — materialization plans from external authorities.
+//
+// Store supports, but never requires, an external retrieval authority
+// (a planner, a learned ranker, memory policy, compiler analysis, or a
+// human-authored rule): the authority proposes WHICH representation and
+// WHICH blocks to materialize, and Store validates the proposal against
+// the envelope, representation, and block facts it actually holds before
+// executing it. An invalid plan is refused with a distinct code; the
+// caller then falls back to intent-driven selection.
+//
+// Fixed representation (128 bytes):
+//
+//   0..1    magic "PL"
+//   2       representation version (1)
+//   3       flags (reserved, zero)
+//   4..11   requested fidelity (u64)
+//   12..43  representation root identity (32)
+//   44..51  block mask (u64)
+//   52..59  transfer cap in stored bytes (u64, 0 = no cap)
+//   60..91   issuing authority identity (32, zero = local policy)
+//   92..127  reserved (zero)
+module store.plan.v1;
+
+use store.envelope;
+use store.representation;
+use store.block;
+
+record Plan {
+    fidelity: u64,
+    root: [byte; 32],
+    mask: u64,
+    cap: u64,
+    authority: [byte; 32]
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy32(out: [byte; 128], offset: u64, value: [byte; 32]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy8(out: [byte; 128], offset: u64, value: [byte; 8]) -> (result: [byte; 128]) {
+    iterate i over value carrying row: [byte; 128] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: Plan) -> (result: [byte; 128]) {
+    let seed: [byte; 128] = [0; 128];
+    let tagged: [byte; 128] = replace(replace(replace(replace(seed,
+        0, 80), 1, 76), 2, 1), 3, 0);
+    let f: [byte; 128] = copy8(tagged, 4, u64_bytes(value.fidelity));
+    let r: [byte; 128] = copy32(f, 12, value.root);
+    let m: [byte; 128] = copy8(r, 44, u64_bytes(value.mask));
+    let c: [byte; 128] = copy8(m, 52, u64_bytes(value.cap));
+    return copy32(c, 60, value.authority);
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 128]) -> (result: u64) {
+    if view.len != 128 { return 1; }
+    if view[0] != 80 || view[1] != 76 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    if !reserved_zero(view) { return 4; }
+    return 0;
+}
+
+fn reserved_zero(view: [byte; up_to 128]) -> (result: bool) {
+    let seed: [u64; 36] = [0; 36];
+    iterate i over seed carrying zero: bool = true {
+        next zero = zero && view[92 +% i] == 0;
+    }
+    return zero;
+}
+
+fn word(view: [byte; 128], offset: u64) -> (result: u64) {
+    let b0: u64 = (view[offset] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[offset +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[offset +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[offset +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[offset +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[offset +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[offset +% 6] as u64) *% 256);
+    return b6 +% (view[offset +% 7] as u64);
+}
+
+fn bytes32(view: [byte; 128], offset: u64) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[offset +% i]);
+    }
+    return row;
+}
+
+fn fidelity(view: [byte; 128]) -> (result: u64) {
+    return word(view, 4);
+}
+
+fn root(view: [byte; 128]) -> (result: [byte; 32]) {
+    return bytes32(view, 12);
+}
+
+fn mask(view: [byte; 128]) -> (result: u64) {
+    return word(view, 44);
+}
+
+fn cap(view: [byte; 128]) -> (result: u64) {
+    return word(view, 52);
+}
+
+fn authority(view: [byte; 128]) -> (result: [byte; 32]) {
+    return bytes32(view, 60);
+}
+
+fn identity_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+// Plan admission against the envelope and representation facts. Codes:
+// 0 ADMIT, 1 BAD_PLAN (structurally invalid), 2 BAD_ENVELOPE,
+// 3 BAD_REPRESENTATION, 4 ROOT_MISMATCH (no such representation offered),
+// 5 FIDELITY_UNSATISFIED, 6 MASK_EMPTY (a block-covered representation
+// needs a nonempty mask), 7 FIDELITY_UNOFFERED (the envelope does not
+// offer the requested level at all), 8 MASK_WITHOUT_COVERAGE (an opaque
+// single-blob representation takes no mask).
+fn plan_validate(plan: [byte; 128], envelope: [byte; 256], rep: [byte; 128]) -> (result: u64) {
+    if validate(plan) != 0 {
+        return 1;
+    }
+    if store.envelope.validate_exact(envelope) != 0 {
+        return 2;
+    }
+    if store.representation.validate_exact(rep) != 0 {
+        return 3;
+    }
+    if !identity_equal(root(plan), store.representation.root(rep)) {
+        return 4;
+    }
+    if !store.representation.satisfies(rep, fidelity(plan)) {
+        return 5;
+    }
+    if store.representation.block_count(rep) == 0 {
+        if mask(plan) != 0 {
+            return 8;
+        }
+    } else {
+        if mask(plan) == 0 {
+            return 6;
+        }
+    }
+    if !store.envelope.offers(envelope, fidelity(plan)) {
+        return 7;
+    }
+    return 0;
+}
+
+// Block-level admission of an admitted plan against one block table.
+// Codes: 0 ADMIT, 1 BAD_TABLE, 2 MASK_NOT_CLOSED (fetching exactly this
+// mask would omit required dependencies), 3 CAP_EXCEEDED, 4 MASK_COVERS
+// (every in-mask block is described by this table) failure: the mask
+// names blocks this table does not describe.
+fn plan_blocks_validate(plan: [byte; 128], table: [byte; up_to 1024], count: u64) -> (result: u64) {
+    if store.block.table_validate(table, count) != 0 {
+        return 1;
+    }
+    if !mask_described(table, count, mask(plan)) {
+        return 4;
+    }
+    if !store.block.closure_closed(table, count, mask(plan)) {
+        return 2;
+    }
+    if cap(plan) != 0 && store.block.mask_stored(table, count, mask(plan)) > cap(plan) {
+        return 3;
+    }
+    return 0;
+}
+
+// Every in-mask block index must be described by this table.
+fn mask_described(table: [byte; up_to 1024], count: u64, want: u64) -> (result: bool) {
+    let described: u64 = described_mask(table, count);
+    return mask_covered(described, want);
+}
+
+fn described_mask(table: [byte; up_to 1024], count: u64) -> (result: u64) {
+    let slots: [u64; 8] = [0; 8];
+    iterate s over slots carrying described: u64 = 0 {
+        next described = described_slot(table, count, s, described);
+    }
+    return described;
+}
+
+fn mask_covered(described: u64, want: u64) -> (result: bool) {
+    let bits: [u64; 64] = [0; 64];
+    iterate b over bits carrying covered: bool = true {
+        next covered = covered && (!bit_set(want, b) || bit_set(described, b));
+    }
+    return covered;
+}
+
+fn described_slot(table: [byte; up_to 1024], count: u64, slot: u64, described: u64) -> (result: u64) {
+    if slot >= count {
+        return described;
+    }
+    return bit_add(described, store.block.slot_index(table, count, slot));
+}
+
+fn bit_add(mask: u64, which: u64) -> (result: u64) {
+    if which >= 64 {
+        return mask;
+    }
+    if bit_set(mask, which) {
+        return mask;
+    }
+    return mask +% bit(which);
+}
+
+fn bit_set(mask: u64, which: u64) -> (result: bool) {
+    if which >= 64 {
+        return false;
+    }
+    return (mask / bit(which)) % 2 == 1;
+}
+
+fn bit(which: u64) -> (result: u64) {
+    let b0: u64 = which % 2;
+    let b1: u64 = (which / 2) % 2;
+    let b2: u64 = (which / 4) % 2;
+    let b3: u64 = (which / 8) % 2;
+    let b4: u64 = (which / 16) % 2;
+    let b5: u64 = (which / 32) % 2;
+    let f0: u64 = select(b0 == 1, 2, 1);
+    let f1: u64 = select(b1 == 1, 4, 1);
+    let f2: u64 = select(b2 == 1, 16, 1);
+    let f3: u64 = select(b3 == 1, 256, 1);
+    let f4: u64 = select(b4 == 1, 65536, 1);
+    let f5: u64 = select(b5 == 1, 4294967296, 1);
+    return f0 *% f1 *% f2 *% f3 *% f4 *% f5;
+}
+
+fn roundtrip(value: Plan) -> (result: bool) {
+    let bytes: [byte; 128] = encode(value);
+    return validate(bytes) == 0
+        && fidelity(bytes) == value.fidelity
+        && identity_equal(root(bytes), value.root)
+        && mask(bytes) == value.mask
+        && cap(bytes) == value.cap
+        && identity_equal(authority(bytes), value.authority);
+}
+
+fn encode_fields(fidelity_value: u64, root_value: [byte; 32], mask_value: u64, cap_value: u64, authority_value: [byte; 32]) -> (result: [byte; 128]) {
+    return encode(Plan {
+        fidelity: fidelity_value,
+        root: root_value,
+        mask: mask_value,
+        cap: cap_value,
+        authority: authority_value
+    });
+}
+
+fn roundtrip_fields(fidelity_value: u64, root_value: [byte; 32], mask_value: u64, cap_value: u64, authority_value: [byte; 32]) -> (result: bool) {
+    return roundtrip(Plan {
+        fidelity: fidelity_value,
+        root: root_value,
+        mask: mask_value,
+        cap: cap_value,
+        authority: authority_value
+    });
+}

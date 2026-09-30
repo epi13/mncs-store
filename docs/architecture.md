@@ -18,6 +18,14 @@ A representation descriptor states enough machine semantics to interpret bytes s
 
 Representations are explicit because `bytes` alone are insufficient for machine-native reuse.
 
+One logical object may own several representations at different costs
+and fidelities (RFC 0019): a base exact form plus coded or synopsis
+forms, selected under a generic access intent. A semantic envelope
+exposes identity, inventory, costs, and offered fidelities without
+payload expansion, and semantic blocks allow verified selective
+materialization. Logical identity never depends on which physical
+forms exist.
+
 ### 3. Content layer
 
 Committed representation content is immutable and content-addressed. Large values are described by manifests/trees whose leaves are chunks. Unchanged chunks can be structurally shared across object generations and replicas.
