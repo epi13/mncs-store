@@ -1371,6 +1371,10 @@ def test_representation_evolution_preserves_identity_and_historical_generations(
         assert current[0].representation_root == evolved.representation_root
         assert store.get_envelope(b'adaptive-test', b'obj-1').fields['generation'] == 2
         assert len(store.get_representations(b'adaptive-test', b'obj-1')) == 3
+        assert len(store.get_representations(b'adaptive-test', b'obj-1', generation=1)) == 2
+        assert store.get_envelope(b'adaptive-test', b'obj-1', generation=1).fields['generation'] == 1
+        with pytest.raises(StoreError, match='not committed'):
+            store.get_envelope(b'adaptive-test', b'obj-1', generation=3)
         assert store.read_blocks(b'adaptive-test', b'obj-1', 2).payload == parts[1]
         repeated = store.add_representation(b'adaptive-test', b'obj-1', rep, expected_generation=2)
         assert repeated.code == StoreResultCode.DUPLICATE and repeated.generation == 2

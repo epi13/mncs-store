@@ -1954,11 +1954,11 @@ class EmbeddedStore:
             )
 
     def _resolve_entry(
-        self, domain_schema: bytes, domain_identity: bytes
+        self, domain_schema: bytes, domain_identity: bytes, *, generation: int | None = None
     ) -> tuple[_Entry, int, int, int]:
-        """Resolve one current entry without reading any payload.
+        """Resolve one committed generation entry without reading any payload.
 
-        Returns (entry, head generation, commit generation, bytes read
+        Returns (entry, selected generation, commit generation, bytes read
         for resolution). Binding consistency is checked exactly as in
         the whole-object path. The commit generation comes from the
         verified binding: envelopes claim the generation that committed
@@ -1966,7 +1966,11 @@ class EmbeddedStore:
         """
 
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
-        generation = self.current_generation
+        head = self.current_generation
+        if generation is None:
+            generation = head
+        if type(generation) is not int or generation < 0 or generation > head:
+            raise StoreError(StoreResultCode.DENIED, "Store generation is not committed", detail_code="GENERATION_NOT_COMMITTED")
         generation_path = self.path / "generations" / f"{generation:016x}"
         generation_raw = generation_path.read_bytes()
         resolve_bytes = len(generation_raw)
@@ -2312,14 +2316,14 @@ class EmbeddedStore:
         return cursor == total_length
 
     def get_envelope(
-        self, domain_schema: bytes, domain_identity: bytes
+        self, domain_schema: bytes, domain_identity: bytes, *, generation: int | None = None
     ) -> EnvelopeView:
         """Inspect an object without touching any payload, blob, or table."""
 
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
         entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
-            domain_schema, domain_identity
+            domain_schema, domain_identity, generation=generation
         )
         part = self._read_envelope_part(entry, commit_generation)
         envelope = part["envelope"]
@@ -2333,14 +2337,14 @@ class EmbeddedStore:
         )
 
     def get_representations(
-        self, domain_schema: bytes, domain_identity: bytes
+        self, domain_schema: bytes, domain_identity: bytes, *, generation: int | None = None
     ) -> list[RepresentationView]:
         """Return every verified representation of one current object."""
 
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
         entry, _generation, commit_generation, _resolve_bytes = self._resolve_entry(
-            domain_schema, domain_identity
+            domain_schema, domain_identity, generation=generation
         )
         part = self._read_rep_tables(self._read_envelope_part(entry, commit_generation))
         representations = part["representations"]

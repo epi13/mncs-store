@@ -57,6 +57,10 @@ or `{"file":"/absolute/path"}`. Admission requires `expected_generation`;
 there is no guessed retry. Inputs are bounded to 64 KiB of request JSON and
 32 MiB per byte input. All integer transport is unsigned 64-bit.
 
+Envelope inspection and representation listing accept optional `generation`
+to inspect a committed historical physical inventory. Future/uncommitted
+generations are refused; omitting it selects the current head.
+
 Example envelope request:
 
 ```json
@@ -82,7 +86,8 @@ elect an opaque whole-object encoding for a partial request. Plans use `plan` wi
 32-byte `authority` provenance. Store encodes and validates these through MNCS.
 
 Results use `mncs.store.provider-result/1`, with `status`, `operation`, selected
-runtime paths, result, and actual retained call/batch/JSON-byte counters. Small
+runtime paths, result, artifact SHA, cache/startup timings and actual retained
+call/batch/JSON-byte counters. Small
 payloads use base64; large payloads are written under Environment's session
 artifact directory, with size and independent SHA-256 transport receipts.
 Independent provider consumers can supply `--artifact-dir /absolute/directory`.

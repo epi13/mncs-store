@@ -229,9 +229,25 @@ def operate(operation, request, session):
                 )
             )
         if operation == "inspect-envelope":
-            return project(store.get_envelope(schema, identity))
+            return project(
+                store.get_envelope(
+                    schema,
+                    identity,
+                    generation=integer(request["generation"])
+                    if "generation" in request
+                    else None,
+                )
+            )
         if operation == "list-representations":
-            return project(store.get_representations(schema, identity))
+            return project(
+                store.get_representations(
+                    schema,
+                    identity,
+                    generation=integer(request["generation"])
+                    if "generation" in request
+                    else None,
+                )
+            )
         if operation == "read-synopsis":
             return payload_result(store.read_synopsis(schema, identity))
         intent = encode_intent(session, request.get("intent"))
@@ -338,8 +354,8 @@ def main():
                             "expected_generation:u64",
                             "representation:{fidelity,codec,payload}",
                         ],
-                        "inspect-envelope": [],
-                        "list-representations": [],
+                        "inspect-envelope": ["generation?:committed u64"],
+                        "list-representations": ["generation?:committed u64"],
                         "read-synopsis": [],
                         "select": ["intent?:object"],
                         "read-blocks": ["mask:u64"],
@@ -380,6 +396,11 @@ def main():
                         status="ok", result=operate(args.operation, request, session)
                     )
                 response["metrics"] = {
+                    "artifact_sha256": session.artifact_sha256,
+                    "artifact_cache_hit": session.artifact_cache_hit,
+                    "library_load_seconds": session.library_load_seconds,
+                    "artifact_prepare_seconds": session.artifact_prepare_seconds,
+                    "session_open_seconds": session.session_open_seconds,
                     "retained_calls": session.call_count,
                     "retained_batches": session.batch_count,
                     "semantic_seconds": session.semantic_seconds,

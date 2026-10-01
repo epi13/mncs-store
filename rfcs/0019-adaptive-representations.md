@@ -148,7 +148,9 @@ CAS. It reuses the exact chunk tree, descriptor, synopsis, tags, relationships a
 provenance. MNCS validates and encodes the additional representation and updated
 envelope. The new envelope names its physical publication generation. The current
 generation maps the same logical/binding/content identity and ordinal to a new
-physical manifest root. Historical generation bindings are never changed.
+physical manifest root. Historical generation bindings are never changed. Envelope and representation
+inspection may address an explicit committed generation, making prior physical
+inventories inspectable without materializing their payload.
 
 Immutable physical manifests are addressed by manifest digest (`.physical`), with
 an immutable binding version addressed by binding identity plus physical root.
