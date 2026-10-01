@@ -74,3 +74,13 @@ All store decoders (old and new, including v2 length fields) keep the
 wrapping formulation, so no store path executes the divergent shape.
 
 Severity: major backend correctness divergence (unchanged).
+
+## Selected-toolchain revalidation (2026-10-01 UTC)
+
+The selected Language425de201 release compiler now returns `4294967294`
+for the unchanged C11 `decode-plain-max` canary. The former allowlist cell
+fails its own stale-entry guard and has been removed; exact value and
+cross-backend agreement checks remain mandatory. This verifies the observable
+canary on these selected binary bytes; it does not establish binary/source
+build provenance or discharge arbitrary overflow obligations. Historical
+workarounds above remain unchanged pending their own consumer proof.

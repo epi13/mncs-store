@@ -90,9 +90,9 @@ ELABORATION_SOURCES = [
 # is reported as a known divergence (suite stays green). A listed cell that
 # PASSES fails the suite: the allowlist is stale and must be removed.
 # An unlisted failure always fails the suite.
-KNOWN_DIVERGENCES = {
-    ("mncs-c11", "canary-corpus.json", "decode-plain-max"): "P1-B01",
-}
+# Selected Language425de201 now returns the C11 canary exactly.
+# Retain the stale-allowlist guard for future explicit backend divergences.
+KNOWN_DIVERGENCES = {}
 
 # Compiled backends refuse effect-bearing programs outright (P1-B02). These
 # are EXPECTED REFUSALS, not passes: the probe suite asserts the refusal
