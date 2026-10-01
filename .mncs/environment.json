@@ -1,0 +1,29 @@
+{
+  "name": "mncs-store-adaptive-development",
+  "workspace_root": "../..",
+  "workspace_scope": {
+    "kind": "workspace",
+    "repositories": ["mncs-environment", "mncs-language", "mncs-store"]
+  },
+  "intent": {
+    "goal": "develop and use the selected adaptive Store through provider-owned operations",
+    "repositories": ["mncs-store"],
+    "constraints": ["preserve foreign work; acquire a worktree claim before Store writes"]
+  },
+  "required_capabilities": [
+    "mncs-store:adaptive-representations",
+    "mncs-store:adaptive-status",
+    "mncs-store:adaptive-admit",
+    "mncs-store:adaptive-inspect-envelope",
+    "mncs-store:adaptive-materialize"
+  ],
+  "services": [
+    {
+      "identity": "mncs-store:adaptive",
+      "required": true,
+      "probe": {"capability": "mncs-store:adaptive-status", "argv": []},
+      "response_schema": "mncs.store.provider-result/1",
+      "ready_when": {"/state": "ready"}
+    }
+  ]
+}
