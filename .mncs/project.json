@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 12,
+  "revision": 13,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."
@@ -376,7 +376,10 @@
             "repository": "mncs-language",
             "path": "target/release/mncs"
           },
-          "toolchain_env": "MNCS_BIN"
+          "toolchain_env": "MNCS_BIN",
+          "environment": {
+            "MNCS_STORE_ARTIFACT": ""
+          }
         }
       },
       {
@@ -397,7 +400,8 @@
           ],
           "environment": {
             "PYTHONPATH": "python",
-            "MNCS_STORE_PYTHON": "python"
+            "MNCS_STORE_PYTHON": "python",
+            "MNCS_STORE_ARTIFACT": ""
           },
           "toolchain": {
             "repository": "mncs-language",
@@ -424,7 +428,8 @@
           ],
           "environment": {
             "PYTHONPATH": "python",
-            "MNCS_STORE_PYTHON": "python"
+            "MNCS_STORE_PYTHON": "python",
+            "MNCS_STORE_ARTIFACT": ""
           },
           "toolchain": {
             "repository": "mncs-language",
@@ -451,7 +456,8 @@
           ],
           "environment": {
             "PYTHONPATH": "python",
-            "MNCS_STORE_PYTHON": "python"
+            "MNCS_STORE_PYTHON": "python",
+            "MNCS_STORE_ARTIFACT": ""
           },
           "toolchain": {
             "repository": "mncs-language",
@@ -478,7 +484,8 @@
           ],
           "environment": {
             "PYTHONPATH": "python",
-            "MNCS_STORE_PYTHON": "python"
+            "MNCS_STORE_PYTHON": "python",
+            "MNCS_STORE_ARTIFACT": ""
           },
           "toolchain": {
             "repository": "mncs-language",

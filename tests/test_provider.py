@@ -61,6 +61,18 @@ def test_manifest_operations_have_owned_entrypoints_effects_and_selected_toolcha
         assert entry["invocation"]["toolchain"]["repository"] == "mncs-language"
 
 
+def test_manifest_tests_select_runtime_and_suppress_ambient_store_artifact():
+    manifest = json.loads((ROOT / ".mncs/project.json").read_text())
+    for test in manifest["contracts"]["tests"]:
+        command = test["command"]
+        assert command["toolchain"] == {
+            "repository": "mncs-language",
+            "path": "target/release/mncs",
+        }
+        assert command["toolchain_env"] == "MNCS_BIN"
+        assert command["environment"]["MNCS_STORE_ARTIFACT"] == ""
+
+
 def test_describe_is_cwd_independent_and_pins_runtime():
     process, result = invoke("describe")
     assert process.returncode == 0

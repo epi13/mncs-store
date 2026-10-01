@@ -4,6 +4,10 @@ Store publishes authoritative invocation descriptors in `.mncs/project.json`.
 Environment discovers those declarations, pins their selected Language toolchain,
 applies authority, and presents results. No Store algorithm lives in Environment.
 Store remains usable independently through `EmbeddedStore` and this provider.
+Declared Store test commands pin the same selected compiler and explicitly clear
+an ambient `MNCS_STORE_ARTIFACT`; standalone Store consumers retain their explicit
+artifact override. This prevents a development capability from testing foreign
+Store bytes while claiming the selected checkout.
 
 ## Enter and discover
 
