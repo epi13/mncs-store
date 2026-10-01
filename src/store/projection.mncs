@@ -1,0 +1,220 @@
+mncs 0.13;
+
+// store.projection.v1 — durable desired-vs-observed projection state.
+//
+// A projection (documentation section, Atlas page, journal entry, media
+// artifact, publication) reflects a canonical generation. This record
+// persists, per projection, which canonical generation is desired and
+// which generation the observed output was built from, plus the
+// verification verdict that gates authoritative claims. Reconcilers read
+// these records, decide through mncs.automation.reconcile, regenerate,
+// and advance observed generations; the bytes here are the restartable
+// ground truth of that loop.
+//
+// Store persists producer-supplied codes; it does not interpret
+// reconciliation policy. Verification codes mirror the automation
+// verdict positions (0 fail, 1 pass, 2 unknown). Status codes name the
+// last reconciled projection state: 0 current, 1 stale, 2 unknown,
+// 3 blocked (observed ahead of canonical), 4 failed (verdict failed).
+//
+// Fixed representation (132 bytes):
+//   0..1    magic PJ
+//   2       representation version (1)
+//   3       flags (reserved, zero)
+//   4..35   projection identity
+//   36..43  canonical generation u64 BE
+//   44..51  observed generation u64 BE
+//   52..59  verification code u64 BE
+//   60..67  status code u64 BE
+//   68..99  evidence identity
+//   100..131 supersedes identity (all zero = none)
+module store.projection.v1;
+
+record ProjectionState {
+    projection: [byte; 32],
+    canonical_generation: u64,
+    observed_generation: u64,
+    verification: u64,
+    status: u64,
+    evidence: [byte; 32],
+    supersedes: [byte; 32]
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy8(out: [byte; 132], offset: u64, value: [byte; 8]) -> (result: [byte; 132]) {
+    iterate i over value carrying row: [byte; 132] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy32(out: [byte; 132], offset: u64, value: [byte; 32]) -> (result: [byte; 132]) {
+    iterate i over value carrying row: [byte; 132] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: ProjectionState) -> (result: [byte; 132]) {
+    let seed: [byte; 132] = [0; 132];
+    let tagged: [byte; 132] = replace(replace(replace(replace(seed,
+        0, 80), 1, 74), 2, 1), 3, 0);
+    let projection: [byte; 132] = copy32(tagged, 4, value.projection);
+    let canonical: [byte; 132] = copy8(projection, 36, u64_bytes(value.canonical_generation));
+    let observed: [byte; 132] = copy8(canonical, 44, u64_bytes(value.observed_generation));
+    let verification: [byte; 132] = copy8(observed, 52, u64_bytes(value.verification));
+    let status: [byte; 132] = copy8(verification, 60, u64_bytes(value.status));
+    let evidence: [byte; 132] = copy32(status, 68, value.evidence);
+    return copy32(evidence, 100, value.supersedes);
+}
+
+fn u64_field(view: [byte; 132], offset: u64) -> (result: u64) {
+    let b0: u64 = (view[offset] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[offset +% 1] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[offset +% 2] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[offset +% 3] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[offset +% 4] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[offset +% 5] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[offset +% 6] as u64) *% 256);
+    return b6 +% (view[offset +% 7] as u64);
+}
+
+fn bytes32(view: [byte; 132], offset: u64) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[offset +% i]);
+    }
+    return row;
+}
+
+fn projection(view: [byte; 132]) -> (result: [byte; 32]) {
+    return bytes32(view, 4);
+}
+
+fn canonical_generation(view: [byte; 132]) -> (result: u64) {
+    return u64_field(view, 36);
+}
+
+fn observed_generation(view: [byte; 132]) -> (result: u64) {
+    return u64_field(view, 44);
+}
+
+fn verification(view: [byte; 132]) -> (result: u64) {
+    return u64_field(view, 52);
+}
+
+fn status(view: [byte; 132]) -> (result: u64) {
+    return u64_field(view, 60);
+}
+
+fn evidence(view: [byte; 132]) -> (result: [byte; 32]) {
+    return bytes32(view, 68);
+}
+
+fn supersedes(view: [byte; 132]) -> (result: [byte; 32]) {
+    return bytes32(view, 100);
+}
+
+fn equal32(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn zero32(value: [byte; 32]) -> (result: bool) {
+    iterate i over value carrying zero: bool = true {
+        next zero = zero && value[i] == 0;
+    }
+    return zero;
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 132]) -> (result: u64) {
+    if view.len != 132 { return 1; }
+    if view[0] != 80 || view[1] != 74 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    return 0;
+}
+
+// Full validation over the exact current representation. Codes extend
+// the structural validator: 5 projection identity is zero,
+// 6 verification code out of range, 7 status code out of range.
+fn validate_exact(view: [byte; 132]) -> (result: u64) {
+    if view[0] != 80 || view[1] != 74 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    if zero32(projection(view)) { return 5; }
+    if verification(view) > 2 { return 6; }
+    if status(view) > 4 { return 7; }
+    return 0;
+}
+
+// A projection is current when observed has caught canonical, the last
+// reconciled status says current, and the verdict passed. Anything
+// else must reconcile before any authoritative claim.
+fn is_current(view: [byte; 132]) -> (result: bool) {
+    return validate_exact(view) == 0
+        && observed_generation(view) == canonical_generation(view)
+        && status(view) == 0
+        && verification(view) == 1;
+}
+
+fn has_supersedes(view: [byte; 132]) -> (result: bool) {
+    return !zero32(supersedes(view));
+}
+
+fn roundtrip(value: ProjectionState) -> (result: bool) {
+    let bytes: [byte; 132] = encode(value);
+    return validate_exact(bytes) == 0
+        && equal32(projection(bytes), value.projection)
+        && canonical_generation(bytes) == value.canonical_generation
+        && observed_generation(bytes) == value.observed_generation
+        && verification(bytes) == value.verification
+        && status(bytes) == value.status
+        && equal32(evidence(bytes), value.evidence)
+        && equal32(supersedes(bytes), value.supersedes)
+        && has_supersedes(bytes) == (!zero32(value.supersedes));
+}
+
+fn encode_fields(projection_value: [byte; 32], canonical_value: u64, observed_value: u64, verification_value: u64, status_value: u64, evidence_value: [byte; 32], supersedes_value: [byte; 32]) -> (result: [byte; 132]) {
+    return encode(ProjectionState {
+        projection: projection_value,
+        canonical_generation: canonical_value,
+        observed_generation: observed_value,
+        verification: verification_value,
+        status: status_value,
+        evidence: evidence_value,
+        supersedes: supersedes_value
+    });
+}
+
+fn roundtrip_fields(projection_value: [byte; 32], canonical_value: u64, observed_value: u64, verification_value: u64, status_value: u64, evidence_value: [byte; 32], supersedes_value: [byte; 32]) -> (result: bool) {
+    return roundtrip(ProjectionState {
+        projection: projection_value,
+        canonical_generation: canonical_value,
+        observed_generation: observed_value,
+        verification: verification_value,
+        status: status_value,
+        evidence: evidence_value,
+        supersedes: supersedes_value
+    });
+}

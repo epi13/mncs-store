@@ -1,0 +1,193 @@
+mncs 0.13;
+
+// store.receipt.v1 — durable publication receipts.
+//
+// A receipt records one completed external publication: which artifact
+// was published, to which target, under which external identity, from
+// which canonical generation, with evidence. The presence of a receipt
+// is the publication fact; absence means unpublished. Dependent
+// projections (journal entries, Atlas pages, websites, follow-up posts)
+// reconcile cross-links from receipts instead of rediscovering URLs,
+// so no second agent must propagate a publication by hand.
+//
+// Identities are content identities, never display strings: the
+// artifact identity names the exact bytes, the target identity names a
+// registered publication target, and the external identity names the
+// provider-issued publication handle. Human-readable URIs live in
+// target-owned descriptor objects outside this record.
+//
+// Store persists producer-supplied identities; it does not interpret
+// publication policy. A receipt with any zero identity is invalid: a
+// completed publication always names all three.
+//
+// Fixed representation (140 bytes):
+//   0..1    magic PR
+//   2       representation version (1)
+//   3       flags (reserved, zero)
+//   4..35   artifact identity
+//   36..67  target identity
+//   68..99  external identity
+//   100..107 canonical generation u64 BE
+//   108..139 evidence identity
+module store.receipt.v1;
+
+record PublicationReceipt {
+    artifact: [byte; 32],
+    target: [byte; 32],
+    external: [byte; 32],
+    canonical_generation: u64,
+    evidence: [byte; 32]
+}
+
+fn u64_bytes(value: u64) -> (result: [byte; 8]) {
+    let b0: byte = (value / 72057594037927936) as byte;
+    let r0: u64 = value % 72057594037927936;
+    let b1: byte = (r0 / 281474976710656) as byte;
+    let r1: u64 = r0 % 281474976710656;
+    let b2: byte = (r1 / 1099511627776) as byte;
+    let r2: u64 = r1 % 1099511627776;
+    let b3: byte = (r2 / 4294967296) as byte;
+    let r3: u64 = r2 % 4294967296;
+    let b4: byte = (r3 / 16777216) as byte;
+    let r4: u64 = r3 % 16777216;
+    let b5: byte = (r4 / 65536) as byte;
+    let r5: u64 = r4 % 65536;
+    let b6: byte = (r5 / 256) as byte;
+    let b7: byte = (r5 % 256) as byte;
+    return [b0, b1, b2, b3, b4, b5, b6, b7];
+}
+
+fn copy8(out: [byte; 140], offset: u64, value: [byte; 8]) -> (result: [byte; 140]) {
+    iterate i over value carrying row: [byte; 140] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn copy32(out: [byte; 140], offset: u64, value: [byte; 32]) -> (result: [byte; 140]) {
+    iterate i over value carrying row: [byte; 140] = out {
+        next row = replace(row, offset +% i, value[i]);
+    }
+    return row;
+}
+
+fn encode(value: PublicationReceipt) -> (result: [byte; 140]) {
+    let seed: [byte; 140] = [0; 140];
+    let tagged: [byte; 140] = replace(replace(replace(replace(seed,
+        0, 80), 1, 82), 2, 1), 3, 0);
+    let artifact: [byte; 140] = copy32(tagged, 4, value.artifact);
+    let target: [byte; 140] = copy32(artifact, 36, value.target);
+    let external: [byte; 140] = copy32(target, 68, value.external);
+    let generation: [byte; 140] = copy8(external, 100, u64_bytes(value.canonical_generation));
+    return copy32(generation, 108, value.evidence);
+}
+
+fn bytes32(view: [byte; 140], offset: u64) -> (result: [byte; 32]) {
+    let out: [byte; 32] = [0; 32];
+    iterate i over out carrying row: [byte; 32] = out {
+        next row = replace(row, i, view[offset +% i]);
+    }
+    return row;
+}
+
+fn artifact(view: [byte; 140]) -> (result: [byte; 32]) {
+    return bytes32(view, 4);
+}
+
+fn target(view: [byte; 140]) -> (result: [byte; 32]) {
+    return bytes32(view, 36);
+}
+
+fn external(view: [byte; 140]) -> (result: [byte; 32]) {
+    return bytes32(view, 68);
+}
+
+fn canonical_generation(view: [byte; 140]) -> (result: u64) {
+    let b0: u64 = (view[100] as u64) *% 72057594037927936;
+    let b1: u64 = b0 +% ((view[101] as u64) *% 281474976710656);
+    let b2: u64 = b1 +% ((view[102] as u64) *% 1099511627776);
+    let b3: u64 = b2 +% ((view[103] as u64) *% 4294967296);
+    let b4: u64 = b3 +% ((view[104] as u64) *% 16777216);
+    let b5: u64 = b4 +% ((view[105] as u64) *% 65536);
+    let b6: u64 = b5 +% ((view[106] as u64) *% 256);
+    return b6 +% (view[107] as u64);
+}
+
+fn evidence(view: [byte; 140]) -> (result: [byte; 32]) {
+    return bytes32(view, 108);
+}
+
+fn equal32(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn zero32(value: [byte; 32]) -> (result: bool) {
+    iterate i over value carrying zero: bool = true {
+        next zero = zero && value[i] == 0;
+    }
+    return zero;
+}
+
+// Structural codes: 0 valid, 1 wrong length, 2 magic, 3 version, 4 flags.
+fn validate(view: [byte; up_to 140]) -> (result: u64) {
+    if view.len != 140 { return 1; }
+    if view[0] != 80 || view[1] != 82 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    return 0;
+}
+
+// Full validation over the exact current representation. Codes extend
+// the structural validator: 5 artifact identity is zero, 6 target
+// identity is zero, 7 external identity is zero.
+fn validate_exact(view: [byte; 140]) -> (result: u64) {
+    if view[0] != 80 || view[1] != 82 { return 2; }
+    if view[2] != 1 { return 3; }
+    if view[3] != 0 { return 4; }
+    if zero32(artifact(view)) { return 5; }
+    if zero32(target(view)) { return 6; }
+    if zero32(external(view)) { return 7; }
+    return 0;
+}
+
+// Two receipts describe the same publication when artifact, target,
+// and external identities all agree. Generation and evidence may
+// differ across re-recordings; identity agreement is the dedup key.
+fn same_publication(left: [byte; 140], right: [byte; 140]) -> (result: bool) {
+    return equal32(artifact(left), artifact(right))
+        && equal32(target(left), target(right))
+        && equal32(external(left), external(right));
+}
+
+fn roundtrip(value: PublicationReceipt) -> (result: bool) {
+    let bytes: [byte; 140] = encode(value);
+    return validate_exact(bytes) == 0
+        && equal32(artifact(bytes), value.artifact)
+        && equal32(target(bytes), value.target)
+        && equal32(external(bytes), value.external)
+        && canonical_generation(bytes) == value.canonical_generation
+        && equal32(evidence(bytes), value.evidence);
+}
+
+fn encode_fields(artifact_value: [byte; 32], target_value: [byte; 32], external_value: [byte; 32], canonical_value: u64, evidence_value: [byte; 32]) -> (result: [byte; 140]) {
+    return encode(PublicationReceipt {
+        artifact: artifact_value,
+        target: target_value,
+        external: external_value,
+        canonical_generation: canonical_value,
+        evidence: evidence_value
+    });
+}
+
+fn roundtrip_fields(artifact_value: [byte; 32], target_value: [byte; 32], external_value: [byte; 32], canonical_value: u64, evidence_value: [byte; 32]) -> (result: bool) {
+    return roundtrip(PublicationReceipt {
+        artifact: artifact_value,
+        target: target_value,
+        external: external_value,
+        canonical_generation: canonical_value,
+        evidence: evidence_value
+    });
+}

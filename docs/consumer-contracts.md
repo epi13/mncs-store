@@ -15,6 +15,8 @@ meaning in its own repository.
 | `provenance/1` | `store.provenance.v1` | source, producer, transformation, generation, evidence and ancestry identities | evidence sufficiency or authority |
 | `commit-feed/1` | `store.commit_feed.v1` | deterministic Store-to-Index generation/count/root feed | query ranking or domain projections |
 | `semantic-state/1` | `store.semantic_state.v1` | producer-supplied identity-bound codes and set identities | Commons lifecycle/severity ontology |
+| `projection-state/1` | `store.projection.v1` | durable per-projection canonical/observed generations, verification and status codes | reconciliation policy (mncs-automation) |
+| `publication-receipt/1` | `store.receipt.v1` | durable artifact/target/external publication facts with identity dedup | publication policy and target registry |
 | `adaptive-representations/1` | `store.envelope/representation/intent/block/plan/codec/canonical.v1` plus v3 manifests and sidecars | inspectable envelopes, multi-representation selection under generic intents, verified selective reads, validated plans | relevance, ranking, retention, or task-satisfaction judgments |
 
 `persistent-object/1` is now an executable family contract through the

@@ -19,6 +19,8 @@ backends (`MNCS_BACKENDS` narrows the matrix).
 | `manifest-v2-corpus.json` (+ `--grant-crypto store_manifest`) | `src/store/manifest.mncs` | 28 (header2, counts, validate_v2, projectors) |
 | `generation-corpus.json` | `src/store/generation.mncs` | 39 (headers, CAS, tokens, snapshots, commit table, scans) |
 | `recovery-corpus.json` | `src/store/recovery.mncs` | 17 (classify, recover, prune) |
+| `projection-corpus.json` | `src/store/projection.mncs` | 24 (layout, validators, accessors, is_current) |
+| `receipt-corpus.json` | `src/store/receipt.mncs` | 17 (layout, validators, accessors, same_publication) |
 | `canary-corpus.json` | `tests/fixtures/checked_arith_canary.mncs` | 2 |
 
 Plus elaboration checks (all modules clean), the `type_confusion.mncs`
@@ -40,8 +42,9 @@ and `manifest-v2-corpus.json` need `--grant-crypto` because their
 modules host digest functions executing the `sha256_digest` effect —
 and refusal is whole-program, so even the pure cases in those files are
 bytecode-scoped. Digests are cross-checked against hashlib oracles.
-Pure-only modules (identity, descriptor, generation, recovery) run on
-all five backends, including the 1024-byte `table_contains` scans
+Pure-only modules (identity, descriptor, generation, recovery,
+projection, receipt) run on all five backends, including the 1024-byte
+`table_contains` scans
 (explicit bounded budgets). The 1020-byte v2 manifest vectors live in
 the bytecode-scoped manifest-v2 suite (whole-program refusal, above).
 
