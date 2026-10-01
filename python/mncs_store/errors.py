@@ -23,9 +23,10 @@ class StoreResultCode(StrEnum):
 class StoreError(RuntimeError):
     """A transport-visible Store failure with a stable typed code."""
 
-    def __init__(self, code: StoreResultCode, message: str) -> None:
+    def __init__(self, code: StoreResultCode, message: str, *, detail_code: str | None = None) -> None:
         self.code = code
         self.message = message
+        self.detail_code = detail_code
         super().__init__(f"{code}: {message}")
 
 

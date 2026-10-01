@@ -152,6 +152,10 @@ def measure(root: Path, session: StoreSession, block_kb: int, blocks: int) -> di
         row["index_bytes"] = index_bytes
         row["rep_blob_bytes"] = blob_bytes
         row["semantic_overhead_ratio"] = index_bytes / len(payload)
+        row["directory_bytes"] = {name: sum(path.stat().st_size for path in (state / name).iterdir() if path.is_file())
+                                  for name in ("chunks", "nodes", "objects", "descriptors", "bindings", "generations",
+                                               "envelopes", "representations", "blocks", "reps")}
+        row["storage_file_bytes"] = sum(path.stat().st_size for path in state.rglob("*") if path.is_file())
     return row
 
 
@@ -200,6 +204,9 @@ def main() -> None:
                         "backend": session.backend,
                         "semantic_seconds": session.semantic_seconds,
                         "store_calls": session.call_count,
+                        "retained_batches": session.batch_count,
+                        "request_transport_bytes": session.request_transport_bytes,
+                        "response_transport_bytes": session.response_transport_bytes,
                         "row": row,
                         "canonical_demo": demo,
                     },

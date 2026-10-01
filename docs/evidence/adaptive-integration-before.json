@@ -1,0 +1,74 @@
+{
+  "schema": "mncs-store.adaptive-measurement/1",
+  "chunk_size": 65536,
+  "sha256_oracle": "independent hashlib comparison; Store identity uses mncs.std.sha256.v1",
+  "artifact": "283bbbbb60a6c8d6d86ef4cc1eb6724d03f1c35502d68000f32e927babc48eae",
+  "backend": "mncs-research-bytecode",
+  "semantic_seconds": 31.91962269169744,
+  "store_calls": 33335,
+  "row": {
+    "blocks": 8,
+    "block_kb": 64,
+    "payload_bytes": 524288,
+    "put_seconds": 24.87955647497438,
+    "commit": "COMMITTED",
+    "whole_seconds": 0.0033680329797789454,
+    "whole_stored_touched": 525070,
+    "whole_materialized": 524288,
+    "inspect_seconds": 0.012451595044694841,
+    "inspect_bytes": 769,
+    "envelope_rep_count": 3,
+    "envelope_block_count": 8,
+    "representations": [
+      {
+        "fidelity": 5,
+        "codec": 0,
+        "stored": 524288,
+        "plain": 524288,
+        "decode_class": 0,
+        "exact": 1
+      },
+      {
+        "fidelity": 1,
+        "codec": 0,
+        "stored": 38,
+        "plain": 38,
+        "decode_class": 0,
+        "exact": 0
+      },
+      {
+        "fidelity": 5,
+        "codec": 1,
+        "stored": 307704,
+        "plain": 524288,
+        "decode_class": 1,
+        "exact": 1
+      }
+    ],
+    "selective_seconds": 0.10507105803117156,
+    "selective_stored_touched": 65812,
+    "selective_materialized": 65536,
+    "selective_inspect": 2185,
+    "selective_exact": false,
+    "decode_amplification_traditional": 8.0,
+    "decode_amplification_selective": 1.0,
+    "tag_materialized": 196608,
+    "tag_stored_touched": 196884,
+    "coded_seconds": 9.273660648032092,
+    "coded_representation": 2,
+    "coded_stored_touched": 307704,
+    "coded_materialized": 524288,
+    "coded_exact_verified": true,
+    "storage_ratio_rle": 0.5868988037109375,
+    "synopsis_bytes": 38,
+    "index_bytes": 1672,
+    "rep_blob_bytes": 307742,
+    "semantic_overhead_ratio": 0.0031890869140625
+  },
+  "canonical_demo": {
+    "table_bytes": 256,
+    "canonical_id": "a0c7a7a489e35b09bf85ed06f046d394674e4dfcd3cecaf487c9e4a48f8ff0fd",
+    "rle_shuffled_bytes": 32,
+    "rle_canonical_bytes": 8
+  }
+}

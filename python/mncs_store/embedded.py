@@ -149,6 +149,11 @@ class Selection:
     fields: dict
     satisfied: bool
     estimated_cost: int
+    latency_permitted: bool = True
+
+    @property
+    def constraints_satisfied(self) -> bool:
+        return self.satisfied and self.latency_permitted
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +175,11 @@ class MaterializedView:
     materialized_bytes: int
     inspect_bytes: int
     exact_verified: bool
+    latency_permitted: bool = True
+
+    @property
+    def constraints_satisfied(self) -> bool:
+        return self.satisfied and self.latency_permitted
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +244,7 @@ class EmbeddedStore:
         command_executor: object | None = None,
         failpoint: Failpoint | None = None,
         verify_on_open: bool = True,
+        read_only: bool = False,
     ) -> None:
         if session is not None and command_executor is not None:
             raise ValueError("provide either a Store session or a command executor, not both")
@@ -242,6 +253,7 @@ class EmbeddedStore:
         self._owns_session = session is None
         self._failpoint = failpoint
         self._closed = False
+        self.read_only = read_only
         # A verified current-generation projection is a rebuildable read cache.
         # The generation head remains the authority; a publication invalidates
         # this cache and a changed head causes the next read to rebuild it.
@@ -254,25 +266,34 @@ class EmbeddedStore:
         self._commit_feed: bytes | None = None
         self._domain_index_generation: int | None = None
         self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
-        for name in (
-            "chunks",
-            "nodes",
-            "objects",
-            "descriptors",
-            "bindings",
-            "generations",
-            "staging",
-            "envelopes",
-            "representations",
-            "blocks",
-            "reps",
-        ):
-            (self.path / name).mkdir(mode=0o700, parents=True, exist_ok=True)
-        self._initialize_files()
-        self.recovery_result = self._recover()
-        if verify_on_open:
+        if read_only:
+            # Read the committed head only. No recovery, lock creation,
+            # directory initialization, or eager payload projection.
+            if not self.path.is_dir():
+                raise StoreError(StoreResultCode.DENIED, "Store does not exist")
             generation = self.current_generation
-            self._verified_projection(generation)
+            self._read_generation(generation, verify_objects=False)
+            self.recovery_result = StoreResultCode.RECOVERED_OLD
+        else:
+            for name in (
+                "chunks",
+                "nodes",
+                "objects",
+                "descriptors",
+                "bindings",
+                "generations",
+                "staging",
+                "envelopes",
+                "representations",
+                "blocks",
+                "reps",
+            ):
+                (self.path / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+            self._initialize_files()
+            self.recovery_result = self._recover()
+            if verify_on_open:
+                generation = self.current_generation
+                self._verified_projection(generation)
 
     # ---- platform boundary -------------------------------------------
 
@@ -297,6 +318,8 @@ class EmbeddedStore:
 
     @contextmanager
     def _publication_lock(self) -> Iterator[None]:
+        if self.read_only:
+            raise StoreError(StoreResultCode.DENIED, "Store is read-only; mutation and recovery are forbidden")
         lock_path = self.path / "publication.lock"
         descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
@@ -896,7 +919,11 @@ class EmbeddedStore:
 
     # ---- generic binding/object operations ---------------------------
 
-    def _binding_path(self, binding_id: bytes) -> Path:
+    def _binding_path(self, binding_id: bytes, root: bytes | None = None) -> Path:
+        if root is not None:
+            versioned = self.path / "bindings" / f"{binding_id.hex()}-{root.hex()}.bind"
+            if versioned.exists():
+                return versioned
         return self.path / "bindings" / f"{binding_id.hex()}.bind"
 
     def _write_binding(
@@ -909,16 +936,19 @@ class EmbeddedStore:
         content_id: bytes,
         representation_root: bytes,
         generation: int,
+        physical_version: bool = False,
     ) -> None:
         if len(domain_schema) > 0xFFFFFFFF or len(domain_identity) > 0xFFFFFFFF:
             raise StoreError(StoreResultCode.DENIED, "domain binding identity is too large")
         raw = BINDING_HEADER.pack(BINDING_MAGIC, VERSION, 0, len(domain_schema), len(domain_identity))
         raw += domain_schema + domain_identity
         raw += logical_id + content_id + representation_root + struct.pack(">Q", generation)
-        self._write_immutable(self._binding_path(binding_id), raw)
+        target = (self.path / "bindings" / f"{binding_id.hex()}-{representation_root.hex()}.bind"
+                  if physical_version else self._binding_path(binding_id))
+        self._write_immutable(target, raw)
 
-    def _read_binding(self, binding_id: bytes) -> tuple[bytes, bytes, bytes, bytes, bytes, int]:
-        raw = self._binding_path(binding_id).read_bytes()
+    def _read_binding(self, binding_id: bytes, root: bytes | None = None) -> tuple[bytes, bytes, bytes, bytes, bytes, int]:
+        raw = self._binding_path(binding_id, root).read_bytes()
         if len(raw) < BINDING_HEADER.size + 12 + 32 + 32 + 8:
             raise StoreIntegrityError("Store binding is truncated")
         magic, version, reserved, schema_length, identity_length = BINDING_HEADER.unpack_from(raw)
@@ -939,7 +969,10 @@ class EmbeddedStore:
     def _read_manifest(
         self, entry: _Entry
     ) -> tuple[bytes, int, int, int, bytes, bytes, bytes, tuple[bytes, bytes] | None]:
-        raw = (self.path / "objects" / f"{entry.logical_id.hex()}.manifest").read_bytes()
+        manifest_path = self.path / "objects" / f"{entry.representation_root.hex()}.physical"
+        if not manifest_path.exists():
+            manifest_path = self.path / "objects" / f"{entry.logical_id.hex()}.manifest"
+        raw = manifest_path.read_bytes()
         adaptive: tuple[bytes, bytes] | None = None
         if len(raw) == MANIFEST_V2.size:
             values = MANIFEST_V2.unpack(raw)
@@ -1049,7 +1082,7 @@ class EmbeddedStore:
         return payload
 
     def _read_entry(self, entry: _Entry, generation: int, *, verify_payload: bool) -> StoredObject:
-        schema, identity, logical, content, root, binding_generation = self._read_binding(entry.binding_id)
+        schema, identity, logical, content, root, binding_generation = self._read_binding(entry.binding_id, entry.representation_root)
         if logical != entry.logical_id or content != entry.content_id or root != entry.representation_root:
             raise StoreIntegrityError("Store binding does not match generation entry")
         if binding_generation > generation:
@@ -1173,6 +1206,51 @@ class EmbeddedStore:
                 if left.start < right.start + right.length and right.start < left.start + left.length:
                     raise StoreError(StoreResultCode.DENIED, "Store block spans overlap")
 
+    def _stage_representation(self, rep: RepresentationInput, content_id: bytes) -> bytes:
+        """Encode and verify an alternate through MNCS before immutable staging."""
+        if rep.fidelity < 0 or rep.fidelity > 5 or rep.codec not in ("identity", "rle"):
+            raise StoreError(StoreResultCode.DENIED, "Store representation codec or fidelity is unknown", detail_code="UNSUPPORTED_REPRESENTATION")
+        identity_codec = self.session.codec_identity_for(IDENTITY_CODEC_CODE)
+        rle_codec = self.session.codec_identity_for(RLE_CODEC_CODE)
+        plain = bytes(rep.payload)
+        plain_id = self._hash(plain)
+        if rep.fidelity == 5 and plain_id != content_id:
+            raise StoreError(
+                StoreResultCode.DENIED,
+                "Store fidelity-5 representation does not match its object content",
+            )
+        if rep.codec == "rle":
+            framed = self._frame_rle(plain)
+            # Codec correctness is verified before admission: the MNCS
+            # decode of the staged bytes must reproduce the payload.
+            if self._hash(self._decode_rle_blob(framed)) != plain_id:
+                raise StoreIntegrityError("Store RLE round trip failed before admission")
+            stored = framed
+            codec_code = RLE_CODEC_CODE
+            codec_identity = rle_codec
+            decode_class = 1
+        else:
+            stored = plain
+            codec_code = IDENTITY_CODEC_CODE
+            codec_identity = identity_codec
+            decode_class = 0
+        root = self._hash(stored)
+        self._write_immutable(self.path / "reps" / f"{root.hex()}.payload", stored)
+        exact = rep.fidelity == 5 and plain_id == content_id
+        return self.session.encode_representation(
+                fidelity=rep.fidelity,
+                codec=codec_code,
+                codec_identity=codec_identity,
+                stored=len(stored),
+                plain=len(plain),
+                decode_class=decode_class,
+                first_block=0,
+                block_count=0,
+                root=root,
+                flags=1 if exact else 0,
+            )
+
+
     def _build_adaptive_sidecars(
         self,
         *,
@@ -1210,7 +1288,6 @@ class EmbeddedStore:
                 )
 
         identity_codec = self.session.codec_identity_for(IDENTITY_CODEC_CODE)
-        rle_codec = self.session.codec_identity_for(RLE_CODEC_CODE)
         if not self.session.codec_is_supported(
             IDENTITY_CODEC_CODE
         ) or not self.session.codec_is_supported(RLE_CODEC_CODE):
@@ -1240,45 +1317,7 @@ class EmbeddedStore:
                 )
             )
         for rep in representations:
-            plain = bytes(rep.payload)
-            plain_id = self._hash(plain)
-            if rep.fidelity == 5 and plain_id != content_id:
-                raise StoreError(
-                    StoreResultCode.DENIED,
-                    "Store fidelity-5 representation does not match its object content",
-                )
-            if rep.codec == "rle":
-                framed = self._frame_rle(plain)
-                # Codec correctness is verified before admission: the MNCS
-                # decode of the staged bytes must reproduce the payload.
-                if self._hash(self._decode_rle_blob(framed)) != plain_id:
-                    raise StoreIntegrityError("Store RLE round trip failed before admission")
-                stored = framed
-                codec_code = RLE_CODEC_CODE
-                codec_identity = rle_codec
-                decode_class = 1
-            else:
-                stored = plain
-                codec_code = IDENTITY_CODEC_CODE
-                codec_identity = identity_codec
-                decode_class = 0
-            root = self._hash(stored)
-            self._write_immutable(self.path / "reps" / f"{root.hex()}.payload", stored)
-            exact = rep.fidelity == 5 and plain_id == content_id
-            records.append(
-                self.session.encode_representation(
-                    fidelity=rep.fidelity,
-                    codec=codec_code,
-                    codec_identity=codec_identity,
-                    stored=len(stored),
-                    plain=len(plain),
-                    decode_class=decode_class,
-                    first_block=0,
-                    block_count=0,
-                    root=root,
-                    flags=1 if exact else 0,
-                )
-            )
+            records.append(self._stage_representation(rep, content_id))
 
         # Object block table over base-payload spans.
         table = b""
@@ -1436,7 +1475,7 @@ class EmbeddedStore:
             active_bindings = {entry.binding_id for entry in old_entries}
             existing_path = self._binding_path(binding_id)
             if existing_path.exists():
-                existing = self._read_binding(binding_id)
+                existing = self._read_binding(binding_id, next((entry.representation_root for entry in old_entries if entry.binding_id == binding_id), None))
                 if binding_id in active_bindings:
                     candidate_content = self._hash(payload)
                     if existing[3] != candidate_content:
@@ -1586,6 +1625,97 @@ class EmbeddedStore:
                 observed,
             )
 
+    def add_representation(
+        self, domain_schema: bytes, domain_identity: bytes,
+        representation: RepresentationInput, *, expected_generation: int,
+    ) -> CommitResult:
+        """Publish a new physical inventory, preserving all object generations.
+
+        This is explicit admission, never semantic content mutation. Only the
+        current generation switches to the new manifest; old manifests,
+        bindings, envelopes and inventories remain immutable and readable.
+        """
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
+        with self._publication_lock():
+            observed = self.current_generation
+            entry, _, committed, _ = self._resolve_entry(domain_schema, domain_identity)
+            if self._cas(observed, expected_generation) != 0:
+                return CommitResult(StoreResultCode.STALE_GENERATION, observed, entry.logical_id,
+                                    entry.content_id, entry.representation_root, binding_id,
+                                    expected_generation, observed, self._conflict_token(observed, expected_generation))
+            part = self._read_rep_tables(self._read_envelope_part(entry, committed))
+            old_records = part["representations"]
+            old_fields = part["rep_fields"]
+            fields = part["envelope_fields"]
+            record = self._stage_representation(representation, entry.content_id)
+            self.session.validate_representation(record)
+            candidate = self.session.representation_fields(record)
+            for old_record, old in zip(old_records, old_fields):
+                if old["root"] == candidate["root"]:
+                    if old_record != record:
+                        raise StoreError(StoreResultCode.DENIED, "Store representation root already has different metadata")
+                    return CommitResult(StoreResultCode.DUPLICATE, observed, entry.logical_id, entry.content_id,
+                                        entry.representation_root, binding_id, expected_generation, observed)
+            # Reuse the durable chunk tree, descriptor, synopsis and block table.
+            # Every new metadata record is constructed and validated by MNCS.
+            new_generation = observed + 1
+            records = [*old_records, record]
+            rep_raw = REPS_HEADER.pack(len(records)) + b"".join(records)
+            rep_digest = self._hash(rep_raw)
+            self._write_immutable(self.path / "representations" / f"{rep_digest.hex()}.reps", rep_raw)
+            bitmap = self.session.fidelity_bitmap_with(fields["fidelity_bits"], candidate["fidelity"])
+            envelope = self.session.encode_envelope(
+                logical=entry.logical_id, type_identity=self._hash(part["descriptor"]),
+                synopsis=fields["synopsis"], synopsis_bytes=fields["synopsis_bytes"],
+                rep_count=len(records), block_count=fields["block_count"],
+                stored_bytes=fields["stored_bytes"], plain_bytes=fields["plain_bytes"],
+                default_root=fields["default_root"], provenance=fields["provenance"],
+                block_table=fields["block_table"], generation=new_generation,
+                fidelity_bits=bitmap, flags=fields["flags"] | 2)
+            self.session.validate_envelope(envelope)
+            env_digest = self._hash(envelope)
+            self._write_immutable(self.path / "envelopes" / f"{env_digest.hex()}.envelope", envelope)
+            manifest = self._manifest(
+                total_length=entry.total_length, chunk_count=part["chunk_count"], depth=part["depth"],
+                content_id=entry.content_id, tree_root=part["tree_root"],
+                descriptor_id=self._hash(part["descriptor"]), binding_id=binding_id, logical_id=entry.logical_id,
+                envelope_digest=env_digest, reps_digest=rep_digest)
+            root = self._hash(manifest)
+            self._write_immutable(self.path / "objects" / f"{root.hex()}.physical", manifest)
+            self._sync_content_directory("objects")
+            old_entries, relations, provenance = self._read_generation_parts(observed)
+            entries = [(_Entry(item.logical_id, item.binding_id, root, item.content_id, item.total_length, item.ordinal)
+                        if item.binding_id == binding_id else item) for item in old_entries]
+            generation_raw = self._generation_bytes(new_generation, entries, relations, provenance)
+            transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
+            transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
+            staged_generation = transaction / "generation.stage"
+            _durable_write(staged_generation, generation_raw, exclusive=True)
+            digest = self._hash(generation_raw)
+            _durable_write(transaction / "journal",
+                           JOURNAL.pack(JOURNAL_MAGIC, VERSION, 0, observed, new_generation, digest), exclusive=True)
+            _sync_directory(transaction)
+            self._write_binding(domain_schema=bytes(domain_schema), domain_identity=bytes(domain_identity),
+                                binding_id=binding_id, logical_id=entry.logical_id, content_id=entry.content_id,
+                                representation_root=root, generation=new_generation, physical_version=True)
+            self._trip("after_binding_durability")
+            self._trip("before_generation_publication")
+            os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
+            _sync_directory(self.path / "generations")
+            self._write_journal_state(transaction, state=1, old=observed, new=new_generation, digest=digest)
+            self._trip("after_generation_publication")
+            self._publish_head(new_generation)
+            self._write_journal_state(transaction, state=2, old=observed, new=new_generation, digest=digest)
+            self._trip("after_head_publication")
+            self._trip("during_cleanup")
+            (transaction / "journal").unlink()
+            transaction.rmdir()
+            self._invalidate_projection()
+            return CommitResult(StoreResultCode.COMMITTED, new_generation, entry.logical_id, entry.content_id,
+                                root, binding_id, expected_generation, observed)
+
     def put_bound_objects(
         self,
         objects: Sequence[BoundObjectInput],
@@ -1664,7 +1794,7 @@ class EmbeddedStore:
                 if not existing_path.exists():
                     new_items.append((item, binding_id, self._logical_id(binding_id)))
                     continue
-                existing = self._read_binding(binding_id)
+                existing = self._read_binding(binding_id, next((entry.representation_root for entry in old_entries if entry.binding_id == binding_id), None))
                 if binding_id in active_bindings:
                     candidate_content = self._hash(item.payload)
                     if existing[3] != candidate_content:
@@ -1845,13 +1975,13 @@ class EmbeddedStore:
             entry = next(item for item in entries if item.binding_id == binding_id)
         except StopIteration as exc:
             raise StoreError(
-                StoreResultCode.DENIED, "Store object binding is not current"
+                StoreResultCode.DENIED, "Store object binding is not current", detail_code="OBJECT_MISSING"
             ) from exc
-        binding_path = self._binding_path(binding_id)
+        binding_path = self._binding_path(binding_id, entry.representation_root)
         binding_raw = binding_path.read_bytes()
         resolve_bytes += len(binding_raw)
         schema, identity, logical, content, root, binding_generation = self._read_binding(
-            binding_id
+            binding_id, entry.representation_root
         )
         if logical != entry.logical_id or content != entry.content_id or root != entry.representation_root:
             raise StoreIntegrityError("Store binding does not match generation entry")
@@ -2236,7 +2366,7 @@ class EmbeddedStore:
         synopsis_bytes = fields["synopsis_bytes"]
         assert isinstance(synopsis, bytes) and isinstance(synopsis_bytes, int)
         if synopsis == bytes(32):
-            raise StoreError(StoreResultCode.DENIED, "Store object has no synopsis")
+            raise StoreError(StoreResultCode.DENIED, "Store object has no synopsis", detail_code="SYNOPSIS_MISSING")
         blob = (self.path / "reps" / f"{synopsis.hex()}.payload").read_bytes()
         if self._verify_digest(blob) != synopsis or len(blob) != synopsis_bytes:
             raise StoreIntegrityError("Store synopsis integrity failure")
@@ -2269,6 +2399,7 @@ class EmbeddedStore:
             fields=rep_fields[winner],
             satisfied=satisfied,
             estimated_cost=cost,
+            latency_permitted=self.session.representation_latency_permits(representations[winner], intent_bytes),
         )
 
     def read_blocks(
@@ -2279,7 +2410,7 @@ class EmbeddedStore:
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
         if not isinstance(mask, int) or mask < 0 or mask >= 1 << 64:
-            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range", detail_code="INVALID_BLOCK_MASK")
         entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
             domain_schema, domain_identity
         )
@@ -2300,7 +2431,7 @@ class EmbeddedStore:
         inspect_bytes = part["inspect_bytes"]
         assert isinstance(inspect_bytes, int)
         if not self.session.mask_within(mask, first_block, block_count):
-            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range", detail_code="INVALID_BLOCK_MASK")
         closed = self.session.closure_fixpoint(
             [(table, count) for table, count in tables], mask
         )
@@ -2347,7 +2478,7 @@ class EmbeddedStore:
         if mask is not None and tag is not None:
             raise StoreError(StoreResultCode.DENIED, "Store materialize takes mask or tag, not both")
         if mask is not None and (not isinstance(mask, int) or mask < 0 or mask >= 1 << 64):
-            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range", detail_code="INVALID_BLOCK_MASK")
         if tag is not None and (not isinstance(tag, int) or tag < 0 or tag >= 1 << 64):
             raise StoreError(StoreResultCode.DENIED, "Store block tag is out of range")
         entry, _generation, commit_generation, resolve_bytes = self._resolve_entry(
@@ -2371,7 +2502,7 @@ class EmbeddedStore:
             self.session.validate_intent(bytes(intent))
             intent_bytes = self.session.normalize_intent(bytes(intent))
         winner, satisfied, _cost = self.session.select_representation(
-            representations, intent_bytes
+            representations, intent_bytes, require_blocks=mask is not None or tag is not None
         )
         winner_fields = rep_fields[winner]
         fidelity = winner_fields["fidelity"]
@@ -2387,7 +2518,7 @@ class EmbeddedStore:
             if mask is not None or tag is not None:
                 raise StoreError(
                     StoreResultCode.DENIED,
-                    "Store opaque representation has no block coverage",
+                    "Store opaque representation has no block coverage", detail_code="REPRESENTATION_NOT_SELECTIVE",
                 )
             blob = (self.path / "reps" / f"{root.hex()}.payload").read_bytes()
             if self._verify_digest(blob) != root:
@@ -2413,6 +2544,7 @@ class EmbeddedStore:
                 materialized_bytes=len(payload),
                 inspect_bytes=resolve_bytes + inspect_bytes,
                 exact_verified=exact_verified,
+                latency_permitted=self.session.representation_latency_permits(representations[winner], intent_bytes),
             )
         if tag is not None:
             wanted = 0
@@ -2423,7 +2555,7 @@ class EmbeddedStore:
         else:
             wanted = self.session.range_mask(first_block, block_count)
         if not self.session.mask_within(wanted, first_block, block_count):
-            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range", detail_code="INVALID_BLOCK_MASK")
         closed = self.session.closure_fixpoint(
             [(table, count) for table, count in tables], wanted
         )
@@ -2447,6 +2579,7 @@ class EmbeddedStore:
             materialized_bytes=len(payload),
             inspect_bytes=resolve_bytes + inspect_bytes,
             exact_verified=exact_verified,
+            latency_permitted=self.session.representation_latency_permits(representations[winner], intent_bytes),
         )
 
     def materialize_plan(
@@ -2485,10 +2618,10 @@ class EmbeddedStore:
                 winner = index
                 break
         if winner is None:
-            raise StoreError(StoreResultCode.DENIED, "Store plan names no stored representation")
+            raise StoreError(StoreResultCode.DENIED, "Store plan names no stored representation", detail_code="REPRESENTATION_MISSING")
         code = self.session.plan_validate(plan, envelope, representations[winner])
         if code != 0:
-            raise StoreError(StoreResultCode.DENIED, f"Store plan refused with code {code}")
+            raise StoreError(StoreResultCode.DENIED, f"Store plan refused with code {code}", detail_code=f"PLAN_{code}")
         winner_fields = rep_fields[winner]
         fidelity = winner_fields["fidelity"]
         block_count = winner_fields["block_count"]
@@ -2541,7 +2674,7 @@ class EmbeddedStore:
                     StoreResultCode.DENIED, f"Store plan block check refused with code {table_code}"
                 )
         if not self.session.mask_within(wanted, first_block, block_count):
-            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range")
+            raise StoreError(StoreResultCode.DENIED, "Store block mask is out of range", detail_code="INVALID_BLOCK_MASK")
         payload, spans, touched = self._fetch_block_spans(part, wanted)
         exact_verified = False
         if self._spans_tile_full(spans, total_length) and winner == 0:
@@ -2581,7 +2714,7 @@ class EmbeddedStore:
         indexed: list[tuple[_Entry, bytes, bytes]] = []
         for entry in entries:
             schema, identity, logical, content, root, binding_generation = self._read_binding(
-                entry.binding_id
+                entry.binding_id, entry.representation_root
             )
             if (
                 logical != entry.logical_id
@@ -2726,7 +2859,7 @@ class EmbeddedStore:
                 visit(child, level - 1, start + index * span)
 
         visit(tree_root, depth, 0)
-        binding_bytes = self._binding_path(binding_id).stat().st_size
+        binding_bytes = self._binding_path(binding_id, entry.representation_root).stat().st_size
         structural_bytes = node_bytes + len(manifest) + len(descriptor) + binding_bytes + GENERATION_ENTRY.size
         return {
             "total_length": total_length,
@@ -2762,6 +2895,8 @@ class EmbeddedStore:
 
         if self._closed:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        if self.read_only:
+            raise StoreError(StoreResultCode.DENIED, "Store is read-only; recovery is forbidden")
         self._invalidate_projection()
         self.recovery_result = self._recover()
         self._verified_projection(self.current_generation)

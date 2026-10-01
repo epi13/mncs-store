@@ -60,7 +60,8 @@ indices); lifting a bound is transport work.
 
 1. Logical identity is independent of representation inventory: adding,
    removing, or re-encoding a representation never changes the logical
-   object, its content identity, or its generation bindings.
+   object, its content identity, or its historical generation bindings. A new
+   generation may reference a new immutable physical inventory.
 2. Committed representations, envelopes, tables, and blobs are
    immutable and content-addressed; the manifest binds them by digest.
 3. The base representation (index 0) is always exact identity bytes
@@ -97,8 +98,8 @@ indices); lifting a bound is transport work.
   intent-driven selection.
 - Producer-input violations at write (overlapping spans, fidelity-5
   mismatch, unknown codec, oversize or empty synopsis, duplicate
-  representation roots) are denied before any durable staging; nothing
-  is partially committed. Read paths additionally deny closures that
+  representation roots) are denied before authoritative publication; staged immutable material
+  may remain unreachable, but nothing is partially committed. Read paths additionally deny closures that
   escape the selected representation's block range.
 
 ## Security and integrity
@@ -139,3 +140,63 @@ materialization; partial reads verify per-block digests.
   dependencies, adaptive migration/lifecycle policy, and
   capability-gated materialization are designed but not implemented;
   see `docs/adaptive-representations.md` (future work).
+
+## Explicit physical inventory evolution (2026-09-30 amendment)
+
+`add_representation` admits one additional representation under a Store generation
+CAS. It reuses the exact chunk tree, descriptor, synopsis, tags, relationships and
+provenance. MNCS validates and encodes the additional representation and updated
+envelope. The new envelope names its physical publication generation. The current
+generation maps the same logical/binding/content identity and ordinal to a new
+physical manifest root. Historical generation bindings are never changed.
+
+Immutable physical manifests are addressed by manifest digest (`.physical`), with
+an immutable binding version addressed by binding identity plus physical root.
+Existing logical-name `.manifest`/`.bind` files remain readable for v2/v3 admitted
+objects and their historical snapshots. Missing or invalid versioned material
+fails identity verification; it cannot adopt the original manifest as a valid
+substitute for a different committed root.
+
+Publication uses the existing durable generation/journal/head protocol. Every
+immutable sidecar, manifest, and binding version is durable before publication.
+Recovery verifies old and new generation candidates and preserves the existing
+old-or-new decision. Stale CAS returns `STALE_GENERATION`; an identical existing
+record returns `DUPLICATE` without a new generation; a root already associated
+with different metadata is refused. Exact alternate admission must match the
+existing content identity. No semantic object mutation or in-place rewrite is
+introduced. Orphan staged immutable files may remain unreachable after a failed
+publication, as with normal admission; garbage collection is separate policy.
+
+Removing/replacing forms, automatic hot caches, archival migration, and new
+lifecycle provenance events are outside this explicit additive operation. Existing
+content provenance is retained; the generation and manifest root identify physical
+inventory history. These operations must not erase prior snapshots or silently
+reinterpret an object's producer semantics.
+
+## Fidelity and latency interpretation (clarification)
+
+Required fidelity has priority over latency permission in the existing ranking.
+Latency chooses among candidates with the same fidelity-satisfaction class; it
+never licenses a loss of required information. If all sufficient candidates
+violate latency, the winner still reports fidelity satisfaction and separately
+reports `latency_permitted: false`. `Selection.satisfied` retains its established
+meaning: required fidelity only. `constraints_satisfied` is the conjunction of
+fidelity satisfaction and latency permission. Selection itself is a proposal,
+not an authorization or an unconditional claim that all constraints hold.
+
+Frequency, lifetime and locality remain generic advisory hints. No representation
+currently carries locality/layout affinity, and the store has no measurements
+that map frequency/lifetime to universally valid weights. A caller's policy may
+translate these hints into explicit compute/memory/transfer weights or an external
+plan; Store does not invent sibling-specific hot/archive policies. Tests preserve
+these semantics, including high-fidelity/high-latency versus synopsis/interactive.
+
+An explicit `materialize(mask=...|tag=...)` request requires block coverage.
+`store.representation.rank_for_blocks` prioritizes valid covered candidates,
+then applies the unchanged fidelity/latency/cost order. This does not reinterpret
+AccessIntent hints or alter ordinary whole-object selection. An opaque-only
+inventory fails with `REPRESENTATION_NOT_SELECTIVE`; it never expands unrelated
+payload or silently discards the selector. The triggering real consumer case
+was a transfer-heavy tagged Environment context retrieval: ordinary ranking
+selected RLE exact, which cannot satisfy the block request. Native constrained
+ranking selects the covered base form and reads only the requested region.

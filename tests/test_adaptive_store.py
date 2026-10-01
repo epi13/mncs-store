@@ -1309,3 +1309,147 @@ def test_adaptive_reopen_round_trip(session, store_path):
             b"adaptive-test", b"obj-1", intent=session.encode_intent(5, transfer=1000))
         assert coded.payload == payload
         assert coded.exact_verified
+
+
+def test_read_only_reopen_avoids_unrelated_payload_and_all_writes(session, store_path, monkeypatch):
+    payload, parts = _segmented_payload(block_size=65536, blocks=3)
+    with EmbeddedStore(store_path, session=session) as store:
+        _commit_segmented(store, payload, block_size=65536, with_rle=False)
+    unrelated = store_path / 'chunks' / f'{hashlib.sha256(parts[-1]).hexdigest()}.chunk'
+    unrelated.unlink()
+    before = {str(p.relative_to(store_path)): p.read_bytes() for p in store_path.rglob('*') if p.is_file()}
+    def refuse(*args, **kwargs):
+        raise AssertionError('read-only Store attempted durability or initialization')
+    monkeypatch.setattr(EmbeddedStore, '_recover', refuse)
+    monkeypatch.setattr(EmbeddedStore, '_initialize_files', refuse)
+    with EmbeddedStore(store_path, session=session, read_only=True) as store:
+        assert store.get_envelope(b'adaptive-test', b'obj-1').fields['plain_bytes'] == len(payload)
+        assert store.read_blocks(b'adaptive-test', b'obj-1', 1).payload == parts[0]
+        with pytest.raises(StoreError, match='read-only'):
+            store.recover()
+        with pytest.raises(StoreError, match='read-only'):
+            _commit_segmented(store, payload, block_size=65536, with_rle=False)
+    after = {str(p.relative_to(store_path)): p.read_bytes() for p in store_path.rglob('*') if p.is_file()}
+    assert before == after
+
+
+def test_read_only_absent_store_does_not_initialize(session, store_path):
+    with pytest.raises(StoreError, match='does not exist'):
+        EmbeddedStore(store_path, session=session, read_only=True)
+    assert not store_path.exists()
+
+
+def test_fidelity_precedes_latency_and_hints_do_not_invent_policy(session):
+    heavy = session.encode_representation(fidelity=5, codec=0, codec_identity=ID_CODEC, stored=100, plain=100, decode_class=3, first_block=0, block_count=0, root=DIGEST_A, flags=1)
+    synopsis = session.encode_representation(fidelity=1, codec=0, codec_identity=ID_CODEC, stored=10, plain=10, decode_class=0, first_block=0, block_count=0, root=DIGEST_B, flags=0)
+    intent = session.encode_intent(5, latency=1)
+    winner, satisfied, _ = session.select_representation([heavy, synopsis], intent)
+    assert winner == 0 and satisfied
+    assert not session.representation_latency_permits(heavy, intent)
+    for hints in ({'frequency': 3}, {'lifetime': 4}, {'locality': 777}):
+        assert session.select_representation([heavy, synopsis], session.encode_intent(5, latency=1, **hints)) == session.select_representation([heavy, synopsis], intent)
+
+
+def test_representation_evolution_preserves_identity_and_historical_generations(session, store_path):
+    payload, parts = _segmented_payload(block_size=128, blocks=3)
+    with EmbeddedStore(store_path, session=session) as store:
+        original = _commit_segmented(store, payload, block_size=128, with_rle=False)
+        immutable = {str(p.relative_to(store_path)): p.read_bytes() for p in store_path.rglob('*')
+                     if p.is_file() and p.name not in ('head', 'publication.lock')}
+        rep = RepresentationInput(5, 'rle', payload)
+        evolved = store.add_representation(b'adaptive-test', b'obj-1', rep, expected_generation=1)
+        assert evolved.code == StoreResultCode.COMMITTED and evolved.generation == 2
+        assert evolved.logical_id == original.logical_id
+        assert evolved.content_id == original.content_id
+        assert evolved.representation_root != original.representation_root
+        assert all((store_path / name).read_bytes() == raw for name, raw in immutable.items())
+        old = store.objects_at(1)
+        current = store.objects_at(2)
+        assert len(old) == len(current) == 1
+        assert old[0].payload == current[0].payload == payload
+        assert old[0].representation_root == original.representation_root
+        assert current[0].representation_root == evolved.representation_root
+        assert store.get_envelope(b'adaptive-test', b'obj-1').fields['generation'] == 2
+        assert len(store.get_representations(b'adaptive-test', b'obj-1')) == 3
+        assert store.read_blocks(b'adaptive-test', b'obj-1', 2).payload == parts[1]
+        repeated = store.add_representation(b'adaptive-test', b'obj-1', rep, expected_generation=2)
+        assert repeated.code == StoreResultCode.DUPLICATE and repeated.generation == 2
+        stale = store.add_representation(b'adaptive-test', b'obj-1', rep, expected_generation=1)
+        assert stale.code == StoreResultCode.STALE_GENERATION
+        duplicate = _commit_segmented(store, payload, block_size=128, with_rle=False)
+        assert duplicate.code == StoreResultCode.DUPLICATE
+        assert duplicate.representation_root == evolved.representation_root
+        with pytest.raises(StoreError, match='does not match'):
+            store.add_representation(b'adaptive-test', b'obj-1', RepresentationInput(5, 'rle', b'changed'), expected_generation=2)
+    with EmbeddedStore(store_path, session=session) as store:
+        assert store.objects_at(1)[0].representation_root == original.representation_root
+        assert store.get_bound_object(b'adaptive-test', b'obj-1').representation_root == evolved.representation_root
+        assert store.find_bound_objects(b'adaptive-test')[0].representation_root == evolved.representation_root
+
+
+@pytest.mark.parametrize('failure', ['after_binding_durability', 'before_generation_publication',
+                                     'after_generation_publication', 'after_head_publication', 'during_cleanup'])
+def test_representation_evolution_crash_recovery_preserves_snapshots(session, store_path, failure):
+    with EmbeddedStore(store_path, session=session) as store:
+        original = store.put_bound_object(domain_schema=b's', domain_identity=b'i', descriptor=b'd',
+                                         payload=b'A' * 128, expected_generation=0)
+    def crash(name):
+        if name == failure:
+            raise CrashInjected(name)
+    with EmbeddedStore(store_path, session=session, failpoint=crash) as store:
+        with pytest.raises(CrashInjected):
+            store.add_representation(b's', b'i', RepresentationInput(5, 'rle', b'A' * 128), expected_generation=1)
+    with EmbeddedStore(store_path, session=session) as store:
+        expected = 2 if failure in ('after_head_publication', 'during_cleanup') else 1
+        assert store.current_generation == expected
+        assert store.objects_at(1)[0].representation_root == original.representation_root
+        assert store.get_bound_object(b's', b'i').payload == b'A' * 128
+        assert store.get_bound_object(b's', b'i').content_id == original.content_id
+        if expected == 1:
+            assert store.add_representation(b's', b'i', RepresentationInput(5, 'rle', b'A' * 128), expected_generation=1).committed
+
+
+def test_explicit_blocks_constrain_native_selection_before_cost(session, store_path):
+    payload = b'A' * 4096 + b'B' * 4096
+    with EmbeddedStore(store_path, session=session) as store:
+        _commit_segmented(store, payload, block_size=4096)
+        transfer = session.encode_intent(5, transfer=1000)
+        assert store.select_representation(b'adaptive-test', b'obj-1', transfer).index == 2
+        material = store.materialize(b'adaptive-test', b'obj-1', intent=transfer, tag=100)
+        assert material.payload == payload[:4096] and material.representation_index == 0
+        assert material.constraints_satisfied
+        masked = store.materialize(b'adaptive-test', b'obj-1', intent=transfer, mask=2)
+        assert masked.payload == payload[4096:]
+
+
+def test_native_block_ranking_refuses_opaque_only_and_preserves_validity(session):
+    intent = session.encode_intent(5, transfer=1000)
+    opaque = session.encode_representation(fidelity=5, codec=1, codec_identity=RLE_CODEC, stored=10,
+        plain=100, decode_class=1, first_block=0, block_count=0, root=DIGEST_A, flags=1)
+    covered = session.encode_representation(fidelity=5, codec=0, codec_identity=ID_CODEC, stored=100,
+        plain=100, decode_class=0, first_block=0, block_count=1, root=DIGEST_B, flags=3)
+    assert session.rank_representations(opaque, covered, intent, require_blocks=True) == 1
+    assert session.rank_representations(covered, opaque, intent, require_blocks=True) == 0
+    bad = bytes(128)
+    assert session.rank_representations(bad, covered, intent, require_blocks=True) == 1
+    with pytest.raises(StoreError, match='no block-covered'):
+        session.select_representation([opaque], intent, require_blocks=True)
+
+
+@pytest.mark.parametrize('backend', FAST_BACKENDS)
+def test_block_constrained_ranking_cross_backend(session, backend):
+    intent = session.encode_intent(5, transfer=1000)
+    opaque = session.encode_representation(fidelity=5, codec=1, codec_identity=RLE_CODEC, stored=10,
+        plain=100, decode_class=1, first_block=0, block_count=0, root=DIGEST_A, flags=1)
+    covered = session.encode_representation(fidelity=5, codec=0, codec_identity=ID_CODEC, stored=100,
+        plain=100, decode_class=0, first_block=0, block_count=1, root=DIGEST_B, flags=3)
+    out = call_many('src/store/representation.mncs', 'store.representation.v1', [
+        ('ordinary', 'rank', [BYTES(opaque), BYTES(covered), BYTES(intent)]),
+        ('block', 'rank_for_blocks', [BYTES(opaque), BYTES(covered), BYTES(intent)]),
+        ('reverse', 'rank_for_blocks', [BYTES(covered), BYTES(opaque), BYTES(intent)]),
+        ('invalid', 'rank_for_blocks', [BYTES(bytes(128)), BYTES(covered), BYTES(intent)]),
+    ], backend, budget=131072)
+    assert as_int(require_returned(out['ordinary'], 'ordinary winner')) == 0
+    assert as_int(require_returned(out['block'], 'covered winner')) == 1
+    assert as_int(require_returned(out['reverse'], 'covered reverse')) == 0
+    assert as_int(require_returned(out['invalid'], 'valid covered')) == 1

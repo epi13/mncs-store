@@ -409,6 +409,8 @@ class StoreSession:
         self.toolchain = os.environ.get("MNCS_BIN", str(_language_target("mncs")))
         self.call_count = 0
         self.batch_count = 0
+        self.request_transport_bytes = 0
+        self.response_transport_bytes = 0
         self.semantic_seconds = 0.0
         open_started = time.perf_counter()
         # This is the artifact admission boundary for both freshly compiled
@@ -496,6 +498,7 @@ class StoreSession:
         profile = os.environ.get("MNCS_RUNTIME_PROFILE") is not None
         encode_started = time.perf_counter()
         request_bytes = json.dumps(request, separators=(",", ":")).encode()
+        self.request_transport_bytes += len(request_bytes)
         if profile:
             print(
                 "mncs-store-profile phase=host_argument_encode elapsed_ns="
@@ -520,6 +523,7 @@ class StoreSession:
         try:
             decode_started = time.perf_counter()
             text = self._library.mncs_response_text(response)
+            self.response_transport_bytes += len(text)
             values = json.loads(text.decode())
             if profile:
                 print(
@@ -1068,18 +1072,26 @@ class StoreSession:
         )
         return as_int(_returned(output))
 
-    def rank_representations(self, left: bytes, right: bytes, intent: bytes) -> int:
+    def representation_latency_permits(self, record: bytes, intent: bytes) -> bool:
+        """Project the MNCS latency verdict separately from fidelity."""
+        output = self.call(
+            "store.representation.v1", "latency_permits",
+            [bytes_value(bytes(intent)), bytes_value(bytes(record))],
+        )
+        return bool(_returned(output)["boolean"]["value"])
+
+    def rank_representations(self, left: bytes, right: bytes, intent: bytes, *, require_blocks: bool = False) -> int:
         """Return the MNCS pairwise tournament verdict (0/1/2)."""
 
         output = self.call(
             "store.representation.v1",
-            "rank",
+            "rank_for_blocks" if require_blocks else "rank",
             [bytes_value(bytes(left)), bytes_value(bytes(right)), bytes_value(bytes(intent))],
         )
         return as_int(_returned(output))
 
     def select_representation(
-        self, records: list[bytes], intent: bytes
+        self, records: list[bytes], intent: bytes, *, require_blocks: bool = False
     ) -> tuple[int, bool, int]:
         """Fold the MNCS tournament over validated records.
 
@@ -1097,7 +1109,7 @@ class StoreSession:
         self.validate_intent(intent)
         winner = 0
         for index in range(1, len(records)):
-            verdict = self.rank_representations(records[winner], records[index], intent)
+            verdict = self.rank_representations(records[winner], records[index], intent, require_blocks=require_blocks)
             if verdict == 1:
                 winner = index
             elif verdict != 0:
@@ -1105,6 +1117,8 @@ class StoreSession:
                     StoreResultCode.INTEGRITY_FAILURE,
                     "Store representation tournament reached no verdict",
                 )
+        if require_blocks and self.representation_fields(records[winner])["block_count"] == 0:
+            raise StoreError(StoreResultCode.DENIED, "Store has no block-covered representation", detail_code="REPRESENTATION_NOT_SELECTIVE")
         required = self.intent_fidelity(intent)
         satisfied = self.representation_satisfies(records[winner], required)
         return winner, satisfied, self.estimate_cost(records[winner], intent)

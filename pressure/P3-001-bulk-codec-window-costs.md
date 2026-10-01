@@ -62,3 +62,28 @@ Workaround in use: maximal batching (one retained call_batch per
 window-kind per payload), window independence (no cross-window
 state, so batching is sound), and explicit step budgets for
 canonical entry points. No host reimplementation of codec semantics.
+
+## Environment integration observation
+
+Canonical root: **MNCS-LANG-8F49A242F22D** (existing boundary/step-cost pressure;
+this observation does not create a duplicate root). The old no-in-process-boundary
+pressure MNCS-LANG-52A5E0C72A39 is obsolete; retained in-process execution exists.
+The missing substrate is now bounded bulk/binary byte transport and native
+aggregate orchestration, not an in-process call API in general.
+
+The eight-by-64-KiB measurement was re-run with the selected release pair and
+transport counters. Baseline: 524,288 plain bytes; 307,704 coded transfer bytes;
+769 inspect bytes; 65,536 selectively materialized bytes; 1,672 semantic index
+bytes; 33,335 calls. The instrumented run reports 45,816,050 request JSON bytes
+and 46,416,944 response JSON bytes across 226 batches and 33,337 calls (two
+additional latency projections). Source codec/transform behavior is unchanged.
+See `docs/evidence/adaptive-integration-*.json` for exact observed results,
+including the final native block-aware selection measurement.
+
+Provider integration is now usable through Environment and does not resolve
+this throughput root. Valid platform substrate remains filesystem/syscalls,
+locks, fsync and directory barriers. Temporary host orchestration remains
+window framing/batching, folding native tournament and monotone closure results,
+and selected chunk-tree traversal. Future native aggregates/binary retained
+calls must preserve finite bounds, typed admission, artifact identity, budgets,
+lifetimes, exact failures and authority. No host codec substitution is accepted.

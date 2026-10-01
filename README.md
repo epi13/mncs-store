@@ -198,3 +198,12 @@ The intended implementation is **MNCS language first**. If `mncs-language` canno
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+## Environment/provider entry
+
+Adaptive Store operations are callable through provider-owned descriptors. The
+local `.mncs/environment.json` selects Environment, Language, and Store; see
+[the provider contract](docs/provider.md) for entry, requests, selected runtime
+identity, read-only retrieval, and explicit physical inventory evolution. Run
+`python3 scripts/adaptive_store_proof.py` from `mncs-environment` for a real
+consumer/persistence/selective-retrieval proof.

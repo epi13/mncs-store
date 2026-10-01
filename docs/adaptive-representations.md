@@ -67,8 +67,8 @@ representation, since it has no decode cost.
 
 `estimate_cost` combines stored bytes × transfer weight, plain bytes ×
 memory weight, and decode-class × plain × compute weight with
-saturating arithmetic (larger stays larger). Latency is a constraint,
-not a weight: interactive budgets admit only copy/cheap decode
+saturating arithmetic (larger stays larger). Latency permission is reported separately from fidelity satisfaction and
+is subordinate to it during ranking. It is not a weight: interactive budgets admit only copy/cheap decode
 classes. All weights are relative costs, not physical units.
 
 ## Blocks and selective materialization
@@ -176,3 +176,14 @@ Designed but not implemented:
 - atomic batch puts with adaptive parameters (single puts only);
 - index integration over envelopes/tables (Index-owned; Store
   exposes the facts).
+
+## Callable provider and explicit evolution
+
+See [provider.md](provider.md) for authoritative discovered operations and the
+real Environment consumer proof. `EmbeddedStore.add_representation` publishes a
+new generation/physical manifest while keeping logical and content identity
+stable; previous generations and their inventories remain immutable. Repeated
+admission of the same record is idempotent. Removal/migration policy remains
+future work. `Selection.satisfied` means fidelity; `latency_permitted` is separate,
+and `constraints_satisfied` combines the two. Frequency, lifetime and locality
+remain advisory inputs for caller policy, without arbitrary Store defaults.

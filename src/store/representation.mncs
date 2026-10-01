@@ -327,6 +327,21 @@ fn rank(a: [byte; 128], b: [byte; 128], intent: [byte; 64]) -> (result: u64) {
     return 0;
 }
 
+// An explicit block selector requires coverage before cost optimization.
+// Keep the ordinary fidelity/latency ordering among covered candidates;
+// validity remains prior to coverage. Opaque-only inputs still elect a
+// deterministic proposal so the caller can report missing coverage.
+fn rank_for_blocks(a: [byte; 128], b: [byte; 128], intent: [byte; 64]) -> (result: u64) {
+    if validate_exact(a) != 0 || validate_exact(b) != 0 {
+        return rank(a, b, intent);
+    }
+    let a_covered: bool = block_count(a) > 0;
+    let b_covered: bool = block_count(b) > 0;
+    if a_covered && !b_covered { return 0; }
+    if !a_covered && b_covered { return 1; }
+    return rank(a, b, intent);
+}
+
 fn roundtrip(value: Representation) -> (result: bool) {
     let bytes: [byte; 128] = encode(value);
     return validate(bytes) == 0
