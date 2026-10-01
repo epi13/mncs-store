@@ -13,12 +13,12 @@ bytes), and 8x -> 1x decode amplification. The observed on-disk file size is
 increases stored inventory while reducing necessary retrieval; compression
 alone does not imply lower total storage.
 
-The instrumented run exposes ~92.2 MB of JSON transport, 226 retained batches,
-and 33,337 semantic calls. Two additional calls project latency permission;
-the codec transformation is unchanged. Timing is from single runs under
+The instrumented run exposes 92,278,201 bytes of JSON transport, 229 retained batches,
+and 33,349 semantic calls. Additional metadata calls project latency
+permission and block coverage; the codec transformation is unchanged. Timing is from single runs under
 concurrent workload and is not a controlled speedup/regression experiment.
-The final block-aware ranking addition is measured again before delivery;
-its final artifact and counters replace the instrumented evidence file.
+The final native block-aware selection is included in the instrumented evidence
+file; the original whole-object codec and exactness workload is unchanged.
 
 The real Environment proof uses actual context, capability inventory and session
 records; its sizes depend on those records. It reports per-operation bytes and
