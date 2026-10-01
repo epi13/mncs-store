@@ -61,6 +61,8 @@ CORPUS_SUITES = [
      [], EFFECT_BACKENDS),
     ("src/store/generation.mncs", "tests/corpora/generation-corpus.json", [], None),
     ("src/store/recovery.mncs", "tests/corpora/recovery-corpus.json", [], None),
+    ("src/store/projection.mncs", "tests/corpora/projection-corpus.json", [], None),
+    ("src/store/receipt.mncs", "tests/corpora/receipt-corpus.json", [], None),
 ]
 
 PROBE_SRC = "tests/fixtures/effects_probe.mncs"
@@ -82,6 +84,8 @@ ELABORATION_SOURCES = [
     "src/store/generation.mncs",
     "src/store/recovery.mncs",
     "src/store/relationship.mncs",
+    "src/store/projection.mncs",
+    "src/store/receipt.mncs",
     "tests/fixtures/checked_arith_canary.mncs",
     "tests/fixtures/effects_probe.mncs",
 ]
