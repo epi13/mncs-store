@@ -82,6 +82,26 @@
         ]
       },
       {
+        "contract": "projection-state",
+        "version": "1",
+        "kind": "storage-contract",
+        "stability": "experimental",
+        "fingerprint_sources": [
+          "src/store/projection.mncs",
+          "tests/corpora/projection-corpus.json"
+        ]
+      },
+      {
+        "contract": "publication-receipt",
+        "version": "1",
+        "kind": "storage-contract",
+        "stability": "experimental",
+        "fingerprint_sources": [
+          "src/store/receipt.mncs",
+          "tests/corpora/receipt-corpus.json"
+        ]
+      },
+      {
         "contract": "adaptive-representations",
         "version": "1",
         "kind": "storage-contract",

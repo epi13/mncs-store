@@ -23,5 +23,6 @@ RFCs record storage semantics that affect more than one implementation unit or c
 | [0017](0017-phase2-multichunk-generations-recovery.md) | Multi-chunk objects, generation commits, recovery | Accepted for implementation |
 | [0018](0018-generic-relationship-records.md) | Generic relationship records v2 | Accepted for implementation |
 | [0019](0019-adaptive-representations.md) | Adaptive physical representations | Accepted for implementation |
+| [0020](0020-projection-state-receipts.md) | Projection state and publication receipts | Proposed |
 
 A future RFC may supersede an accepted RFC, but implementations must not silently diverge from accepted semantics.
