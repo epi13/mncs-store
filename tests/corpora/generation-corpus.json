@@ -9959,7 +9959,7 @@
       }
      }
     ],
-    "step_budget": 65536
+    "step_budget": 1048576
    },
    "expected": [
     {
@@ -15280,7 +15280,7 @@
       }
      }
     ],
-    "step_budget": 65536
+    "step_budget": 1048576
    },
    "expected": [
     {
@@ -20601,7 +20601,7 @@
       }
      }
     ],
-    "step_budget": 65536
+    "step_budget": 1048576
    },
    "expected": [
     {
@@ -25922,7 +25922,7 @@
       }
      }
     ],
-    "step_budget": 65536
+    "step_budget": 1048576
    },
    "expected": [
     {

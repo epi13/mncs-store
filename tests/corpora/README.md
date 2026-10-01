@@ -42,7 +42,7 @@ and refusal is whole-program, so even the pure cases in those files are
 bytecode-scoped. Digests are cross-checked against hashlib oracles.
 Pure-only modules (identity, descriptor, generation, recovery) run on
 all five backends, including the 1024-byte `table_contains` scans
-(explicit 64k step budget). The 1020-byte v2 manifest vectors live in
+(explicit bounded budgets). The 1020-byte v2 manifest vectors live in
 the bytecode-scoped manifest-v2 suite (whole-program refusal, above).
 
 ## 2. Lifecycle tests (`tests/test_lifecycle.py`)
@@ -82,3 +82,13 @@ Set `MNCS_BIN` (default: the mncs-language debug CLI) and
 `MNCS_BACKENDS` (default: all five executable backends) to adapt to an
 environment. `MNCS_LIBRARY_PATH` is managed by the harness — do not
 override it when running these tests.
+
+### Selected-toolchain scan budget evidence
+
+On selected Language `425de201`, the four nonempty 1024-byte generation
+`table_contains` cases exhaust the former 65,536 budget on portable Wasm.
+The unchanged oracle cases return correctly at a bounded 1,048,576 request
+budget (reported Wasm steps: 13,240,496 per case); 262,144 still exhausts.
+These four checked-in budgets now reflect that measured backend cost.
+No expected values or required compilation obligations are relaxed. Request
+budgets and reported execution steps are backend-relative quantities.
