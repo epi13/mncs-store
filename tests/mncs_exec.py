@@ -21,9 +21,23 @@ MNCS_BIN = os.environ.get(
     "MNCS_BIN",
     "/home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
 )
-MNCS_LANG_LIB = os.environ.get(
-    "MNCS_LANG_LIB", "/home/epi13/Documents/Projects/mncs-language/library"
-)
+def _selected_library():
+    from pathlib import Path
+    explicit = os.environ.get('MNCS_LANG_LIB') or os.environ.get('MNCS_LIBRARY_ROOT')
+    if explicit:
+        return explicit
+    provider = os.environ.get('MNCS_STDLIB_ROOT')
+    if provider:
+        return str(Path(provider) / 'library')
+    language = Path(MNCS_BIN).resolve().parents[2]
+    for family in (Path(REPO_ROOT).parent, language.parent):
+        dedicated = family / 'mncs-stdlib/library'
+        if dedicated.is_dir():
+            return str(dedicated)
+    return str(language / 'library')
+
+
+MNCS_LANG_LIB = _selected_library()
 
 BACKENDS = [
     "mncs-research-bytecode",
