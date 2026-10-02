@@ -66,3 +66,17 @@ The next pressure source is Fabric's controller/worker/bundle state. See
 [Fabric pressure after the Forge cutover](fabric-pressure-next.md) for the
 bounded batch-generation, snapshot, and retention capability that should be
 added before a Fabric migration.
+
+
+## Committed binding observations
+
+`EmbeddedStore.domain_bindings_at(generation)` returns verified committed
+binding identities for event replay. It checks generation and binding metadata,
+rejects future/invalid generations, and does not materialize payloads. Identity
+appearance is a notification, not payload-validity or domain-evidence authority.
+Consumers must use `find_bound_objects`/owning read APIs before admitting payloads.
+
+A read-only Store handle neither recovers nor publishes. Environment uses this
+existing boundary for warm reads, then opens a writable handle over the same
+admitted native session when effects are needed. Writable recovery, object
+verification and CAS remain mandatory at that mutation boundary.

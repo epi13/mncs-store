@@ -482,3 +482,30 @@ def test_real_processes_allow_one_expected_generation_commit(tmp_path: Path) -> 
     with EmbeddedStore(tmp_path, session=_session()) as reopened:
         assert reopened.current_generation == 1
         assert len(reopened.current_objects()) == 1
+
+
+def test_binding_identity_feed_reads_committed_history_without_payload_materialization(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(domain_schema=b'fixture/1', domain_identity=b'first',
+            descriptor=b'fixture-descriptor/1', payload=b'first payload', expected_generation=0)
+        first = store.current_generation
+        store.put_bound_object(domain_schema=b'fixture/1', domain_identity=b'second',
+            descriptor=b'fixture-descriptor/1', payload=b'second payload', expected_generation=first)
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+        reader._read_entry = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('feed read payload'))
+        assert reader.domain_bindings_at(first) == ((b'fixture/1', b'first'),)
+        assert reader.domain_bindings_at(reader.current_generation) == ((b'fixture/1', b'first'), (b'fixture/1', b'second'))
+        for invalid in (True, -1, reader.current_generation + 1):
+            with pytest.raises(StoreError):
+                reader.domain_bindings_at(invalid)
+
+
+def test_binding_identity_feed_cannot_hide_corrupt_binding_metadata(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        result = store.put_bound_object(domain_schema=b'fixture/1', domain_identity=b'first',
+            descriptor=b'fixture-descriptor/1', payload=b'first payload', expected_generation=0)
+    binding = next((tmp_path / 'bindings').iterdir())
+    binding.write_bytes(b'corrupt binding')
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+        with pytest.raises(StoreIntegrityError):
+            reader.domain_bindings_at(reader.current_generation)

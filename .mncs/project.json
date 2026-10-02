@@ -341,6 +341,20 @@
             "add-representation"
           ]
         }
+      },
+      {
+        "contract": "binding-observation",
+        "version": "1",
+        "kind": "read-only-committed-binding-feed",
+        "stability": "experimental",
+        "effects": [
+          "read"
+        ],
+        "fingerprint_sources": [
+          "python/mncs_store/embedded.py",
+          "tests/test_embedded_store.py",
+          "docs/consumer-contracts.md"
+        ]
       }
     ],
     "consumes": [

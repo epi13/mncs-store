@@ -2791,6 +2791,19 @@ class EmbeddedStore:
     def current_objects(self) -> list[StoredObject]:
         return self._verified_projection()
 
+    def domain_bindings_at(self, generation: int) -> tuple[tuple[bytes, bytes], ...]:
+        """Verified committed binding identities for bounded event replay.
+
+        Generation and binding metadata are verified. Payloads are deliberately
+        not materialized; a domain owner must read its object before admission.
+        This is an observation feed, never evidence that payloads are valid.
+        """
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
+            raise StoreError(StoreResultCode.DENIED, "generation must be a non-negative integer")
+        if generation > self.current_generation:
+            raise StoreError(StoreResultCode.DENIED, "generation is ahead of the committed Store head")
+        return tuple((schema, identity) for _, schema, identity in self._domain_binding_index(generation))
+
     def objects_at(self, generation: int) -> list[StoredObject]:
         """Return the verified immutable object projection at one generation.
 
