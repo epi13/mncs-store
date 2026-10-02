@@ -3,6 +3,9 @@ build/
 dist/
 target/
 .mncs/
+# Provider-managed agent worktrees (environment provision_checkouts);
+# environment-owned runtime state, never source.
+/.worktrees/
 *.tmp
 *.log
 .DS_Store
