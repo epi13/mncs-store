@@ -58,6 +58,34 @@ def _language_target(filename: str) -> Path:
     return language / "target" / "debug" / filename
 
 
+def _library_roots(language: Path, environment: dict[str, str]) -> list[Path]:
+    """Bind provider-owned library sources, including pre-extraction checkouts.
+
+    An explicit stdlib selection is authoritative (empty disables discovery).
+    Otherwise prefer the stdlib sibling; legacy language sources are used only
+    when that provider is absent. Explicit roots remain part of admission and
+    cache identity, so hermetic callers can supply their own complete closure.
+    """
+    roots = [Path(item).expanduser().resolve() for item in
+             environment.get("MNCS_LIBRARY_PATH", "").split(os.pathsep) if item]
+    selected = environment.get("MNCS_STDLIB_ROOT")
+    if selected is not None:
+        if selected.strip():
+            library = Path(selected).expanduser().resolve() / "library"
+            if not library.is_dir():
+                raise StoreError(StoreResultCode.PLATFORM_UNSUPPORTED,
+                                 f"selected stdlib library is unavailable: {library}")
+            roots.append(library)
+    else:
+        sibling = language.parent / "mncs-stdlib" / "library"
+        legacy = language / "library"
+        if sibling.is_dir():
+            roots.append(sibling.resolve())
+        elif legacy.is_dir():
+            roots.append(legacy.resolve())
+    return list(dict.fromkeys(roots))
+
+
 def u16(value: int) -> dict[str, Any]:
     return {"integer": {"value": int(value), "type": {"bits": 16, "signed": False}}}
 
@@ -185,6 +213,7 @@ class StoreSession:
             name: environment.get(name, "")
             for name in (
                 "MNCS_LIBRARY_PATH",
+                "MNCS_STDLIB_ROOT",
                 "MNCS_STDLIB_BUNDLE",
                 "MNCS_PROFILE",
                 "MNCS_COMPILER_PROFILE",
@@ -202,7 +231,10 @@ class StoreSession:
             },
             "source_roots": {
                 "store": cls._source_manifest(store_root / "src"),
-                "language": cls._source_manifest(language / "library"),
+                "libraries": [
+                    {"root": str(root), "sources": cls._source_manifest(root)}
+                    for root in _library_roots(language, environment)
+                ],
             },
             "compiler": {
                 "path": str(compiler),
@@ -312,8 +344,9 @@ class StoreSession:
                     f"Store compiler/source unavailable: {compiler}, {source}",
                 )
             environment = dict(os.environ)
+            roots = _library_roots(language, environment)
             environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(
-                [str(language / "library"), str(store_root / "src")]
+                [str(root) for root in roots] + [str(store_root / "src")]
             )
             target = "mncs-research-bytecode"
             key, material = cls._artifact_identity_material(

@@ -9,6 +9,26 @@ an ambient `MNCS_STORE_ARTIFACT`; standalone Store consumers retain their explic
 artifact override. This prevents a development capability from testing foreign
 Store bytes while claiming the selected checkout.
 
+## Standard-library admission
+
+Store binds `MNCS_STDLIB_ROOT/library` when explicitly selected. An empty
+`MNCS_STDLIB_ROOT` disables discovery; an invalid explicit selection fails
+closed. Otherwise the `mncs-stdlib` sibling of the selected Language checkout
+owns the library. Pre-extraction checkouts may use `mncs-language/library` only
+when the stdlib sibling is absent. Explicit `MNCS_LIBRARY_PATH` roots are
+preserved. No library source is copied into Store or synthesized by the host.
+
+Artifact admission and cache identity use the same actual ordered library
+roots and their source digests, plus the compiler bytes, Store sources,
+target, relevant configuration and explicit bundle. Changing stdlib content
+invalidates the artifact even when Language HEAD is unchanged. Hermetic
+callers disable discovery and supply their full source closure explicitly.
+
+The 2026-10-02 extraction incident (`MNE173`, `mncs.std.sha256.v1`) came from
+Store overwriting library search paths with the removed Language directory.
+The source-provider binding fixes that transport fracture without taking
+ownership of the still independently delivered stdlib extraction.
+
 ## Enter and discover
 
 From the Environment checkout:

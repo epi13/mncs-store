@@ -3,17 +3,56 @@ from __future__ import annotations
 import gc
 import hashlib
 import json
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
 import mncs_store.embedded as embedded_module
 import mncs_store.session as session_module
+from mncs_store.errors import StoreError
 from mncs_store.embedded import EmbeddedStore
 from mncs_store.session import (
     STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS,
     STORE_ARTIFACT_OUTPUT_BYTES,
     StoreSession,
 )
+
+
+def test_stdlib_provider_selection_and_hermetic_discovery(tmp_path):
+    language = tmp_path / "mncs-language"
+    legacy = language / "library"
+    sibling = tmp_path / "mncs-stdlib" / "library"
+    legacy.mkdir(parents=True)
+    assert session_module._library_roots(language, {}) == [legacy]
+    sibling.mkdir(parents=True)
+    assert session_module._library_roots(language, {}) == [sibling]
+    assert session_module._library_roots(language, {"MNCS_STDLIB_ROOT": ""}) == []
+    explicit = tmp_path / "selected" / "library"
+    explicit.mkdir(parents=True)
+    assert session_module._library_roots(language, {
+        "MNCS_STDLIB_ROOT": str(explicit.parent)}) == [explicit]
+    with pytest.raises(StoreError, match="selected stdlib"):
+        session_module._library_roots(language, {"MNCS_STDLIB_ROOT": str(tmp_path / "missing")})
+
+
+def test_artifact_cache_binds_actual_stdlib_content(tmp_path):
+    store = tmp_path / "store"
+    source = store / "src" / "application.mncs"
+    source.parent.mkdir(parents=True)
+    source.write_text("module store.application;")
+    compiler = tmp_path / "mncs"
+    compiler.write_bytes(b"compiler")
+    library = tmp_path / "mncs-stdlib" / "library"
+    library.mkdir(parents=True)
+    module = library / "hash.mncs"
+    module.write_text("first")
+    kwargs = dict(source=source, compiler=compiler, language=tmp_path / "mncs-language",
+                  store_root=store, target="mncs-research-bytecode", environment={})
+    before, material = StoreSession._artifact_identity_material(**kwargs)
+    assert material["source_roots"]["libraries"][0]["root"] == str(library)
+    module.write_text("second")
+    after, _ = StoreSession._artifact_identity_material(**kwargs)
+    assert before != after
 
 
 def test_sha256_file_uses_host_digest_for_bulk_verification(tmp_path: Path) -> None:
@@ -170,6 +209,8 @@ def test_retained_store_call_batch_uses_one_abi_crossing() -> None:
     session._library = Library()
     session.call_count = 0
     session.batch_count = 0
+    session.request_transport_bytes = 0
+    session.response_transport_bytes = 0
     session.semantic_seconds = 0.0
 
     results = session.call_batch([
