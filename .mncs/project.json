@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 13,
+  "revision": 14,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."
@@ -370,6 +370,17 @@
           "docs/consumer-contracts.md",
           "docs/pressure-reconciliation.md"
         ]
+      },
+      {
+        "contract": "mncs-stdlib.stdlib-source",
+        "envelope": {
+          "op": "any"
+        },
+        "required": true,
+        "evidence_refs": [
+          "src/store/content.mncs"
+        ],
+        "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
       }
     ],
     "tests": [
@@ -398,7 +409,9 @@
           },
           "toolchain_env": "MNCS_BIN",
           "environment": {
-            "MNCS_STORE_ARTIFACT": ""
+            "MNCS_STORE_ARTIFACT": "",
+            "PYTHONPATH": "python",
+            "MNCS_STORE_PYTHON": "python"
           }
         }
       },

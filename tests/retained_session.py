@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from store_phase1a import Engine, StoreHarnessError
+from mncs_store.session import _library_roots
 
 
 STORE_ROOT = Path(
@@ -75,7 +76,8 @@ class RetainedSession:
             raise StoreHarnessError(f"MNCS source not found: {source_path}")
         environment = dict(os.environ)
         environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(
-            [str(LANGUAGE_ROOT / "library"), str(STORE_ROOT / "src")]
+            [str(root) for root in _library_roots(LANGUAGE_ROOT, environment)]
+            + [str(STORE_ROOT / "src")]
         )
         environment["MNCS_TIMINGS"] = "1"
         compile_started = time.perf_counter()
