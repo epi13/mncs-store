@@ -2,7 +2,8 @@
 build/
 dist/
 target/
-.mncs/
+.mncs/cache/
+.mncs/doctor/
 # Provider-managed agent worktrees (environment provision_checkouts);
 # environment-owned runtime state, never source.
 /.worktrees/

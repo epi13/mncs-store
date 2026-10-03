@@ -1,5 +1,8 @@
 # mncs-store roadmap
 
+<!-- MNCS:generated:begin -->
+<!-- MNCS:generated:end -->
+
 The roadmap is ordered to prove semantics before scale. Distributed features should not mask weaknesses in the single-node object model.
 
 ## Phase 0 — architecture bootstrap

@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-store",
-  "revision": 14,
+  "revision": 15,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Store owns durable identity, representation, generations, integrity, placement, and recovery."
@@ -542,5 +542,11 @@
         }
       }
     ]
+  },
+  "projection_inventory": ".mncs/projections.json",
+  "structure_profile": {
+    "repository": "machine-native-complexity-development-specification",
+    "path": "profiles/semantic-project.json",
+    "identity": "sha256:259e41ea542e7a1400f1471b0316de4fafc888d6f953c8e91165ff2cfe1e78cb"
   }
 }

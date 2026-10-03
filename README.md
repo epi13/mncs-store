@@ -1,5 +1,8 @@
 # mncs-store
 
+<!-- MNCS:generated:begin -->
+<!-- MNCS:generated:end -->
+
 Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.
 
 > **Status:** Store now exposes a supported local embedded consumer boundary.
