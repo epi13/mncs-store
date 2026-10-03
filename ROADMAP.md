@@ -1,6 +1,9 @@
 # mncs-store roadmap
 
 <!-- MNCS:generated:begin -->
+## Evidence-bound roadmap
+
+- **complete** — Declared ambient projection surfaces satisfy their contract (`mncs-store:projection-conformance`)
 <!-- MNCS:generated:end -->
 
 The roadmap is ordered to prove semantics before scale. Distributed features should not mask weaknesses in the single-node object model.

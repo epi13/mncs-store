@@ -1,6 +1,31 @@
 # mncs-store
 
 <!-- MNCS:generated:begin -->
+## Project entry
+
+Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.
+
+```bash
+python3 -m pytest tests -q
+```
+
+Declared capabilities (declarations do not establish execution health):
+
+- `adaptive-add-representation/1` — storage-operation (experimental)
+- `adaptive-admit/1` — storage-operation (experimental)
+- `adaptive-inspect-envelope/1` — storage-operation (experimental)
+- `adaptive-list-representations/1` — storage-operation (experimental)
+- `adaptive-materialize/1` — storage-operation (experimental)
+- `adaptive-materialize-plan/1` — storage-operation (experimental)
+- `adaptive-read-blocks/1` — storage-operation (experimental)
+- `adaptive-read-synopsis/1` — storage-operation (experimental)
+- `adaptive-representations/1` — storage-contract (experimental)
+- `adaptive-select/1` — storage-operation (experimental)
+- `adaptive-status/1` — storage-operation (experimental)
+- `binding-observation/1` — read-only-committed-binding-feed (experimental)
+- Full inventory: `.mncs/project-view.json`.
+
+Semantic sources and ownership: `.mncs/projections.json`.
 <!-- MNCS:generated:end -->
 
 Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.

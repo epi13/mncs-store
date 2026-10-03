@@ -1,0 +1,400 @@
+{
+  "capabilities": [
+    {
+      "contract": "persistent-object",
+      "fingerprint_sources": [
+        "src/store/application.mncs",
+        "src/store/content.mncs",
+        "src/store/generation.mncs",
+        "python/mncs_store/"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "scalable-content",
+      "fingerprint_sources": [
+        "src/store/content.mncs",
+        "python/mncs_store/embedded.py",
+        "docs/invariants.md"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "durable-publication",
+      "fingerprint_sources": [
+        "src/store/generation.mncs",
+        "src/store/publication.mncs",
+        "src/store/recovery.mncs",
+        "python/mncs_store/embedded.py"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "typed-relations",
+      "fingerprint_sources": [
+        "src/store/relationship.mncs",
+        "src/store/provenance.mncs"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "2"
+    },
+    {
+      "contract": "provenance",
+      "fingerprint_sources": [
+        "src/store/provenance.mncs",
+        "docs/invariants.md"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "commit-feed",
+      "fingerprint_sources": [
+        "src/store/commit_feed.mncs"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "semantic-state",
+      "fingerprint_sources": [
+        "src/store/semantic_state.mncs"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "projection-state",
+      "fingerprint_sources": [
+        "src/store/projection.mncs",
+        "tests/corpora/projection-corpus.json"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "publication-receipt",
+      "fingerprint_sources": [
+        "src/store/receipt.mncs",
+        "tests/corpora/receipt-corpus.json"
+      ],
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-representations",
+      "effects": [
+        "read"
+      ],
+      "fingerprint_sources": [
+        "src/store/envelope.mncs",
+        "src/store/representation.mncs",
+        "src/store/intent.mncs",
+        "src/store/block.mncs",
+        "src/store/plan.mncs",
+        "src/store/codec.mncs",
+        "src/store/canonical.mncs",
+        "python/mncs_store/embedded.py"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "describe"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-contract",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-status",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "status"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-admit",
+      "effects": [
+        "write"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "admit"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-inspect-envelope",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "inspect-envelope"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-list-representations",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "list-representations"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-select",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "select"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-materialize",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "materialize"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-materialize-plan",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "materialize-plan"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-read-blocks",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "read-blocks"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-read-synopsis",
+      "effects": [
+        "read"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "read-synopsis"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "adaptive-add-representation",
+      "effects": [
+        "write"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "add-representation"
+        ],
+        "kind": "python",
+        "path": "scripts/provider.py",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS_BIN"
+      },
+      "kind": "storage-operation",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "binding-observation",
+      "effects": [
+        "read"
+      ],
+      "fingerprint_sources": [
+        "python/mncs_store/embedded.py",
+        "tests/test_embedded_store.py",
+        "docs/consumer-contracts.md"
+      ],
+      "kind": "read-only-committed-binding-feed",
+      "stability": "experimental",
+      "version": "1"
+    }
+  ],
+  "dependencies": [
+    {
+      "contract": "mncs-language.source-profile",
+      "envelope": {
+        "compatibility_ceiling": "0.18",
+        "minimum_required": "0.16",
+        "op": "compatible-minor",
+        "version": "0.16"
+      },
+      "evidence_refs": [
+        "src/store/publication.mncs",
+        "tests/mncs_exec.py"
+      ],
+      "required": true
+    },
+    {
+      "contract": "mncs.ingest.typed-handoff",
+      "envelope": {
+        "op": "exact",
+        "version": "1"
+      },
+      "evidence_refs": [
+        "docs/consumer-contracts.md",
+        "docs/pressure-reconciliation.md"
+      ],
+      "required": false,
+      "scope": "import/migration only; native producers persist directly through persistent-object"
+    },
+    {
+      "contract": "mncs-stdlib.stdlib-source",
+      "envelope": {
+        "op": "any"
+      },
+      "evidence_refs": [
+        "src/store/content.mncs"
+      ],
+      "required": true,
+      "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+    }
+  ],
+  "entry": [
+    "python3 -m pytest tests -q"
+  ],
+  "purpose": "Machine-native persistent storage for MNCS: typed objects, graphs, tensors, model state, provenance, versioned data, and zero-copy structures without reducing machine state to documents or tables.",
+  "repository": "mncs-store",
+  "schema_version": "mncs.project-view/1",
+  "source_identity": "sha256:7f42ccbce4c87b0ef7055afd2b15b00f40839acbd2b940446b2aaa1d7353f01e",
+  "structure": {}
+}
