@@ -1465,13 +1465,19 @@ class EmbeddedStore:
                     token,
                 )
             old_entries, old_relations, old_provenance = self._read_generation_parts(observed)
-            # A cleanly opened generation has already been fully verified and
-            # is still exact when the generation/feed identity is unchanged.
-            # Reuse that proof for publication validation; a missing or
-            # mismatched projection falls back to a complete Store read.
-            if not self._projection_matches_entries(observed, old_entries):
-                self._verified_projection(observed)
-            verified_projection = self._projection
+            # Publication validation needs generation integrity plus
+            # binding agreement, not a full payload re-read of every
+            # unrelated object. When the resident projection already
+            # matches, reuse and extend it; otherwise validate the
+            # generation's bindings selectively and leave the projection
+            # to rebuild on demand. Unrelated payload integrity stays
+            # content-addressed and is verified on every selective read;
+            # use verify() for a complete scrub.
+            extend_projection = self._projection_matches_entries(observed, old_entries)
+            if extend_projection:
+                verified_projection = self._projection
+            else:
+                self._domain_binding_index(observed)
             active_bindings = {entry.binding_id for entry in old_entries}
             existing_path = self._binding_path(binding_id)
             if existing_path.exists():
@@ -1591,29 +1597,33 @@ class EmbeddedStore:
             self._trip("during_cleanup")
             (transaction / "journal").unlink(missing_ok=True)
             transaction.rmdir()
-            # The publication is already fully validated above.  Extend the
-            # resident generation-bound read projection with the just-written
-            # object instead of forcing the next Forge query to reread every
-            # unchanged object.  Store's generation head and immutable object
-            # identities remain authoritative; this is only a rebuildable
-            # in-process cache.
+            # The publication is already fully validated above.  When the
+            # resident projection matched, extend it with the just-written
+            # object instead of forcing the next query to reread every
+            # unchanged object; otherwise invalidate it so later reads
+            # rebuild selectively.  Store's generation head and immutable
+            # object identities remain authoritative; this is only a
+            # rebuildable in-process cache.
             self._commit_feed_generation = None
             self._commit_feed = None
-            self._projection_generation = new_generation
-            committed_object = StoredObject(
-                domain_schema=domain_schema,
-                domain_identity=domain_identity,
-                logical_id=logical_id,
-                content_id=content_id,
-                representation_root=root,
-                binding_id=binding_id,
-                generation=new_generation,
-                ordinal=new_entry.ordinal,
-                descriptor=descriptor,
-                payload=payload,
-            )
-            self._projection = (*verified_projection, committed_object)
-            self._extend_lookup_maps(committed_object)
+            if extend_projection:
+                self._projection_generation = new_generation
+                committed_object = StoredObject(
+                    domain_schema=domain_schema,
+                    domain_identity=domain_identity,
+                    logical_id=logical_id,
+                    content_id=content_id,
+                    representation_root=root,
+                    binding_id=binding_id,
+                    generation=new_generation,
+                    ordinal=new_entry.ordinal,
+                    descriptor=descriptor,
+                    payload=payload,
+                )
+                self._projection = (*verified_projection, committed_object)
+                self._extend_lookup_maps(committed_object)
+            else:
+                self._invalidate_projection()
             return CommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
@@ -1783,9 +1793,14 @@ class EmbeddedStore:
                     token,
                 )
             old_entries, old_relations, old_provenance = self._read_generation_parts(observed)
-            if not self._projection_matches_entries(observed, old_entries):
-                self._verified_projection(observed)
-            verified_projection = self._projection
+            # As in put_bound_object: reuse a matching resident projection,
+            # otherwise validate bindings selectively without re-reading
+            # every unrelated payload.
+            extend_projection = self._projection_matches_entries(observed, old_entries)
+            if extend_projection:
+                verified_projection = self._projection
+            else:
+                self._domain_binding_index(observed)
             active_bindings = {entry.binding_id for entry in old_entries}
             duplicate_results: list[CommitResult] = []
             new_items: list[tuple[BoundObjectInput, bytes, bytes]] = []
@@ -1912,7 +1927,6 @@ class EmbeddedStore:
 
             self._commit_feed_generation = None
             self._commit_feed = None
-            self._projection_generation = new_generation
             committed_objects: list[StoredObject] = []
             commit_results: list[CommitResult] = []
             for item, binding_id, logical_id, content_id, root, ordinal in built:
@@ -1942,9 +1956,13 @@ class EmbeddedStore:
                         observed,
                     )
                 )
-            self._projection = (*verified_projection, *committed_objects)
-            for item in committed_objects:
-                self._extend_lookup_maps(item)
+            if extend_projection:
+                self._projection_generation = new_generation
+                self._projection = (*verified_projection, *committed_objects)
+                for item in committed_objects:
+                    self._extend_lookup_maps(item)
+            else:
+                self._invalidate_projection()
             return BatchCommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
