@@ -27,6 +27,7 @@ FANOUT = 31
 META_MAGIC = b"MS"
 HEAD_MAGIC = b"MH"
 GENERATION_MAGIC = b"MG"
+GENERATION_DELTA_MAGIC = b"MD"
 JOURNAL_MAGIC = b"SJ"
 MANIFEST_MAGIC = b"SM"
 NODE_MAGIC = b"SN"
@@ -46,11 +47,13 @@ MANIFEST_V2 = MANIFEST
 # synthesized deterministically through MNCS.
 MANIFEST_V3 = struct.Struct(">2sBBQIQI32s32s32s32s12s32s32s")
 GENERATION_HEADER = struct.Struct(">2sBBQIII")
+GENERATION_DELTA_HEADER = struct.Struct(">2sBBQQIII")
 GENERATION_ENTRY = struct.Struct(">12s32s32s32sQQ")
 BINDING_HEADER = struct.Struct(">2sBBII")
 JOURNAL = struct.Struct(">2sBBQQ32s")
 RELATION_SIZE = 172
 PROVENANCE_SIZE = 112
+GENERATION_CHECKPOINT_INTERVAL = 256
 ENVELOPE_SIZE = 256
 REPRESENTATION_SIZE = 128
 BLOCK_SIZE = 128
@@ -668,6 +671,97 @@ class EmbeddedStore:
         raw += b"".join(provenance)
         return raw
 
+    def _generation_delta_bytes(
+        self,
+        generation: int,
+        parent_generation: int,
+        entries: list[_Entry],
+        relations: list[bytes],
+        provenance: list[bytes],
+    ) -> bytes:
+        """Encode one immutable append/update delta from its exact parent.
+
+        Delta generations preserve the same logical full-snapshot API. They
+        contain only added or physically updated object entries and newly
+        committed typed records; periodic full checkpoints bound read cost.
+        """
+        if generation < 1 or parent_generation != generation - 1:
+            raise StoreIntegrityError("Store generation delta parent is not the prior generation")
+        ordered = sorted(entries, key=lambda item: item.logical_id)
+        raw = GENERATION_DELTA_HEADER.pack(
+            GENERATION_DELTA_MAGIC,
+            VERSION,
+            0,
+            generation,
+            parent_generation,
+            len(ordered),
+            len(relations),
+            len(provenance),
+        )
+        raw += b"".join(
+            GENERATION_ENTRY.pack(
+                entry.logical_id,
+                entry.binding_id,
+                entry.representation_root,
+                entry.content_id,
+                entry.total_length,
+                entry.ordinal,
+            )
+            for entry in ordered
+        )
+        raw += b"".join(relations)
+        raw += b"".join(provenance)
+        return raw
+
+    def _generation_publication_bytes(
+        self,
+        generation: int,
+        previous_entries: list[_Entry],
+        entries: list[_Entry],
+        previous_relations: list[bytes],
+        relations: list[bytes],
+        previous_provenance: list[bytes],
+        provenance: list[bytes],
+    ) -> bytes:
+        """Choose a bounded delta or a full compatibility checkpoint."""
+        if generation % GENERATION_CHECKPOINT_INTERVAL == 0:
+            return self._generation_bytes(generation, entries, relations, provenance)
+
+        old_by_id = {entry.logical_id: entry for entry in previous_entries}
+        new_by_id = {entry.logical_id: entry for entry in entries}
+        if len(old_by_id) != len(previous_entries) or len(new_by_id) != len(entries):
+            raise StoreIntegrityError("Store generation repeats a logical object")
+        if not old_by_id.keys() <= new_by_id.keys():
+            raise StoreIntegrityError("Store generation removed a committed object")
+        delta_entries: list[_Entry] = []
+        for logical_id, entry in new_by_id.items():
+            old = old_by_id.get(logical_id)
+            if old is None:
+                delta_entries.append(entry)
+            elif old != entry:
+                # A Store identity is immutable. A new physical representation
+                # may update only the root selected by the generation.
+                if (old.logical_id != entry.logical_id
+                        or old.binding_id != entry.binding_id
+                        or old.content_id != entry.content_id
+                        or old.total_length != entry.total_length
+                        or old.ordinal != entry.ordinal):
+                    raise StoreIntegrityError("Store generation rewrote immutable object identity")
+                delta_entries.append(entry)
+        if (len(relations) < len(previous_relations)
+                or relations[:len(previous_relations)] != previous_relations):
+            raise StoreIntegrityError("Store generation rewrote committed relations")
+        if (len(provenance) < len(previous_provenance)
+                or provenance[:len(previous_provenance)] != previous_provenance):
+            raise StoreIntegrityError("Store generation rewrote committed provenance")
+        return self._generation_delta_bytes(
+            generation,
+            generation - 1,
+            delta_entries,
+            relations[len(previous_relations):],
+            provenance[len(previous_provenance):],
+        )
+
     def _parse_generation_parts(
         self,
         raw: bytes,
@@ -712,14 +806,109 @@ class EmbeddedStore:
         self._validate_typed_records(relations, provenance, expected_generation)
         return entries, relations, provenance
 
+    def _parse_generation_delta_parts(
+        self,
+        raw: bytes,
+        expected_generation: int,
+    ) -> tuple[int, list[_Entry], list[bytes], list[bytes]]:
+        if len(raw) < GENERATION_DELTA_HEADER.size:
+            raise StoreIntegrityError("Store generation delta is truncated")
+        (magic, version, reserved, generation, parent_generation,
+         count, relation_count, provenance_count) = GENERATION_DELTA_HEADER.unpack_from(raw)
+        if magic != GENERATION_DELTA_MAGIC or version != VERSION or reserved != 0:
+            raise StoreIntegrityError("Store generation delta header is unknown")
+        if generation != expected_generation or parent_generation != generation - 1:
+            raise StoreIntegrityError("Store generation delta identity or parent is invalid")
+        expected = (
+            GENERATION_DELTA_HEADER.size
+            + count * GENERATION_ENTRY.size
+            + relation_count * RELATION_SIZE
+            + provenance_count * PROVENANCE_SIZE
+        )
+        if len(raw) != expected:
+            raise StoreIntegrityError("Store generation delta has a torn record tail")
+        entries: list[_Entry] = []
+        seen: set[bytes] = set()
+        offset = GENERATION_DELTA_HEADER.size
+        for _ in range(count):
+            entry = _Entry(*GENERATION_ENTRY.unpack_from(raw, offset))
+            offset += GENERATION_ENTRY.size
+            if entry.logical_id in seen:
+                raise StoreIntegrityError("Store generation delta repeats a logical object")
+            seen.add(entry.logical_id)
+            entries.append(entry)
+        relations_end = offset + relation_count * RELATION_SIZE
+        relations = [raw[start:start + RELATION_SIZE]
+                     for start in range(offset, relations_end, RELATION_SIZE)]
+        provenance = [raw[start:start + PROVENANCE_SIZE]
+                      for start in range(relations_end, len(raw), PROVENANCE_SIZE)]
+        self._validate_typed_records(
+            relations, provenance, expected_generation,
+            require_current_generation=True,
+        )
+        return parent_generation, entries, relations, provenance
+
+    def _generation_parts_from_bytes(
+        self,
+        generation: int,
+        raw: bytes,
+    ) -> tuple[list[_Entry], list[bytes], list[bytes]]:
+        if raw[:2] == GENERATION_MAGIC:
+            return self._parse_generation_parts(raw, generation)
+        if raw[:2] != GENERATION_DELTA_MAGIC:
+            raise StoreIntegrityError("Store generation encoding is unknown")
+
+        # Walk back to the nearest full checkpoint, then apply the chain once.
+        # Recursively materializing every intermediate full snapshot is correct
+        # but repeatedly sorts/copies the entire object table on long chains.
+        pending: list[tuple[list[_Entry], list[bytes], list[bytes]]] = []
+        selected_generation = generation
+        selected_raw = raw
+        while selected_raw[:2] == GENERATION_DELTA_MAGIC:
+            parent_generation, entries, relations, provenance = (
+                self._parse_generation_delta_parts(selected_raw, selected_generation)
+            )
+            pending.append((entries, relations, provenance))
+            if len(pending) >= GENERATION_CHECKPOINT_INTERVAL:
+                raise StoreIntegrityError("Store generation delta chain exceeds its checkpoint bound")
+            selected_generation = parent_generation
+            try:
+                selected_raw = (self.path / "generations" / f"{selected_generation:016x}").read_bytes()
+            except FileNotFoundError as exc:
+                raise StoreIntegrityError(
+                    f"committed Store generation is missing: {selected_generation}"
+                ) from exc
+        if selected_raw[:2] != GENERATION_MAGIC:
+            raise StoreIntegrityError("Store generation checkpoint encoding is unknown")
+
+        base_entries, base_relations, base_provenance = self._parse_generation_parts(
+            selected_raw, selected_generation)
+        entries_by_id = {entry.logical_id: entry for entry in base_entries}
+        relations = list(base_relations)
+        provenance = list(base_provenance)
+        for delta_entries, delta_relations, delta_provenance in reversed(pending):
+            for entry in delta_entries:
+                previous = entries_by_id.get(entry.logical_id)
+                if previous is not None and (
+                    previous.binding_id != entry.binding_id
+                    or previous.content_id != entry.content_id
+                    or previous.total_length != entry.total_length
+                    or previous.ordinal != entry.ordinal
+                ):
+                    raise StoreIntegrityError("Store generation delta rewrote immutable object identity")
+                entries_by_id[entry.logical_id] = entry
+            relations.extend(delta_relations)
+            provenance.extend(delta_provenance)
+        return sorted(entries_by_id.values(), key=lambda item: item.logical_id), relations, provenance
+
     def _parse_generation(self, raw: bytes, expected_generation: int) -> list[_Entry]:
-        entries, _relations, _provenance = self._parse_generation_parts(raw, expected_generation)
+        entries, _relations, _provenance = self._generation_parts_from_bytes(
+            expected_generation, raw)
         return entries
 
     def _read_generation(self, generation: int, *, verify_objects: bool) -> list[_Entry]:
-        path = self.path / "generations" / f"{generation:016x}"
         try:
-            entries = self._parse_generation(path.read_bytes(), generation)
+            entries, _relations, _provenance = self._read_generation_parts(generation)
         except FileNotFoundError as exc:
             raise StoreIntegrityError(f"committed Store generation is missing: {generation}") from exc
         if verify_objects:
@@ -792,7 +981,7 @@ class EmbeddedStore:
     def _read_generation_parts(self, generation: int) -> tuple[list[_Entry], list[bytes], list[bytes]]:
         path = self.path / "generations" / f"{generation:016x}"
         try:
-            return self._parse_generation_parts(path.read_bytes(), generation)
+            return self._generation_parts_from_bytes(generation, path.read_bytes())
         except FileNotFoundError as exc:
             raise StoreIntegrityError(f"committed Store generation is missing: {generation}") from exc
 
@@ -817,7 +1006,8 @@ class EmbeddedStore:
             return self._commit_feed
         path = self.path / "generations" / f"{selected_generation:016x}"
         raw = path.read_bytes()
-        entries, relations, provenance = self._parse_generation_parts(raw, selected_generation)
+        entries, relations, provenance = self._generation_parts_from_bytes(
+            selected_generation, raw)
         feed = self.session.encode_commit_feed(
             selected_generation,
             len(entries),
@@ -831,7 +1021,8 @@ class EmbeddedStore:
 
     def _valid_generation_bytes(self, generation: int, raw: bytes) -> bool:
         try:
-            entries = self._parse_generation(raw, generation)
+            entries, _relations, _provenance = self._generation_parts_from_bytes(
+                generation, raw)
             for entry in entries:
                 self._read_entry(entry, generation, verify_payload=True)
             return True
@@ -1550,10 +1741,13 @@ class EmbeddedStore:
             next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
             new_entry = _Entry(logical_id, binding_id, root, content_id, len(payload), next_ordinal)
             entries = old_entries + [new_entry]
-            generation_raw = self._generation_bytes(
+            generation_raw = self._generation_publication_bytes(
                 new_generation,
+                old_entries,
                 entries,
+                old_relations,
                 old_relations + relations,
+                old_provenance,
                 old_provenance + provenance,
             )
             transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
@@ -1714,7 +1908,9 @@ class EmbeddedStore:
             old_entries, relations, provenance = self._read_generation_parts(observed)
             entries = [(_Entry(item.logical_id, item.binding_id, root, item.content_id, item.total_length, item.ordinal)
                         if item.binding_id == binding_id else item) for item in old_entries]
-            generation_raw = self._generation_bytes(new_generation, entries, relations, provenance)
+            generation_raw = self._generation_publication_bytes(
+                new_generation, old_entries, entries, relations, relations,
+                provenance, provenance)
             transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
             transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
             staged_generation = transaction / "generation.stage"
@@ -1898,10 +2094,13 @@ class EmbeddedStore:
                 domain_index_additions.append(
                     (entry, item.domain_schema, item.domain_identity)
                 )
-            generation_raw = self._generation_bytes(
+            generation_raw = self._generation_publication_bytes(
                 new_generation,
+                old_entries,
                 entries,
+                old_relations,
                 old_relations + all_relations,
+                old_provenance,
                 old_provenance + all_provenance,
             )
             transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"

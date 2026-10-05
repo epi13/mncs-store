@@ -36,6 +36,15 @@ Content identity answers "are these immutable bytes/structures the same?" Logica
 
 Writes are assembled privately and become visible through an atomic generation commit. Readers bind to a stable generation/snapshot. A crash cannot make half a generation authoritative.
 
+The embedded adapter writes a full generation checkpoint every 256 commits and
+uses exact-parent immutable deltas between checkpoints. Each delta contains
+only new or physically updated object entries and newly appended typed records;
+it cannot remove committed identities or rewrite relation/provenance history.
+Readers expose the same complete snapshot API and accept both historical full
+generation files and the delta form. Recovery validates the parent chain and
+payload identities before selecting a candidate. This changes publication
+size, not generation identity, snapshot semantics, or the commit-feed contract.
+
 The exact commit journal/superblock mechanism is an implementation choice governed by RFC 0005 and RFC 0015.
 
 ### 5. Relationship and provenance layer

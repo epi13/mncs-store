@@ -475,6 +475,46 @@ def test_batch_publication_commits_all_objects_in_one_generation(tmp_path: Path)
         assert [item.domain_identity for item in store.current_objects()] == [b"one", b"two"]
 
 
+def test_delta_generations_preserve_snapshots_with_bounded_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import embedded as embedded_module
+
+    monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        for index in range(1, 6):
+            result = store.put_bound_object(
+                domain_schema=b"fixture/1",
+                domain_identity=f"object-{index}".encode(),
+                descriptor=b"fixture-descriptor/1",
+                payload=f"payload-{index}".encode(),
+                expected_generation=index - 1,
+            )
+            assert result.committed
+
+        generations = tmp_path / "generations"
+        assert (generations / f"{1:016x}").read_bytes()[:2] == b"MD"
+        assert (generations / f"{4:016x}").read_bytes()[:2] == b"MG"
+        delta = (generations / f"{5:016x}").read_bytes()
+        assert delta[:2] == b"MD"
+        entries, relations, provenance = store._read_generation_parts(5)
+        full = store._generation_bytes(5, entries, relations, provenance)
+        assert len(delta) < len(full) // 2
+        assert store.domain_bindings_at(2) == (
+            (b"fixture/1", b"object-1"),
+            (b"fixture/1", b"object-2"),
+        )
+        assert [item.domain_identity for item in store.objects_at(3)] == [
+            b"object-1", b"object-2", b"object-3"]
+        assert len(store.commit_feed(5)) > 0
+
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reopened:
+        assert reopened.current_generation == 5
+        assert [item.domain_identity for item in reopened.current_objects()] == [
+            b"object-1", b"object-2", b"object-3", b"object-4", b"object-5"]
+        assert reopened.domain_bindings_at(1) == ((b"fixture/1", b"object-1"),)
+
+
 def test_typed_relations_and_provenance_are_generation_bound(tmp_path: Path) -> None:
     session = _session()
     with EmbeddedStore(tmp_path, session=session) as store:
