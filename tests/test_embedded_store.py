@@ -711,3 +711,92 @@ def test_binding_identity_feed_cannot_hide_corrupt_binding_metadata(tmp_path: Pa
     with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
         with pytest.raises(StoreIntegrityError):
             reader.domain_bindings_at(reader.current_generation)
+
+
+def test_generation_prune_reclaims_below_checkpoint_floor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import embedded as embedded_module
+
+    monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        for index in range(1, 11):
+            result = store.put_bound_object(
+                domain_schema=b"fixture/1",
+                domain_identity=f"object-{index}".encode(),
+                descriptor=b"fixture-descriptor/1",
+                payload=f"payload-{index}".encode(),
+                expected_generation=index - 1,
+            )
+            assert result.committed
+        assert store.current_generation == 10
+        generations = tmp_path / "generations"
+        assert (generations / f"{4:016x}").read_bytes()[:2] == b"MG"
+
+        # Retention floor is the checkpoint at or below head - keep_last.
+        assert store.retention_floor(keep_last=4) == 4
+        inventory = store.generation_inventory(keep_last=4)
+        assert inventory["head"] == 10
+        assert inventory["floor"] == 4
+        assert inventory["floor_is_checkpoint"] is True
+        assert inventory["prunable_files"] == 3
+        assert inventory["prunable_bytes"] > 0
+
+        # Dry runs classify without deleting.
+        preview = store.prune_generations(keep_last=4, dry_run=True)
+        assert preview["removed_files"] == 0
+        assert preview["prunable_files"] == 3
+        assert (generations / f"{1:016x}").exists()
+
+        pruned = store.prune_generations(keep_last=4, dry_run=False)
+        assert pruned["removed_files"] == 3
+        assert pruned["removed_bytes"] == inventory["prunable_bytes"]
+        assert pruned["floor"] == 4
+        assert pruned["head"] == 10
+        # The genesis anchor survives; only (genesis, floor) is reclaimed.
+        assert (generations / f"{0:016x}").exists()
+        for generation in range(1, 4):
+            assert not (generations / f"{generation:016x}").exists()
+        for generation in range(4, 11):
+            assert (generations / f"{generation:016x}").exists()
+
+        # The retained window still replays: floor reads, cursor reads read,
+        # and the bounded delta feed covers (cursor, head].
+        assert [item.domain_identity for item in store.objects_at(4)] == [
+            f"object-{index}".encode() for index in range(1, 5)]
+        assert [item.domain_identity for item in store.objects_at(10)] == [
+            f"object-{index}".encode() for index in range(1, 11)]
+        assert store.domain_bindings_since(6) == tuple(
+            (generation, b"fixture/1", f"object-{generation}".encode())
+            for generation in range(7, 11)
+        )
+        assert store.generation_inventory(keep_last=4)["prunable_files"] == 0
+
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reopened:
+        assert reopened.current_generation == 10
+        assert len(reopened.current_objects()) == 10
+        with pytest.raises(StoreError):
+            reopened.prune_generations(keep_last=4, dry_run=False)
+
+
+def test_generation_prune_is_noop_inside_retention_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import embedded as embedded_module
+
+    monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(
+            domain_schema=b"fixture/1",
+            domain_identity=b"only",
+            descriptor=b"fixture-descriptor/1",
+            payload=b"payload",
+            expected_generation=0,
+        )
+        assert store.retention_floor(keep_last=4096) == 0
+        pruned = store.prune_generations(keep_last=4096, dry_run=False)
+        assert pruned["removed_files"] == 0
+        assert (tmp_path / "generations" / f"{0:016x}").exists()
+        for invalid in (True, 0, -1):
+            with pytest.raises(StoreError):
+                store.prune_generations(keep_last=invalid, dry_run=True)

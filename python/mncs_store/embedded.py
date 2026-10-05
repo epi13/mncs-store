@@ -3293,6 +3293,139 @@ class EmbeddedStore:
         self._verified_projection(self.current_generation)
         return self.recovery_result
 
+    def retention_floor(self, *, keep_last: int = 4096) -> int:
+        """Return the oldest generation retained under a bounded replay window.
+
+        The floor is the full checkpoint at or below ``head - keep_last``,
+        so every generation in the retained window stays readable through
+        its delta chain. The default window matches the bounded replay cap
+        accepted by :meth:`domain_bindings_since`.
+        """
+
+        if isinstance(keep_last, bool) or not isinstance(keep_last, int) or keep_last < 1:
+            raise StoreError(StoreResultCode.DENIED, "retained generation window is invalid")
+        head = self.current_generation
+        if keep_last > head:
+            return 0
+        return ((head - keep_last) // GENERATION_CHECKPOINT_INTERVAL) * GENERATION_CHECKPOINT_INTERVAL
+
+    def generation_inventory(self, *, keep_last: int = 4096) -> dict[str, object]:
+        """Classify generation files against the retention floor without mutating."""
+
+        head = self.current_generation
+        floor = self.retention_floor(keep_last=keep_last)
+        prunable_files = 0
+        prunable_bytes = 0
+        retained_files = 0
+        retained_bytes = 0
+        unknown_files = 0
+        generations = self.path / "generations"
+        try:
+            names = sorted(path.name for path in generations.iterdir() if path.is_file())
+        except FileNotFoundError:
+            names = []
+        for name in names:
+            try:
+                generation = int(name, 16)
+            except ValueError:
+                unknown_files += 1
+                continue
+            if len(name) != 16 or generation < 0 or f"{generation:016x}" != name:
+                unknown_files += 1
+                continue
+            size = (generations / name).stat().st_size
+            if 0 < generation < floor:
+                prunable_files += 1
+                prunable_bytes += size
+            else:
+                retained_files += 1
+                retained_bytes += size
+        floor_is_checkpoint = False
+        if floor <= head:
+            try:
+                floor_is_checkpoint = (generations / f"{floor:016x}").read_bytes()[:2] == GENERATION_MAGIC
+            except OSError:
+                floor_is_checkpoint = False
+        return {
+            "head": head,
+            "floor": floor,
+            "keep_last": keep_last,
+            "checkpoint_interval": GENERATION_CHECKPOINT_INTERVAL,
+            "prunable_files": prunable_files,
+            "prunable_bytes": prunable_bytes,
+            "retained_files": retained_files,
+            "retained_bytes": retained_bytes,
+            "unknown_files": unknown_files,
+            "floor_is_checkpoint": floor_is_checkpoint,
+        }
+
+    def prune_generations(self, *, keep_last: int = 4096, dry_run: bool = True) -> dict[str, object]:
+        """Reclaim generation files below the retention floor.
+
+        Only files strictly below the verified full-checkpoint floor are
+        removed; unknown files, the genesis anchor, the floor, and every
+        newer generation are never touched. A dry run classifies without
+        deleting. After a real prune the floor and head are re-read from
+        disk to prove the retained delta chain is intact.
+        """
+
+        if self._closed:
+            raise StoreError(StoreResultCode.DENIED, "Store is closed")
+        if not dry_run and self.read_only:
+            raise StoreError(StoreResultCode.DENIED, "Store is read-only; pruning is forbidden")
+        if isinstance(keep_last, bool) or not isinstance(keep_last, int) or keep_last < 1:
+            raise StoreError(StoreResultCode.DENIED, "retained generation window is invalid")
+        head = self.current_generation
+        floor = self.retention_floor(keep_last=keep_last)
+        generations = self.path / "generations"
+        candidates = [generation for generation in range(1, floor)]
+        prunable = [generation for generation in candidates if (generations / f"{generation:016x}").is_file()]
+        prunable_bytes = sum((generations / f"{generation:016x}").stat().st_size for generation in prunable)
+        report: dict[str, object] = {
+            "head": head,
+            "floor": floor,
+            "keep_last": keep_last,
+            "dry_run": bool(dry_run),
+            "prunable_files": len(prunable),
+            "prunable_bytes": prunable_bytes,
+            "removed_files": 0,
+            "removed_bytes": 0,
+        }
+        if dry_run or not prunable:
+            return report
+        with self._publication_lock():
+            head = self.current_generation
+            floor = self.retention_floor(keep_last=keep_last)
+            try:
+                floor_raw = (generations / f"{floor:016x}").read_bytes()
+            except OSError as exc:
+                raise StoreIntegrityError(f"retention floor generation is missing: {floor}") from exc
+            # Fail closed unless the floor is a self-contained full checkpoint.
+            self._parse_generation_parts(floor_raw, floor)
+            removed = 0
+            removed_bytes = 0
+            for generation in range(1, floor):
+                path = generations / f"{generation:016x}"
+                try:
+                    removed_bytes += path.stat().st_size
+                except FileNotFoundError:
+                    continue
+                path.unlink()
+                removed += 1
+            _sync_directory(generations)
+            # Prove the retained window still reads from disk.
+            self._read_generation_parts(floor)
+            self._read_generation_parts(head)
+            report.update(
+                {
+                    "head": head,
+                    "floor": floor,
+                    "removed_files": removed,
+                    "removed_bytes": removed_bytes,
+                }
+            )
+            return report
+
     def close(self) -> None:
         if self._closed:
             return
