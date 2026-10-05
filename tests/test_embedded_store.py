@@ -261,6 +261,129 @@ def test_publication_validates_selectively_without_rereading_unrelated_payloads(
             reopened.verify()
 
 
+def test_generation_scoped_domain_index_advances_across_small_publications(
+    tmp_path: Path,
+) -> None:
+    """Exact lookups after publication reuse the verified metadata prefix."""
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False
+    ) as store:
+        first = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"first",
+            descriptor=b"test-descriptor/1",
+            payload=b"first-payload",
+            expected_generation=0,
+        )
+        assert first.code is StoreResultCode.COMMITTED
+        assert store._domain_index_generation == 1
+        assert len(store._domain_index) == 1
+
+        assert [item.domain_identity for item in store.find_bound_objects(
+            b"test.domain/1", b"first"
+        )] == [b"first"]
+        second = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"second",
+            descriptor=b"test-descriptor/1",
+            payload=b"second-payload",
+            expected_generation=1,
+        )
+        assert second.code is StoreResultCode.COMMITTED
+        assert store._domain_index_generation == 2
+        assert len(store._domain_index) == 2
+        assert [item.domain_identity for item in store.find_bound_objects(
+            b"test.domain/1", b"second"
+        )] == [b"second"]
+
+        batch = store.put_bound_objects(
+            [
+                BoundObjectInput(b"test.domain/1", b"third", b"test-descriptor/1", b"third-payload"),
+                BoundObjectInput(b"test.domain/1", b"fourth", b"test-descriptor/1", b"fourth-payload"),
+            ],
+            expected_generation=2,
+        )
+        assert batch.code is StoreResultCode.COMMITTED
+        assert store._domain_index_generation == 3
+        assert len(store._domain_index) == 4
+        assert [item.domain_identity for item in store.find_bound_objects(
+            b"test.domain/1", b"fourth"
+        )] == [b"fourth"]
+
+
+def test_exact_bound_lookup_reads_only_the_selected_binding(tmp_path: Path) -> None:
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False
+    ) as store:
+        for index in range(40):
+            result = store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=f"record-{index}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=f"payload-{index}".encode(),
+                expected_generation=index,
+            )
+            assert result.code is StoreResultCode.COMMITTED
+
+        original_read_binding = store._read_binding
+        binding_reads = 0
+
+        def count_binding_reads(*args, **kwargs):
+            nonlocal binding_reads
+            binding_reads += 1
+            return original_read_binding(*args, **kwargs)
+
+        store._read_binding = count_binding_reads
+        selected = store.get_bound_object(b"test.domain/1", b"record-17")
+        assert selected.payload == b"payload-17"
+        # The selected binding is checked directly, then checked again when
+        # its payload tree is opened; no other record's binding is read.
+        assert binding_reads == 2
+        assert store._entry_index_generation == store.current_generation
+
+
+def test_domain_binding_replay_compares_two_snapshots(tmp_path: Path) -> None:
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False
+    ) as store:
+        for index in range(4):
+            result = store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=f"record-{index}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=f"payload-{index}".encode(),
+                expected_generation=index,
+            )
+            assert result.code is StoreResultCode.COMMITTED
+
+        original_read_binding = store._read_binding
+        binding_reads = 0
+        original_read_generation = store._read_generation
+        generation_reads = 0
+
+        def count_binding_reads(*args, **kwargs):
+            nonlocal binding_reads
+            binding_reads += 1
+            return original_read_binding(*args, **kwargs)
+
+        store._read_binding = count_binding_reads
+        def count_generation_reads(*args, **kwargs):
+            nonlocal generation_reads
+            generation_reads += 1
+            return original_read_generation(*args, **kwargs)
+
+        store._read_generation = count_generation_reads
+        assert store.domain_bindings_since(2) == (
+            (3, b"test.domain/1", b"record-2"),
+            (4, b"test.domain/1", b"record-3"),
+        )
+        assert binding_reads == 2
+        assert generation_reads == 2
+
+        with pytest.raises(StoreError):
+            store.domain_bindings_since(0, max_generations=2)
+
+
 def test_generation_bound_lookup_maps_follow_publication_and_recovery(tmp_path: Path) -> None:
     with EmbeddedStore(tmp_path, session=_session()) as store:
         first = store.put_bound_object(

@@ -266,6 +266,8 @@ class EmbeddedStore:
         self._commit_feed: bytes | None = None
         self._domain_index_generation: int | None = None
         self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
+        self._entry_index_generation: int | None = None
+        self._entries_by_binding: dict[bytes, _Entry] = {}
         if read_only:
             # Read the committed head only. No recovery, lock creation,
             # directory initialization, or eager payload projection.
@@ -1478,6 +1480,11 @@ class EmbeddedStore:
                 verified_projection = self._projection
             else:
                 self._domain_binding_index(observed)
+            domain_index_before = (
+                self._domain_index
+                if self._domain_index_generation == observed
+                else None
+            )
             active_bindings = {entry.binding_id for entry in old_entries}
             existing_path = self._binding_path(binding_id)
             if existing_path.exists():
@@ -1624,6 +1631,15 @@ class EmbeddedStore:
                 self._extend_lookup_maps(committed_object)
             else:
                 self._invalidate_projection()
+            self._advance_domain_binding_index(
+                new_generation,
+                old_entries,
+                domain_index_before,
+                ((new_entry, domain_schema, domain_identity),),
+            )
+            self._advance_entry_index(
+                observed, new_generation, old_entries, (new_entry,)
+            )
             return CommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
@@ -1801,6 +1817,11 @@ class EmbeddedStore:
                 verified_projection = self._projection
             else:
                 self._domain_binding_index(observed)
+            domain_index_before = (
+                self._domain_index
+                if self._domain_index_generation == observed
+                else None
+            )
             active_bindings = {entry.binding_id for entry in old_entries}
             duplicate_results: list[CommitResult] = []
             new_items: list[tuple[BoundObjectInput, bytes, bytes]] = []
@@ -1862,6 +1883,7 @@ class EmbeddedStore:
             built: list[
                 tuple[BoundObjectInput, bytes, bytes, bytes, bytes, int]
             ] = []
+            domain_index_additions: list[tuple[_Entry, bytes, bytes]] = []
             for index, (item, binding_id, logical_id) in enumerate(new_items):
                 content_id, root, _descriptor_id, _chunks, _depth = self._build_content(
                     payload=item.payload,
@@ -1873,6 +1895,9 @@ class EmbeddedStore:
                 entry = _Entry(logical_id, binding_id, root, content_id, len(item.payload), ordinal)
                 entries.append(entry)
                 built.append((item, binding_id, logical_id, content_id, root, ordinal))
+                domain_index_additions.append(
+                    (entry, item.domain_schema, item.domain_identity)
+                )
             generation_raw = self._generation_bytes(
                 new_generation,
                 entries,
@@ -1963,6 +1988,18 @@ class EmbeddedStore:
                     self._extend_lookup_maps(item)
             else:
                 self._invalidate_projection()
+            self._advance_domain_binding_index(
+                new_generation,
+                old_entries,
+                domain_index_before,
+                tuple(domain_index_additions),
+            )
+            self._advance_entry_index(
+                observed,
+                new_generation,
+                old_entries,
+                tuple(entry for entry, _schema, _identity in domain_index_additions),
+            )
             return BatchCommitResult(
                 StoreResultCode.COMMITTED,
                 new_generation,
@@ -2717,11 +2754,57 @@ class EmbeddedStore:
 
     def get_bound_object(self, domain_schema: bytes, domain_identity: bytes) -> StoredObject:
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
-        self._verified_projection()
-        item = self._objects_by_binding.get(binding_id)
-        if item is None:
+        generation = self.current_generation
+        entry = self._entry_by_binding(generation, binding_id)
+        if entry is None:
             raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
-        return item
+        schema, identity, logical, content, root, binding_generation = self._read_binding(
+            binding_id, entry.representation_root
+        )
+        if (
+            schema != bytes(domain_schema)
+            or identity != bytes(domain_identity)
+            or logical != entry.logical_id
+            or content != entry.content_id
+            or root != entry.representation_root
+        ):
+            raise StoreIntegrityError("Store binding does not match generation entry")
+        if binding_generation > generation:
+            raise StoreIntegrityError("Store binding points into a future generation")
+        return self._read_entry(entry, generation, verify_payload=True)
+
+    def _entry_by_binding(self, generation: int, binding_id: bytes) -> _Entry | None:
+        """Resolve exact identities through the compact committed generation.
+
+        Exact Store APIs must not scan every binding file merely to answer a
+        deterministic binding-id lookup. The generation table is the
+        authority; selected binding and payload records are verified by the
+        caller before returning.
+        """
+        if self._entry_index_generation != generation:
+            entries = self._read_generation(generation, verify_objects=False)
+            self._entries_by_binding = {entry.binding_id: entry for entry in entries}
+            if len(self._entries_by_binding) != len(entries):
+                raise StoreIntegrityError("Store generation repeats a binding id")
+            self._entry_index_generation = generation
+        return self._entries_by_binding.get(bytes(binding_id))
+
+    def _advance_entry_index(
+        self,
+        previous_generation: int,
+        generation: int,
+        previous_entries: list[_Entry],
+        additions: tuple[_Entry, ...],
+    ) -> None:
+        if (
+            self._entry_index_generation != previous_generation
+            or len(self._entries_by_binding) != len(previous_entries)
+        ):
+            return
+        self._entries_by_binding.update(
+            (entry.binding_id, entry) for entry in additions
+        )
+        self._entry_index_generation = generation
 
     def _domain_binding_index(
         self, generation: int
@@ -2751,6 +2834,25 @@ class EmbeddedStore:
         self._domain_index_generation = generation
         self._domain_index = tuple(indexed)
         return self._domain_index
+
+    def _advance_domain_binding_index(
+        self,
+        generation: int,
+        previous_entries: list[_Entry],
+        previous_index: tuple[tuple[_Entry, bytes, bytes], ...] | None,
+        additions: tuple[tuple[_Entry, bytes, bytes], ...],
+    ) -> None:
+        """Carry verified binding metadata across this process's own append.
+
+        A metadata index built for the committed head remains valid when a
+        publication appends entries already validated by that transaction.
+        Keeping it generation-scoped avoids rereading every binding after
+        each small Store publication.
+        """
+        if previous_index is None or len(previous_index) != len(previous_entries):
+            return
+        self._domain_index_generation = generation
+        self._domain_index = (*previous_index, *additions)
 
     def find_bound_objects(
         self,
@@ -2821,6 +2923,61 @@ class EmbeddedStore:
         if generation > self.current_generation:
             raise StoreError(StoreResultCode.DENIED, "generation is ahead of the committed Store head")
         return tuple((schema, identity) for _, schema, identity in self._domain_binding_index(generation))
+
+    def domain_bindings_since(
+        self, generation: int, *, max_generations: int = 128
+    ) -> tuple[tuple[int, bytes, bytes], ...]:
+        """Return only newly committed domain bindings after a cursor.
+
+        Generations are immutable full snapshots, but ordinary publication is
+        append-only in binding identity. Compare the cursor and head snapshots
+        once, then open binding metadata only for identities introduced since
+        the cursor. Physical representation roots may change without creating
+        a new domain identity. This keeps recovery proportional to the Store
+        head plus the actual delta instead of gap * Store head.
+        """
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
+            raise StoreError(StoreResultCode.DENIED, "generation must be a non-negative integer")
+        head = self.current_generation
+        if generation > head:
+            raise StoreError(StoreResultCode.DENIED, "generation is ahead of the committed Store head")
+        if (isinstance(max_generations, bool) or not isinstance(max_generations, int)
+                or max_generations < 1 or max_generations > 4096):
+            raise StoreError(StoreResultCode.DENIED, "domain binding replay bound is invalid")
+        if head - generation > max_generations:
+            raise StoreError(StoreResultCode.DENIED, "domain binding replay gap exceeds its bound")
+        previous = {
+            entry.binding_id: entry
+            for entry in self._read_generation(generation, verify_objects=False)
+        }
+        current = {
+            entry.binding_id: entry
+            for entry in self._read_generation(head, verify_objects=False)
+        }
+        if len(current) < len(previous):
+            raise StoreIntegrityError("Store generation removed committed entries")
+        for binding_id, old in previous.items():
+            new = current.get(binding_id)
+            if new is None:
+                raise StoreIntegrityError("Store generation removed a committed binding")
+            if (old.logical_id != new.logical_id
+                    or old.content_id != new.content_id or old.ordinal != new.ordinal
+                    or old.total_length != new.total_length):
+                raise StoreIntegrityError("Store generation rewrote a committed domain identity")
+        changes: list[tuple[int, bytes, bytes]] = []
+        additions = [entry for binding_id, entry in current.items()
+                     if binding_id not in previous]
+        for entry in additions:
+            schema, identity, logical, content, root, binding_generation = self._read_binding(
+                entry.binding_id, entry.representation_root
+            )
+            if (logical != entry.logical_id or content != entry.content_id
+                    or root != entry.representation_root
+                    or not generation < binding_generation <= head):
+                raise StoreIntegrityError("new Store binding does not match the requested replay interval")
+            changes.append((binding_generation, schema, identity))
+        changes.sort(key=lambda item: (item[0], item[1], item[2]))
+        return tuple(changes)
 
     def objects_at(self, generation: int) -> list[StoredObject]:
         """Return the verified immutable object projection at one generation.
