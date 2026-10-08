@@ -262,6 +262,7 @@ class EmbeddedStore:
         # this cache and a changed head causes the next read to rebuild it.
         self._projection_generation: int | None = None
         self._projection: tuple[StoredObject, ...] = ()
+        self._verified_generation: int | None = None
         self._objects_by_binding: dict[bytes, StoredObject] = {}
         self._logical_ids_by_domain: dict[tuple[bytes, bytes], bytes] = {}
         self._logical_ids_by_identity: dict[bytes, tuple[bytes, ...]] = {}
@@ -298,7 +299,7 @@ class EmbeddedStore:
             self.recovery_result = self._recover()
             if verify_on_open:
                 generation = self.current_generation
-                self._verified_projection(generation)
+                self._read_generation(generation, verify_objects=True)
 
     # ---- platform boundary -------------------------------------------
 
@@ -914,11 +915,13 @@ class EmbeddedStore:
         if verify_objects:
             for entry in entries:
                 self._read_entry(entry, generation, verify_payload=True)
+            self._verified_generation = generation
         return entries
 
     def _invalidate_projection(self) -> None:
         self._projection_generation = None
         self._projection = ()
+        self._verified_generation = None
         self._objects_by_binding = {}
         self._logical_ids_by_domain = {}
         self._logical_ids_by_identity = {}
@@ -966,6 +969,7 @@ class EmbeddedStore:
             self._read_entry(entry, selected_generation, verify_payload=True)
             for entry in sorted(entries, key=lambda item: item.ordinal)
         )
+        self._verified_generation = selected_generation
         self._projection_generation = selected_generation
         self._projection = projection
         self._rebuild_lookup_maps(projection)
@@ -3265,13 +3269,19 @@ class EmbeddedStore:
 
     def verify(self) -> dict[str, object]:
         generation = self.current_generation
-        objects = self._verified_projection(generation)
-        _entries, relations, provenance = self._read_generation_parts(generation)
+        entries, relations, provenance = self._read_generation_parts(generation)
+        if self._verified_generation != generation:
+            # Integrity scans are bounded to one object payload at a time.
+            # List-returning APIs may build the complete resident projection
+            # explicitly, but a Store scrub does not need to retain it.
+            for entry in sorted(entries, key=lambda item: item.ordinal):
+                self._read_entry(entry, generation, verify_payload=True)
+            self._verified_generation = generation
         feed = self.commit_feed(generation)
         return {
             "ok": True,
             "generation": generation,
-            "objects": len(objects),
+            "objects": len(entries),
             "relations": len(relations),
             "provenance_records": len(provenance),
             "commit_feed": feed.hex(),
@@ -3290,7 +3300,7 @@ class EmbeddedStore:
             raise StoreError(StoreResultCode.DENIED, "Store is read-only; recovery is forbidden")
         self._invalidate_projection()
         self.recovery_result = self._recover()
-        self._verified_projection(self.current_generation)
+        self._read_generation(self.current_generation, verify_objects=True)
         return self.recovery_result
 
     def retention_floor(self, *, keep_last: int = 4096) -> int:

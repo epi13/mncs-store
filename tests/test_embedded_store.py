@@ -168,6 +168,35 @@ def test_large_object_uses_bounded_tree_geometry(tmp_path: Path) -> None:
         assert reopened_object.generation == 1
 
 
+def test_store_verification_streams_without_retaining_payload_projection(
+    tmp_path: Path,
+) -> None:
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False
+    ) as store:
+        for index in range(8):
+            result = store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=f"stream-{index}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=bytes([index]) * 65_537,
+                expected_generation=index,
+            )
+            assert result.code is StoreResultCode.COMMITTED
+
+        result = store.verify()
+        assert result["objects"] == 8
+        assert store._verified_generation == store.current_generation
+        assert store._projection_generation is None
+        assert store.resident_status()["verified_object_projection_entries"] == 0
+
+    with EmbeddedStore(tmp_path, session=_session()) as reopened:
+        assert reopened._verified_generation == reopened.current_generation
+        assert reopened._projection_generation is None
+        assert reopened.verify()["objects"] == 8
+        assert reopened.resident_status()["verified_object_projection_entries"] == 0
+
+
 def test_publication_extends_verified_projection_without_rereading_old_objects(
     tmp_path: Path,
 ) -> None:

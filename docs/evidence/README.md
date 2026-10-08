@@ -1,5 +1,17 @@
 # Adaptive integration measurements
 
+## Store integrity scan memory
+
+`store-verify-streaming-20261008.json` records a canonical Store `--verify`
+run before and after changing verification to stream one payload at a time.
+The Store generations differ by 61 publications, so this is a close operational
+comparison rather than a byte-identical benchmark. The old RSS figure is one
+process sample, not a measured high-water mark. The new run includes child
+wait-accounted high-water RSS, `/proc` sampling, CPU, I/O, descriptor, host
+memory, and cgroup observations. Missing cgroup memory limits are recorded as
+unknown; unchanged cumulative `oom_kill` counters do not establish why a prior
+process may have exited.
+
 These are independent executions of the existing `tests/measure_adaptive_store.py`
 workload: eight 64 KiB regions, alternating compressible and patterned data,
 base exact + synopsis + RLE exact. The selected Language source is

@@ -1,0 +1,83 @@
+{
+  "schema": "mncs-store.integrity-scan-measurement/1",
+  "date": "2026-10-08",
+  "operation": "canonical mncs-env store --verify",
+  "store_root": "/home/epi13/.local/share/mncs-environment/store",
+  "baseline": {
+    "generation": 39659,
+    "objects": 39659,
+    "commit_feed": "4d4301000000000000009aeb00009aeb0000000000000000555ede2b3f7c7463ae8ae462c48bb1133d77980bd02feac818ea0a98cacffcae",
+    "wall_seconds": 102,
+    "cpu_seconds_sampled": 56,
+    "rss_kib_sampled": 8511100,
+    "rss_high_water": "UNKNOWN; no child wait accounting was retained",
+    "exit": 0,
+    "result_ok": true
+  },
+  "streaming_candidate": {
+    "store_generation": 39720,
+    "objects": 39720,
+    "commit_feed": "4d4301000000000000009b2800009b280000000000000000b3d624962dadf9c63f25ef06f74fc41ce4ba020424fba7b64dafafad0799781c",
+    "wall_seconds": 45.527,
+    "cpu_user_seconds": 42.672,
+    "cpu_system_seconds": 2.564,
+    "child_wait_max_rss_kib": 352916,
+    "proc_sampled_max_rss_bytes": 344186880,
+    "last_proc_rss_hwm_bytes": 352874496,
+    "max_fd_count": 5,
+    "last_fd_count": 4,
+    "swap_bytes": 0,
+    "io_rchar_bytes": 10075575047,
+    "io_read_bytes": 0,
+    "host_mem_available_bytes_before": 25648394240,
+    "host_mem_available_bytes_after": 25649401856,
+    "cgroup": {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.kde.konsole-320048.scope/tab(320111).scope",
+      "memory_current": "UNAVAILABLE",
+      "memory_peak": "UNAVAILABLE",
+      "memory_max": "UNAVAILABLE",
+      "oom_kill_before": 4,
+      "oom_kill_after": 4,
+      "oom_kill_delta": 0,
+      "memory_pressure_some_total_before": 24013794,
+      "memory_pressure_some_total_after": 24013794,
+      "memory_pressure_full_total_before": 23854431,
+      "memory_pressure_full_total_after": 23854431
+    },
+    "classification": "SUCCESS",
+    "exit": 0,
+    "result_ok": true,
+    "reported_recovery_label": "RECOVERED_OLD",
+    "reported_recovery_label_meaning": "read-only EmbeddedStore initialization placeholder; no recovery mutation is attempted",
+    "artifact_sha256": "dca4d73fd237ba61d95a1458a157403f50fdb3b9adb35a7d601f91b14f9c56bf",
+    "backend": "mncs-research-bytecode",
+    "toolchain": "/home/epi13/Documents/Projects/mncs-language/target/release/mncs",
+    "toolchain_repository_revision": "1513bdf62bbcf4d366238dba1d8f2396b2e94128"
+  },
+  "comparison": {
+    "same_canonical_store": true,
+    "same_operation": true,
+    "same_exact_generation": false,
+    "generation_delta": 61,
+    "observed_wall_ratio_baseline_over_candidate": 2.24,
+    "baseline_rss_is_not_a_high_water_mark": true,
+    "candidate_child_max_rss_kib": 352916
+  },
+  "implementation": {
+    "repository_base_revision": "33a501ccc68c9febabeb071c94739bafc16def83",
+    "source_sha256": "81ebc11d91cbabb38337bf4bb27ac2c2ccf617c08d2f65c368764f10b2177450",
+    "test_sha256": "1b2c9a4aabfd0c4539cefbe8a17f1edc9e491bfb95c7646ffe546a8c87bb6b80",
+    "focused_tests": {
+      "command": "PYTHONPATH=python pytest -q tests/test_embedded_store.py",
+      "passed": 39,
+      "failed": 0,
+      "seconds": 2.80
+    }
+  },
+  "prior_publication_error": {
+    "reported_errno": "EROFS",
+    "historical_process_namespace": "UNKNOWN; no process or namespace trace was retained",
+    "current_canonical_filesystem": "rw Btrfs; owner uid 1000; current process uid 1000; writable open and canonical Store publication/checkpoint succeeded",
+    "classification": "historical cause UNKNOWN; no evidence of current Store integrity or lock lifecycle failure"
+  }
+}
