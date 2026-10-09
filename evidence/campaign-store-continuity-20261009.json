@@ -1,0 +1,82 @@
+{
+  "schema_version": "mncs.store.continuity-campaign-evidence/1",
+  "observed_at": "2026-10-09T18:53:54Z",
+  "run_id": "resume-20261009-65df7773beda",
+  "store": {
+    "canonical_root": "/home/epi13/.local/share/mncs-environment/store",
+    "publication_lock": "/home/epi13/.local/share/mncs-environment/store/publication.lock",
+    "store_repository_revision_at_verification": "0f1b2c3d6fceb6c8e7d5f985f78fce7bd6080ff3",
+    "selected_backend": "mncs-research-bytecode",
+    "selected_toolchain": "/home/epi13/Documents/Projects/mncs-language/target/release/mncs",
+    "generation_before_campaign_publication": 42855,
+    "generation_after_publication_and_cas_race": 42857,
+    "verified": {
+      "ok": true,
+      "generation": 42857,
+      "objects": 42857,
+      "relations": 0,
+      "provenance_records": 0,
+      "commit_feed": "4d430100000000000000a7690000a7690000000000000000096dfad2cc3019987080a52a92a4ca500556a7092fabb1f7f75a7a6c37ed6115",
+      "recovery_open_result": "RECOVERED_OLD",
+      "recovery_meaning": "clean committed head; no pending journal transaction was present"
+    }
+  },
+  "authority": {
+    "environment_session": "ses_d2537acde8b8a875",
+    "consumer": "luna-compiler-self-consumption-admission-20261009",
+    "claim_id": "claim:mncs-store",
+    "claim_identity": "clm_dd62a95e16ac81a2",
+    "claim_version": 19,
+    "claim_scope": "repository:mncs-store",
+    "write_verdict": "allow",
+    "write_reason": "mncs-store mutation by claim"
+  },
+  "publication": {
+    "api": "mncs_store.EmbeddedStore.put_bound_object",
+    "expected_generation": 42855,
+    "result": "COMMITTED",
+    "generation": 42856,
+    "identity_hex": "7365735f643235333761636465386238613837353a726573756d652d32303236313030392d3635646637373733626564613a7075626c69636174696f6e",
+    "logical_id": "20411bd78e700269b7deaf1d",
+    "content_id": "88dfce042e692a7ef7eae184fe0c585c4afb39a77dead92f3354bb936e971ce3",
+    "payload_sha256": "88dfce042e692a7ef7eae184fe0c585c4afb39a77dead92f3354bb936e971ce3",
+    "same_process_readback_exact": true,
+    "fresh_process_readback_exact": true
+  },
+  "concurrent_cas": {
+    "expected_generation": 42856,
+    "final_generation": 42857,
+    "committed": {
+      "result": "COMMITTED",
+      "lane": "b",
+      "identity_hex": "726573756d652d32303236313030392d3635646637373733626564613a6361733a62",
+      "generation": 42857,
+      "payload_sha256": "c1380aa19ada1f600f04a6d863d5004b267fe39f36a2e5baec754cf885df9901"
+    },
+    "stale": {
+      "result": "STALE_GENERATION",
+      "lane": "a",
+      "identity_hex": "726573756d652d32303236313030392d3635646637373733626564613a6361733a61",
+      "expected_generation": 42856,
+      "observed_generation": 42857,
+      "payload_sha256": "025c96ba2e7d9957da192208cc662da45960f66bc136275254d23aa352db6b38"
+    },
+    "generation_advanced_once": true,
+    "fresh_process_recovery_and_exact_readback": true
+  },
+  "historical_publication_lock_failure": {
+    "error": "Errno 30 while opening publication.lock with O_CREAT|O_RDWR",
+    "cause": "UNKNOWN",
+    "reason": "The failed process namespace and mount observation were not retained; current observations cannot establish the old execution boundary.",
+    "current_observations": {
+      "uid": 1000,
+      "lock_owner_uid": 1000,
+      "lock_mode": "0600",
+      "filesystem": "/dev/sda3",
+      "mountpoint": "/home",
+      "mount_options": "rw",
+      "store_publication_succeeded": true,
+      "remount_or_lock_removal": false
+    }
+  }
+}
