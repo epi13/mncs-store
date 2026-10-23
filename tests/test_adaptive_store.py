@@ -1148,9 +1148,10 @@ def test_legacy_v2_objects_synthesize_their_adaptive_view(session, store_path):
 def test_adaptive_corruption_fails_closed(session, store_path):
     payload, _parts = _segmented_payload()
     with EmbeddedStore(store_path, session=session) as store:
-        _commit_segmented(store, payload)
-        logical = store.logical_id_for(b"adaptive-test", b"obj-1")
-    manifest_raw = (store_path / "objects" / f"{logical.hex()}.manifest").read_bytes()
+        result = _commit_segmented(store, payload)
+    manifest_raw = (
+        store_path / "objects" / f"{result.representation_root.hex()}.physical"
+    ).read_bytes()
     assert len(manifest_raw) > 168  # v3 manifest carries sidecar digests
     envelope_digest = manifest_raw[-64:-32]
     envelope_path = store_path / "envelopes" / f"{envelope_digest.hex()}.envelope"
@@ -1268,8 +1269,9 @@ def test_adaptive_put_is_deterministic(session, store_path):
         with EmbeddedStore(path, session=session) as store:
             result = _commit_segmented(store, payload)
             assert result.code == StoreResultCode.COMMITTED
-            logical = store.logical_id_for(b"adaptive-test", b"obj-1")
-            manifest = (path / "objects" / f"{logical.hex()}.manifest").read_bytes()
+            manifest = (
+                path / "objects" / f"{result.representation_root.hex()}.physical"
+            ).read_bytes()
             envelope = (path / "envelopes" / f"{manifest[-64:-32].hex()}.envelope").read_bytes()
             reps = (path / "representations" / f"{manifest[-32:].hex()}.reps").read_bytes()
             digests.append(hashlib.sha256(manifest + envelope + reps).hexdigest())

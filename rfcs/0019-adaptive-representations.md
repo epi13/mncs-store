@@ -159,6 +159,15 @@ objects and their historical snapshots. Missing or invalid versioned material
 fails identity verification; it cannot adopt the original manifest as a valid
 substitute for a different committed root.
 
+**Initial object manifests (2026-10-23 amendment).** New object admissions also
+store their initial immutable manifest under its representation-root digest
+(`objects/<root>.physical`). The v2/v3 manifest bytes and logical/content
+identities do not change. Existing logical-name `.manifest` objects remain
+readable. This keeps an interrupted, uncommitted attempt's manifest distinct
+from a later retry that reuses the logical identity with different bytes; the
+old root remains immutable and unreachable unless a committed generation names
+it.
+
 Publication uses the existing durable generation/journal/head protocol. Every
 immutable sidecar, manifest, and binding version is durable before publication.
 Recovery verifies old and new generation candidates and preserves the existing

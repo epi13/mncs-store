@@ -138,7 +138,9 @@ content-addressed: `envelopes/`, `representations/` (count + N×128),
 generation entry still binds only the manifest root, so commit,
 recovery, and snapshot semantics are unchanged. Objects stored
 without adaptive parameters keep byte-identical v2 manifests and
-synthesize their adaptive view deterministically at read time.
+synthesize their adaptive view deterministically at read time. New manifests
+are addressed by their root digest; readers retain support for legacy
+logical-name `.manifest` files.
 
 ## Machine-native metrics
 
