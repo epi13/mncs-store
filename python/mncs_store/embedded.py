@@ -565,7 +565,14 @@ class EmbeddedStore:
         representation_root = self._hash(manifest)
         self._write_immutable(self.path / "descriptors" / f"{descriptor_id.hex()}.desc", descriptor)
         self._trip("during_structural_metadata_staging")
-        self._write_immutable(self.path / "objects" / f"{logical_id.hex()}.manifest", manifest)
+        # Address each immutable manifest by the root that the committed
+        # generation will publish. A logical-id filename lets an interrupted
+        # pre-commit attempt with different bytes block a later retry even
+        # though the first root is not authoritative. Root-addressing keeps
+        # both attempts immutable and leaves the generation mapping decisive.
+        self._write_immutable(
+            self.path / "objects" / f"{representation_root.hex()}.physical", manifest
+        )
         self._sync_content_directory("objects")
         return content_id, representation_root, descriptor_id, len(chunk_ids), level
 

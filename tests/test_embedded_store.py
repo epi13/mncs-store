@@ -646,6 +646,57 @@ def test_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None
             assert recovered.current_objects() == []
 
 
+def test_orphan_manifest_does_not_block_new_content_for_same_logical_identity(
+    tmp_path: Path,
+) -> None:
+    def interrupt_before_publication(name: str) -> None:
+        if name == "before_generation_publication":
+            raise CrashInjected(name)
+
+    with pytest.raises(CrashInjected):
+        with EmbeddedStore(
+            tmp_path, session=_session(), failpoint=interrupt_before_publication
+        ) as store:
+            store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=b"retry-after-orphan",
+                descriptor=b"test-descriptor/1",
+                payload=b"first attempted payload",
+                expected_generation=0,
+            )
+
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.current_generation == 0
+        assert recovered.current_objects() == []
+        objects_dir = tmp_path / "objects"
+        orphan_manifests = sorted(
+            [*objects_dir.glob("*.physical"), *objects_dir.glob("*.manifest")]
+        )
+        assert len(orphan_manifests) == 1
+        orphan_path = orphan_manifests[0]
+        orphan_bytes = orphan_path.read_bytes()
+
+        retried = recovered.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"retry-after-orphan",
+            descriptor=b"test-descriptor/1",
+            payload=b"replacement payload after restart",
+            expected_generation=0,
+        )
+
+        assert retried.code is StoreResultCode.COMMITTED
+        assert retried.representation_root.hex() != orphan_path.stem
+        assert orphan_path.read_bytes() == orphan_bytes
+        assert (
+            tmp_path / "objects" / f"{retried.representation_root.hex()}.physical"
+        ).is_file()
+        current = recovered.current_objects()
+        assert [item.payload for item in current] == [
+            b"replacement payload after restart"
+        ]
+        assert current[0].representation_root == retried.representation_root
+
+
 @pytest.mark.parametrize(
     "failpoint",
     [
@@ -740,6 +791,33 @@ def test_binding_identity_feed_cannot_hide_corrupt_binding_metadata(tmp_path: Pa
     with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
         with pytest.raises(StoreIntegrityError):
             reader.domain_bindings_at(reader.current_generation)
+
+
+def test_root_addressed_write_reads_legacy_logical_name_manifest(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"legacy-manifest-read",
+            descriptor=b"test-descriptor/1",
+            payload=b"legacy object payload",
+            expected_generation=0,
+        )
+        written = store.get_bound_object(
+            b"test.domain/1", b"legacy-manifest-read"
+        )
+
+    root_manifest = (
+        tmp_path / "objects" / f"{written.representation_root.hex()}.physical"
+    )
+    legacy_manifest = tmp_path / "objects" / f"{written.logical_id.hex()}.manifest"
+    root_manifest.rename(legacy_manifest)
+
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+        restored = reader.get_bound_object(
+            b"test.domain/1", b"legacy-manifest-read"
+        )
+        assert restored.payload == b"legacy object payload"
+        assert restored.representation_root == written.representation_root
 
 
 def test_generation_prune_reclaims_below_checkpoint_floor(
