@@ -49,6 +49,7 @@ MANIFEST_V3 = struct.Struct(">2sBBQIQI32s32s32s32s12s32s32s")
 GENERATION_HEADER = struct.Struct(">2sBBQIII")
 GENERATION_DELTA_HEADER = struct.Struct(">2sBBQQIII")
 GENERATION_ENTRY = struct.Struct(">12s32s32s32sQQ")
+GENERATION_PARTS_CACHE_MAX_BYTES = 16 * 1024 * 1024
 BINDING_HEADER = struct.Struct(">2sBBII")
 JOURNAL = struct.Struct(">2sBBQQ32s")
 RELATION_SIZE = 172
@@ -272,6 +273,16 @@ class EmbeddedStore:
         self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
         self._entry_index_generation: int | None = None
         self._entries_by_binding: dict[bytes, _Entry] = {}
+        # A single exact-generation metadata view avoids reparsing an
+        # unchanged checkpoint for every publication in one resident process.
+        # It is derived, bounded, and discarded on cache miss or oversized
+        # generations; the on-disk head remains authoritative.
+        self._generation_parts_cache_generation: int | None = None
+        self._generation_parts_cache: tuple[
+            list[_Entry], list[bytes], list[bytes]
+        ] | None = None
+        self._entry_logical_ids: set[bytes] = set()
+        self._max_entry_ordinal = 0
         if read_only:
             # Read the committed head only. No recovery, lock creation,
             # directory initialization, or eager payload projection.
@@ -990,11 +1001,71 @@ class EmbeddedStore:
         ] == [(item.logical_id, item.binding_id, item.ordinal) for item in sorted(entries, key=lambda item: item.ordinal)]
 
     def _read_generation_parts(self, generation: int) -> tuple[list[_Entry], list[bytes], list[bytes]]:
+        if self._generation_parts_cache_generation == generation:
+            cached = self._generation_parts_cache
+            if cached is not None:
+                return list(cached[0]), list(cached[1]), list(cached[2])
         path = self.path / "generations" / f"{generation:016x}"
         try:
-            return self._generation_parts_from_bytes(generation, path.read_bytes())
+            parts = self._generation_parts_from_bytes(generation, path.read_bytes())
         except FileNotFoundError as exc:
             raise StoreIntegrityError(f"committed Store generation is missing: {generation}") from exc
+        self._cache_generation_parts(generation, *parts)
+        return parts
+
+    def _invalidate_generation_parts_cache(self) -> None:
+        self._generation_parts_cache_generation = None
+        self._generation_parts_cache = None
+
+    def _cache_generation_parts(
+        self,
+        generation: int,
+        entries: Sequence[_Entry],
+        relations: Sequence[bytes],
+        provenance: Sequence[bytes],
+    ) -> None:
+        encoded_size = (
+            GENERATION_HEADER.size
+            + len(entries) * GENERATION_ENTRY.size
+            + len(relations) * RELATION_SIZE
+            + len(provenance) * PROVENANCE_SIZE
+        )
+        if encoded_size > GENERATION_PARTS_CACHE_MAX_BYTES:
+            self._generation_parts_cache_generation = None
+            self._generation_parts_cache = None
+            return
+        self._generation_parts_cache_generation = generation
+        self._generation_parts_cache = (
+            list(entries), list(relations), list(provenance),
+        )
+
+    def _extend_generation_parts_cache(
+        self,
+        previous_generation: int,
+        generation: int,
+        entries: Sequence[_Entry],
+        relations: Sequence[bytes],
+        provenance: Sequence[bytes],
+    ) -> None:
+        if (self._generation_parts_cache_generation != previous_generation
+                or self._generation_parts_cache is None):
+            return
+        cached_entries, cached_relations, cached_provenance = (
+            self._generation_parts_cache
+        )
+        encoded_size = (
+            GENERATION_HEADER.size
+            + (len(cached_entries) + len(entries)) * GENERATION_ENTRY.size
+            + (len(cached_relations) + len(relations)) * RELATION_SIZE
+            + (len(cached_provenance) + len(provenance)) * PROVENANCE_SIZE
+        )
+        if encoded_size > GENERATION_PARTS_CACHE_MAX_BYTES:
+            self._invalidate_generation_parts_cache()
+            return
+        cached_entries.extend(entries)
+        cached_relations.extend(relations)
+        cached_provenance.extend(provenance)
+        self._generation_parts_cache_generation = generation
 
     def typed_records(self, kind: str, generation: int | None = None) -> list[bytes]:
         """Return validated current-generation typed Store records."""
@@ -1669,6 +1740,7 @@ class EmbeddedStore:
                     token,
                 )
             old_entries, old_relations, old_provenance = self._read_generation_parts(observed)
+            self._ensure_entry_index(observed, old_entries)
             # Publication validation needs generation integrity plus
             # binding agreement, not a full payload re-read of every
             # unrelated object. When the resident projection already
@@ -1687,11 +1759,15 @@ class EmbeddedStore:
                 if self._domain_index_generation == observed
                 else None
             )
-            active_bindings = {entry.binding_id for entry in old_entries}
+            existing_entry = self._entries_by_binding.get(binding_id)
             existing_path = self._binding_path(binding_id)
             if existing_path.exists():
-                existing = self._read_binding(binding_id, next((entry.representation_root for entry in old_entries if entry.binding_id == binding_id), None))
-                if binding_id in active_bindings:
+                existing = self._read_binding(
+                    binding_id,
+                    (existing_entry.representation_root
+                     if existing_entry is not None else None),
+                )
+                if existing_entry is not None:
                     candidate_content = self._hash(payload)
                     if existing[3] != candidate_content:
                         raise StoreError(
@@ -1714,6 +1790,14 @@ class EmbeddedStore:
                 # while holding the publication lock.
                 existing_path.unlink()
                 _sync_directory(existing_path.parent)
+            elif existing_entry is not None:
+                raise StoreIntegrityError(
+                    "committed Store binding file is missing",
+                )
+            if logical_id in self._entry_logical_ids:
+                raise StoreIntegrityError(
+                    "Store generation repeats a logical object",
+                )
 
             new_generation = observed + 1
             self._validate_typed_records(
@@ -1749,18 +1833,19 @@ class EmbeddedStore:
                 envelope_digest=envelope_digest,
                 reps_digest=reps_digest,
             )
-            next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
+            next_ordinal = max(self._max_entry_ordinal, observed) + 1
             new_entry = _Entry(logical_id, binding_id, root, content_id, len(payload), next_ordinal)
-            entries = old_entries + [new_entry]
-            generation_raw = self._generation_publication_bytes(
-                new_generation,
-                old_entries,
-                entries,
-                old_relations,
-                old_relations + relations,
-                old_provenance,
-                old_provenance + provenance,
-            )
+            if new_generation % GENERATION_CHECKPOINT_INTERVAL == 0:
+                entries = old_entries + [new_entry]
+                next_relations = old_relations + relations
+                next_provenance = old_provenance + provenance
+                generation_raw = self._generation_bytes(
+                    new_generation, entries, next_relations, next_provenance,
+                )
+            else:
+                generation_raw = self._generation_delta_bytes(
+                    new_generation, observed, [new_entry], relations, provenance,
+                )
             transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
             transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
             staged_generation = transaction / "generation.stage"
@@ -1809,6 +1894,9 @@ class EmbeddedStore:
             self._trip("during_cleanup")
             (transaction / "journal").unlink(missing_ok=True)
             transaction.rmdir()
+            self._extend_generation_parts_cache(
+                observed, new_generation, [new_entry], relations, provenance,
+            )
             # The publication is already fully validated above.  When the
             # resident projection matched, extend it with the just-written
             # object instead of forcing the next query to reread every
@@ -1946,6 +2034,7 @@ class EmbeddedStore:
             (transaction / "journal").unlink()
             transaction.rmdir()
             self._invalidate_projection()
+            self._cache_generation_parts(new_generation, entries, relations, provenance)
             return CommitResult(StoreResultCode.COMMITTED, new_generation, entry.logical_id, entry.content_id,
                                 root, binding_id, expected_generation, observed)
 
@@ -2105,14 +2194,16 @@ class EmbeddedStore:
                 domain_index_additions.append(
                     (entry, item.domain_schema, item.domain_identity)
                 )
+            next_relations = old_relations + all_relations
+            next_provenance = old_provenance + all_provenance
             generation_raw = self._generation_publication_bytes(
                 new_generation,
                 old_entries,
                 entries,
                 old_relations,
-                old_relations + all_relations,
+                next_relations,
                 old_provenance,
-                old_provenance + all_provenance,
+                next_provenance,
             )
             transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
             transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -2159,6 +2250,10 @@ class EmbeddedStore:
             self._trip("during_cleanup")
             (transaction / "journal").unlink(missing_ok=True)
             transaction.rmdir()
+
+            self._cache_generation_parts(
+                new_generation, entries, next_relations, next_provenance,
+            )
 
             self._commit_feed_generation = None
             self._commit_feed = None
@@ -2983,6 +3078,31 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store binding points into a future generation")
         return self._read_entry(entry, generation, verify_payload=True)
 
+    def _cache_entry_index(
+        self, generation: int, entries: Sequence[_Entry],
+    ) -> None:
+        by_binding = {entry.binding_id: entry for entry in entries}
+        logical_ids = {entry.logical_id for entry in entries}
+        if len(by_binding) != len(entries):
+            raise StoreIntegrityError("Store generation repeats a binding id")
+        if len(logical_ids) != len(entries):
+            raise StoreIntegrityError("Store generation repeats a logical id")
+        self._entries_by_binding = by_binding
+        self._entry_logical_ids = logical_ids
+        self._entry_index_generation = generation
+        self._max_entry_ordinal = max(
+            (entry.ordinal for entry in entries), default=generation,
+        )
+
+    def _ensure_entry_index(
+        self, generation: int, entries: Sequence[_Entry] | None = None,
+    ) -> None:
+        if self._entry_index_generation == generation:
+            return
+        if entries is None:
+            entries = self._read_generation(generation, verify_objects=False)
+        self._cache_entry_index(generation, entries)
+
     def _entry_by_binding(self, generation: int, binding_id: bytes) -> _Entry | None:
         """Resolve exact identities through the compact committed generation.
 
@@ -2991,12 +3111,7 @@ class EmbeddedStore:
         authority; selected binding and payload records are verified by the
         caller before returning.
         """
-        if self._entry_index_generation != generation:
-            entries = self._read_generation(generation, verify_objects=False)
-            self._entries_by_binding = {entry.binding_id: entry for entry in entries}
-            if len(self._entries_by_binding) != len(entries):
-                raise StoreIntegrityError("Store generation repeats a binding id")
-            self._entry_index_generation = generation
+        self._ensure_entry_index(generation)
         return self._entries_by_binding.get(bytes(binding_id))
 
     def _advance_entry_index(
@@ -3013,6 +3128,11 @@ class EmbeddedStore:
             return
         self._entries_by_binding.update(
             (entry.binding_id, entry) for entry in additions
+        )
+        self._entry_logical_ids.update(entry.logical_id for entry in additions)
+        self._max_entry_ordinal = max(
+            self._max_entry_ordinal,
+            max((entry.ordinal for entry in additions), default=previous_generation),
         )
         self._entry_index_generation = generation
 
@@ -3276,6 +3396,9 @@ class EmbeddedStore:
 
     def verify(self) -> dict[str, object]:
         generation = self.current_generation
+        # A scrub must verify the persisted generation bytes, not an
+        # in-process derived view of those bytes.
+        self._invalidate_generation_parts_cache()
         entries, relations, provenance = self._read_generation_parts(generation)
         if self._verified_generation != generation:
             # Integrity scans are bounded to one object payload at a time.
@@ -3306,6 +3429,7 @@ class EmbeddedStore:
         if self.read_only:
             raise StoreError(StoreResultCode.DENIED, "Store is read-only; recovery is forbidden")
         self._invalidate_projection()
+        self._invalidate_generation_parts_cache()
         self.recovery_result = self._recover()
         self._read_generation(self.current_generation, verify_objects=True)
         return self.recovery_result
@@ -3431,6 +3555,7 @@ class EmbeddedStore:
                 removed += 1
             _sync_directory(generations)
             # Prove the retained window still reads from disk.
+            self._invalidate_generation_parts_cache()
             self._read_generation_parts(floor)
             self._read_generation_parts(head)
             report.update(

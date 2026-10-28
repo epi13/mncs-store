@@ -371,6 +371,151 @@ def test_exact_bound_lookup_reads_only_the_selected_binding(tmp_path: Path) -> N
         assert store._entry_index_generation == store.current_generation
 
 
+def test_resident_publications_reuse_bounded_generation_parts_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    relation_records: list[bytes] = []
+    provenance_records: list[bytes] = []
+    with EmbeddedStore(
+        tmp_path, session=session, verify_on_open=False,
+    ) as store:
+        original_parse = store._generation_parts_from_bytes
+        original_full_diff = store._generation_publication_bytes
+        parse_count = 0
+        full_diff_count = 0
+
+        def count_generation_parses(generation: int, raw: bytes):
+            nonlocal parse_count
+            parse_count += 1
+            return original_parse(generation, raw)
+
+        def count_full_diffs(*args, **kwargs):
+            nonlocal full_diff_count
+            full_diff_count += 1
+            return original_full_diff(*args, **kwargs)
+
+        monkeypatch.setattr(
+            store, "_generation_parts_from_bytes", count_generation_parses,
+        )
+        monkeypatch.setattr(
+            store, "_generation_publication_bytes", count_full_diffs,
+        )
+        for index in range(8):
+            generation = index + 1
+            source = f"source-{index}".encode().ljust(12, b"-")
+            target = f"target-{index}".encode().ljust(12, b"-")
+            provenance = store.make_provenance(
+                source=source,
+                producer=b"producer-id".ljust(12, b"-"),
+                transformation=b"transform-id".ljust(12, b"-"),
+                generation=generation,
+                evidence=hashlib.sha256(f"evidence-{index}".encode()).digest(),
+                ancestry=hashlib.sha256(f"generation-{index}".encode()).digest(),
+            )
+            relation = store.make_relation(
+                relation_type=hashlib.sha256(b"test-relation/1").digest(),
+                source=source,
+                target=target,
+                generation=generation,
+                provenance=hashlib.sha256(provenance).digest(),
+                ordinal=index,
+            )
+            result = store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=f"resident-{index}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=f"payload-{index}".encode(),
+                expected_generation=index,
+                relations=[relation],
+                provenance=[provenance],
+            )
+            assert result.code is StoreResultCode.COMMITTED
+            relation_records.append(relation)
+            provenance_records.append(provenance)
+
+        # The initial exact generation is parsed once; after each successful
+        # publication the derived cache advances with the committed head.
+        assert parse_count == 1
+        assert full_diff_count == 0
+        assert (tmp_path / "generations" / "0000000000000008").read_bytes()[:2] == b"MD"
+        assert store.typed_records("relations") == relation_records
+        assert store.typed_records("provenance") == provenance_records
+
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False,
+    ) as reopened:
+        assert reopened.current_generation == 8
+        assert reopened.typed_records("relations") == relation_records
+        assert reopened.typed_records("provenance") == provenance_records
+        assert len(reopened.current_objects()) == 8
+
+
+def test_generation_cache_misses_after_an_external_head_advance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        EmbeddedStore(tmp_path, session=_session(), verify_on_open=False) as reader,
+        EmbeddedStore(tmp_path, session=_session(), verify_on_open=False) as writer,
+    ):
+        reader._read_generation_parts(0)
+        first = writer.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"external-first",
+            descriptor=b"test-descriptor/1",
+            payload=b"first",
+            expected_generation=0,
+        )
+        assert first.code is StoreResultCode.COMMITTED
+
+        original_parse = reader._generation_parts_from_bytes
+        parse_count = 0
+
+        def count_generation_parses(generation: int, raw: bytes):
+            nonlocal parse_count
+            parse_count += 1
+            return original_parse(generation, raw)
+
+        monkeypatch.setattr(
+            reader, "_generation_parts_from_bytes", count_generation_parses,
+        )
+        second = reader.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"external-second",
+            descriptor=b"test-descriptor/1",
+            payload=b"second",
+            expected_generation=1,
+        )
+        assert second.code is StoreResultCode.COMMITTED
+        assert parse_count == 1
+        assert [item.payload for item in reader.current_objects()] == [
+            b"first", b"second",
+        ]
+
+
+def test_store_scrub_reloads_generation_bytes_after_cache_hits(
+    tmp_path: Path,
+) -> None:
+    with EmbeddedStore(
+        tmp_path, session=_session(), verify_on_open=False,
+    ) as store:
+        result = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"scrub-cache",
+            descriptor=b"test-descriptor/1",
+            payload=b"payload",
+            expected_generation=0,
+        )
+        assert result.code is StoreResultCode.COMMITTED
+        assert store._read_generation_parts(1)[0]
+
+        generation_path = tmp_path / "generations" / "0000000000000001"
+        generation_path.write_bytes(generation_path.read_bytes()[:-1])
+
+        with pytest.raises(StoreIntegrityError, match="torn record tail"):
+            store.verify()
+
+
 def test_domain_binding_replay_compares_two_snapshots(tmp_path: Path) -> None:
     with EmbeddedStore(
         tmp_path, session=_session(), verify_on_open=False
