@@ -577,12 +577,10 @@ class StoreSession:
         """Hash arbitrary bytes through ``mncs.std.sha256.v1`` via Store."""
 
         payload = bytes(payload)
-        # Transporting each 64-byte SHA view through the retained ABI is
-        # useful for small values and proves the direct typed path. Larger
-        # values use the same MNCS DigestState through bounded host transport
-        # windows: the host stages/reads only platform bytes, while MNCS owns
-        # every update and the final digest decision. No source value grows
-        # with the object.
+        # The retained native path handles one bounded 1024-byte window.
+        # Larger values still stage through the file boundary and use the
+        # optimized host digest until the runtime can sustain large native
+        # hashes. No source value grows with the object.
         if len(payload) > 1024:
             with tempfile.TemporaryDirectory(prefix="mncs-store-hash-") as directory:
                 path = Path(directory) / "payload.bin"
@@ -592,19 +590,6 @@ class StoreSession:
                     os.fsync(stream.fileno())
                 return self.sha256_file(path)
 
-        constants = (
-            1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993,
-            2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987,
-            1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774,
-            264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
-            2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711,
-            113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291,
-            1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411,
-            3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
-            430227734, 506948616, 659060556, 883997877, 958139571, 1322822218,
-            1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424,
-            2428436474, 2756734187, 3204031479, 3329325298,
-        )
         state_value = _returned(self.call("store.content.v1", "digest_init", []))
         state = _record_fields(state_value)
         for start in range(0, len(payload), 1024):
@@ -620,7 +605,6 @@ class StoreSession:
                         state["buffered"],
                         bytes_value(window),
                         u64(len(window)),
-                        u32_values(constants),
                     ],
                 )
             )
@@ -629,22 +613,25 @@ class StoreSession:
             self.call(
                 "store.content.v1",
                 "digest_finalize_fields",
-                [state["h"], state["total"], state["buf"], state["buffered"], u32_values(constants)],
+                [state["h"], state["total"], state["buf"], state["buffered"]],
             )
         )
         return as_bytes(final)
 
-    @staticmethod
-    def sha256_buffer(payload: bytes) -> bytes:
-        """Hash already resident bytes with the canonical SHA-256 primitive.
+    def sha256_buffer(self, payload: bytes) -> bytes:
+        """Hash a resident buffer natively when it fits one Store window.
 
         EmbeddedStore uses this for read-side integrity checks after loading a
-        node, descriptor, chunk, or object payload. New identities and staged
-        content continue through :meth:`sha256`; this avoids routing thousands
-        of tiny verification reads through the MNCS interpreter one at a time.
+        node, descriptor, chunk, or object payload. Buffers up to 1,024 bytes
+        execute the standard SHA-256 implementation in ``mncs.std.sha256``;
+        larger resident buffers keep the optimized host path until the
+        research-bytecode runtime has usable large-object throughput.
         """
 
-        return hashlib.sha256(bytes(payload)).digest()
+        value = bytes(payload)
+        if len(value) <= 1024:
+            return self.sha256(value)
+        return hashlib.sha256(value).digest()
 
     def sha256_file(self, path: Path) -> bytes:
         """Hash a host file with the platform's optimized SHA-256 primitive.

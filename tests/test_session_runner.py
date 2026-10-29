@@ -71,6 +71,23 @@ def test_sha256_file_uses_host_digest_for_bulk_verification(tmp_path: Path) -> N
     assert session.sha256(payload) == expected
 
 
+def test_read_side_small_buffer_uses_native_standard_sha256() -> None:
+    payload = bytes(range(56))
+    large_payload = bytes(range(256)) * 5
+    store = object.__new__(EmbeddedStore)
+
+    with StoreSession() as session:
+        store.session = session
+
+        before_native = session.call_count
+        assert store._verify_digest(payload) == hashlib.sha256(payload).digest()
+        assert session.call_count > before_native
+
+        before_large = session.call_count
+        assert store._verify_digest(large_payload) == hashlib.sha256(large_payload).digest()
+        assert session.call_count == before_large
+
+
 def test_store_artifact_compilation_uses_injected_bounded_runner(
     tmp_path: Path, monkeypatch
 ) -> None:
