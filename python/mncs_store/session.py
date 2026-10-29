@@ -618,20 +618,19 @@ class StoreSession:
         )
         return as_bytes(final)
 
-    def sha256_buffer(self, payload: bytes) -> bytes:
-        """Hash a resident buffer natively when it fits one Store window.
+    @staticmethod
+    def sha256_buffer(payload: bytes) -> bytes:
+        """Use the optimized host digest for repeated resident integrity reads.
 
         EmbeddedStore uses this for read-side integrity checks after loading a
-        node, descriptor, chunk, or object payload. Buffers up to 1,024 bytes
-        execute the standard SHA-256 implementation in ``mncs.std.sha256``;
-        larger resident buffers keep the optimized host path until the
-        research-bytecode runtime has usable large-object throughput.
+        node, descriptor, chunk, or object payload. Store opens may verify
+        hundreds of resident records, so per-record research-bytecode calls
+        would make that ordinary read path unacceptably slow. New small
+        content identities still use the MNCS implementation through
+        :meth:`sha256`.
         """
 
-        value = bytes(payload)
-        if len(value) <= 1024:
-            return self.sha256(value)
-        return hashlib.sha256(value).digest()
+        return hashlib.sha256(bytes(payload)).digest()
 
     def sha256_file(self, path: Path) -> bytes:
         """Hash a host file with the platform's optimized SHA-256 primitive.
