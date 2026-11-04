@@ -235,3 +235,28 @@ local `.mncs/environment.json` selects Environment, Language, and Store; see
 identity, read-only retrieval, and explicit physical inventory evolution. Run
 `python3 scripts/adaptive_store_proof.py` from `mncs-environment` for a real
 consumer/persistence/selective-retrieval proof.
+
+## Disposable compiled-artifact cache
+
+The retained-session bootstrap cache is separate from durable Store data.
+Publication and explicit maintenance retain at most 2 GiB of unique payloads
+and manifests, 32 admission entries, and 14 days since a successful cache read.
+Configure these with `MNCS_STORE_ARTIFACT_CACHE_MAX_BYTES`,
+`MNCS_STORE_ARTIFACT_CACHE_MAX_ENTRIES`, and
+`MNCS_STORE_ARTIFACT_CACHE_MAX_AGE_SECONDS`. Invalid values use the defaults;
+zero entries or bytes disables persistence. Oversized artifacts still execute
+without being retained. Complete identical payloads share hard links when
+supported; every admission key, source/compiler identity and checksum remains
+independent. Readers and writers coordinate through a process file lock.
+
+Run owner maintenance without opening a durable Store:
+
+```bash
+python3 python/mncs_store/artifact_cache.py --directory /absolute/compiled-cache
+```
+
+Only recognized `mncs-store-artifact-cache/1` entries and the publisher's
+abandoned temporary directories are removed. Unrecognized data, symlinks and
+entries containing extra files are preserved. Canonical chunks, generations,
+bindings and history are outside this cache contract. Cache loss causes
+recompilation and does not change native Store admission or integrity checks.

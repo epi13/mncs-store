@@ -10,6 +10,8 @@ import ctypes
 import hashlib
 import json
 import os
+import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import StoreError, StoreResultCode
+from . import artifact_cache
 
 STORE_ARTIFACT_COMPILE_TIMEOUT_SECONDS = 300
 STORE_ARTIFACT_OUTPUT_BYTES = 128 * 1024 * 1024
@@ -256,7 +259,18 @@ class StoreSession:
 
     @classmethod
     def _read_cached_artifact(cls, key: str) -> bytes | None:
-        entry = cls._artifact_cache_root() / key
+        if not artifact_cache.HEX.fullmatch(key):
+            return None
+        root = cls._artifact_cache_root()
+        try:
+            with artifact_cache.lease(root, exclusive=False):
+                return cls._read_cached_artifact_locked(root, key)
+        except OSError:
+            return None
+
+    @classmethod
+    def _read_cached_artifact_locked(cls, root: Path, key: str) -> bytes | None:
+        entry = root / key
         manifest_path = entry / "manifest.json"
         artifact_path = entry / "backend.json"
         try:
@@ -268,12 +282,16 @@ class StoreSession:
             artifact = artifact_path.read_bytes()
         except (OSError, ValueError, TypeError):
             return None
-        if manifest.get("schema") != "mncs-store-artifact-cache/1":
+        if not isinstance(manifest, dict) or manifest.get("schema") != "mncs-store-artifact-cache/1":
             return None
         if manifest.get("key") != key:
             return None
         if manifest.get("artifact_sha256") != hashlib.sha256(artifact).hexdigest():
             return None
+        try:
+            os.utime(manifest_path, None)
+        except OSError:
+            pass
         return artifact
 
     @classmethod
@@ -285,32 +303,64 @@ class StoreSession:
     ) -> None:
         root = cls._artifact_cache_root()
         entry = root / key
+        if not artifact_cache.HEX.fullmatch(key):
+            return
+        temporary = None
         try:
-            root.mkdir(parents=True, exist_ok=True)
-            temporary = Path(tempfile.mkdtemp(prefix=f"{key}-", dir=root))
-            (temporary / "backend.json").write_bytes(artifact)
-            (temporary / "manifest.json").write_text(
-                json.dumps(
+            with artifact_cache.lease(root, exclusive=True):
+                limits = artifact_cache.Limits.configured()
+                artifact_cache.prune(root, limits)
+                digest = hashlib.sha256(artifact).hexdigest()
+                manifest_bytes = json.dumps(
                     {
                         "schema": "mncs-store-artifact-cache/1",
                         "key": key,
                         "material": material,
-                        "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+                        "artifact_sha256": digest,
                     },
                     sort_keys=True,
                     separators=(",", ":"),
-                )
-            )
-            if entry.exists():
-                for child in (temporary / "backend.json", temporary / "manifest.json"):
-                    os.replace(child, entry / child.name)
-                temporary.rmdir()
-            else:
-                os.replace(temporary, entry)
+                ).encode()
+                if limits.entries == 0 or len(artifact) + len(manifest_bytes) > limits.bytes:
+                    return
+                if entry.is_symlink() or (entry.exists() and (
+                    not entry.is_dir() or not artifact_cache._only_cache_files(entry)
+                )):
+                    return
+                temporary = root / f".pending-{os.getpid()}-{secrets.token_hex(16)}"
+                temporary.mkdir(mode=0o700)
+                linked = False
+                for candidate in artifact_cache.entries(root):
+                    if candidate["manifest"]["artifact_sha256"] != digest:
+                        continue
+                    payload = candidate["directory"] / "backend.json"
+                    # Deduplicate complete envelopes only; every admission
+                    # key and checksum remains independently bound.
+                    if payload.read_bytes() == artifact:
+                        try:
+                            os.link(payload, temporary / "backend.json")
+                            linked = True
+                        except OSError:
+                            pass
+                        break
+                if not linked:
+                    (temporary / "backend.json").write_bytes(artifact)
+                (temporary / "manifest.json").write_bytes(manifest_bytes)
+                if entry.exists():
+                    for child in (temporary / "backend.json", temporary / "manifest.json"):
+                        os.replace(child, entry / child.name)
+                    temporary.rmdir()
+                else:
+                    os.replace(temporary, entry)
+                temporary = None
+                artifact_cache.prune(root, limits)
         except OSError:
             # Caching is an acceleration only. A read-only or unavailable
             # cache must never change Store admission semantics.
             return
+        finally:
+            if temporary is not None:
+                shutil.rmtree(temporary, ignore_errors=True)
 
     def _compile_artifact(self) -> bytes:
         cls = type(self)
