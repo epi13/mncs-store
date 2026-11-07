@@ -628,45 +628,13 @@ class StoreSession:
 
         payload = bytes(payload)
         # The retained native path handles one bounded 1024-byte window.
-        # Larger values still stage through the file boundary and use the
-        # optimized host digest until the runtime can sustain large native
-        # hashes. No source value grows with the object.
+        # Larger resident values already use the optimized host digest.
+        # They need no temporary file, fsync, reread or second byte copy.
+        # No source value grows with the object.
         if len(payload) > 1024:
-            with tempfile.TemporaryDirectory(prefix="mncs-store-hash-") as directory:
-                path = Path(directory) / "payload.bin"
-                with path.open("wb") as stream:
-                    stream.write(payload)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                return self.sha256_file(path)
-
-        state_value = _returned(self.call("store.content.v1", "digest_init", []))
-        state = _record_fields(state_value)
-        for start in range(0, len(payload), 1024):
-            window = payload[start : start + 1024]
-            updated = _returned(
-                self.call(
-                    "store.content.v1",
-                    "digest_update_window_fields",
-                    [
-                        state["h"],
-                        state["total"],
-                        state["buf"],
-                        state["buffered"],
-                        bytes_value(window),
-                        u64(len(window)),
-                    ],
-                )
-            )
-            state = _record_fields(updated)
-        final = _returned(
-            self.call(
-                "store.content.v1",
-                "digest_finalize_fields",
-                [state["h"], state["total"], state["buf"], state["buffered"]],
-            )
-        )
-        return as_bytes(final)
+            return self.sha256_buffer(payload)
+        function = "digest_short" if len(payload) <= 64 else "digest_window"
+        return as_bytes(_returned(self.call("store.content.v1", function, [bytes_value(payload)])))
 
     @staticmethod
     def sha256_buffer(payload: bytes) -> bytes:

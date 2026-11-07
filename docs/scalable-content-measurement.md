@@ -36,3 +36,38 @@ points. The Store session regression tests check native hashing for a 56-byte
 new content identity against the independent Python oracle, while resident
 read verification remains on the host path for both small and large buffers
 to keep repeated Store integrity scans responsive.
+
+## Deterministic Environment remediation (2026-11-07)
+
+Environment's full invocation profile found small native digest production to
+dominate a controlled Store-backed request. The correction keeps the same standard
+SHA-256 and canonical bytes: up to 64 bytes use one native init/update/finalize
+call without the generic window copy; 65–1024 bytes use one native window call.
+Larger resident buffers use the existing optimized host digest directly, avoiding
+temporary file staging, fsync and reread. Files still use the existing file API.
+Single-chunk content reuses its already-computed payload digest, including empty
+objects. This is equality of the same bytes within one operation, not a cache.
+
+Three randomized-order runs of eight measured calls per treatment retained all
+events and Store generations and checked persisted contexts after reopen:
+
+| Resident Store path | Baseline median | Native call composition | Plus single-chunk digest reuse |
+| --- | ---: | ---: | ---: |
+| Existing invocation, no request observation | 206.434 ms | 200.512 ms | 152.756 ms |
+| Invocation with request observation | 300.008 ms | 285.575 ms | 215.349 ms |
+| Difference of pooled medians | 93.574 ms | 85.063 ms | 62.593 ms |
+
+Observed calls retain three events and five generations each; pre-observation
+controls retain two events and four generations. Retained native calls per eight
+observed invocations fall from 928 to 336 to 312. There is no suppressed event,
+permission bypass, private cache or alternate Store. Reopen measurements and raw
+samples live under Environment's `outputs/deterministic-remediation-20261107/`.
+Machine load was not isolated, so these are descriptive measurements of the
+bounded fixture, not a production latency guarantee. VM steps, ABI call counts,
+logical bytes, physical I/O and agent reasoning remain different quantities.
+
+New independent SHA oracle cases cover empty input, padding/block boundaries and
+the 1024-byte limit. Single/multichunk boundary tests preserve content identities,
+selective readback and reopen. Existing crash/CAS/corruption tests remain required.
+This changes transport composition and redundant computation, not identity,
+encoding, publication, recovery or durability semantics.

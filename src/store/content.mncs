@@ -226,3 +226,23 @@ fn digest_finalize_fields(
         buffered: buffered
     });
 }
+
+// New content identities that fit one transport window need no externally
+// carried intermediate state. Keep the same standard SHA implementation,
+// but perform initialization, update and finalization in one retained call.
+// The short path also avoids copying a single block through window_at.
+fn digest_short(chunk: [byte; up_to 64]) -> (result: [byte; 32]) {
+    let initial: sha256.DigestState = sha256.init();
+    if chunk.len == 0 {
+        return sha256.finalize_standard(initial);
+    }
+    let updated: sha256.DigestState = sha256.update_standard(initial, chunk, chunk.len);
+    return sha256.finalize_standard(updated);
+}
+
+fn digest_window(chunk: [byte; up_to 1024]) -> (result: [byte; 32]) {
+    let initial: DigestState = digest_init();
+    let updated: DigestState = digest_update_window_fields(
+        initial.h, initial.total, initial.buf, initial.buffered, chunk, chunk.len);
+    return digest_finalize(updated);
+}

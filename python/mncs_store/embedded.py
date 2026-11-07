@@ -531,7 +531,10 @@ class EmbeddedStore:
         chunk_ids: list[bytes] = []
         for index, chunk in enumerate(chunks):
             self._trip("during_chunk_staging")
-            digest = self._hash(chunk)
+            # A single chunk is exactly the payload already hashed above,
+            # including the empty object. Reuse that immutable byte identity;
+            # this is local equality, not a cache or a skipped integrity read.
+            digest = content_id if len(chunks) == 1 else self._hash(chunk)
             self._write_immutable(self.path / "chunks" / f"{digest.hex()}.chunk", chunk)
             chunk_ids.append(digest)
         self._sync_content_directory("chunks")

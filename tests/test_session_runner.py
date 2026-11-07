@@ -80,6 +80,24 @@ def test_small_store_identity_uses_native_standard_sha256() -> None:
         assert session.call_count > before_native
 
 
+@pytest.mark.parametrize("length", [0, 1, 55, 56, 63, 64, 65, 127, 128, 1023, 1024])
+def test_bounded_digest_is_one_native_call_with_independent_sha_oracle(length) -> None:
+    payload = bytes((index * 29) % 256 for index in range(length))
+    with StoreSession() as session:
+        before_native = session.call_count
+        assert session.sha256(payload) == hashlib.sha256(payload).digest()
+        assert session.call_count == before_native + 1
+
+
+def test_large_resident_digest_needs_no_temporary_file(monkeypatch) -> None:
+    session = object.__new__(StoreSession)
+    def no_temporary_file(*_args, **_kwargs):
+        raise AssertionError("resident hashing must not stage disposable filesystem data")
+    monkeypatch.setattr(session_module.tempfile, "TemporaryDirectory", no_temporary_file)
+    payload = bytes(range(256)) * 5
+    assert session.sha256(payload) == hashlib.sha256(payload).digest()
+
+
 def test_read_side_integrity_keeps_optimized_host_hash_for_resident_buffers() -> None:
     payload = bytes(range(56))
     large_payload = bytes(range(256)) * 5

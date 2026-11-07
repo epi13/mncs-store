@@ -168,6 +168,28 @@ def test_large_object_uses_bounded_tree_geometry(tmp_path: Path) -> None:
         assert reopened_object.generation == 1
 
 
+@pytest.mark.parametrize("size", [0, 1, 1024, 1025, 65536, 65537])
+def test_content_and_single_chunk_share_digest_work_without_changing_identity(tmp_path, size):
+    session = _session()
+    payload = bytes((index * 29) % 256 for index in range(size))
+    hashed = []
+    original = session.sha256
+    def measured(value):
+        hashed.append(value)
+        return original(value)
+    session.sha256 = measured
+    with EmbeddedStore(tmp_path, session=session, verify_on_open=False) as store:
+        result = store.put_bound_object(domain_schema=b"test.domain/1", domain_identity=b"once",
+                                        descriptor=b"digest-work/1", payload=payload,
+                                        expected_generation=0)
+        assert result.code is StoreResultCode.COMMITTED
+        assert hashed.count(payload) == 1
+        assert result.content_id == hashlib.sha256(payload).digest()
+        assert store.get_bound_object(b"test.domain/1", b"once").payload == payload
+    with EmbeddedStore(tmp_path, session=_session()) as reopened:
+        assert reopened.get_bound_object(b"test.domain/1", b"once").payload == payload
+
+
 def test_store_verification_streams_without_retaining_payload_projection(
     tmp_path: Path,
 ) -> None:
