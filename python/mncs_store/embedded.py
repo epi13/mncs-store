@@ -232,8 +232,12 @@ def _durable_write(path: Path, value: bytes, *, exclusive: bool = False) -> None
 
 def _atomic_write(path: Path, value: bytes) -> None:
     temporary = path.with_name(f".{path.name}.{os.getpid()}.{time.time_ns()}.stage")
-    _durable_write(temporary, value, exclusive=True)
-    os.replace(temporary, path)
+    try:
+        _durable_write(temporary, value, exclusive=True)
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     _sync_directory(path.parent)
 
 
@@ -317,21 +321,29 @@ class EmbeddedStore:
     def _initialize_files(self) -> None:
         meta = self.path / "meta"
         if not meta.exists():
-            _durable_write(meta, META_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
-            _sync_directory(self.path)
+            _atomic_write(meta, META_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
         elif meta.read_bytes() != META_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0):
             raise StoreIntegrityError("Store meta descriptor is unknown or malformed")
         generation = self.path / "generations" / "0000000000000000"
         if not generation.exists():
-            _durable_write(
+            _atomic_write(
                 generation,
                 GENERATION_HEADER.pack(GENERATION_MAGIC, VERSION, 0, 0, 0, 0, 0),
             )
-            _sync_directory(generation.parent)
         head = self.path / "head"
         if not head.exists():
-            _durable_write(head, HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
-            _sync_directory(self.path)
+            staging = self.path / "staging"
+            generations = self.path / "generations"
+            has_staging = staging.is_dir() and any(
+                child.is_dir() for child in staging.iterdir()
+            )
+            has_later_generations = generations.is_dir() and any(
+                child.is_file() and child.name != "0000000000000000"
+                and not child.name.startswith(".")
+                for child in generations.iterdir()
+            )
+            if not has_staging and not has_later_generations:
+                _atomic_write(head, HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
 
     @contextmanager
     def _publication_lock(self) -> Iterator[None]:
@@ -350,6 +362,43 @@ class EmbeddedStore:
         if self._failpoint is not None:
             self._failpoint(name)
 
+    def _can_repair_uncommitted_artifact(
+        self, path: Path, current: bytes, value: bytes
+    ) -> bool:
+        if path.parent.name not in {
+            "chunks",
+            "nodes",
+            "descriptors",
+            "objects",
+            "envelopes",
+            "representations",
+            "blocks",
+            "reps",
+        }:
+            return False
+        if path.suffix not in {
+            ".chunk",
+            ".node",
+            ".desc",
+            ".physical",
+            ".envelope",
+            ".reps",
+            ".table",
+            ".payload",
+        }:
+            return False
+        stem = path.stem
+        if len(stem) != 64:
+            return False
+        if self._verify_digest(value).hex() != stem:
+            return False
+        if self._verify_digest(current).hex() == stem:
+            return False
+        head = self._read_head_checked()
+        if head is None:
+            return False
+        return self._committed_generation_is_intact(head)
+
     def _write_immutable(self, path: Path, value: bytes) -> None:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         if path.exists():
@@ -357,11 +406,11 @@ class EmbeddedStore:
                 current = path.read_bytes()
             except OSError as exc:
                 raise StoreIntegrityError(f"cannot inspect immutable Store content: {path}") from exc
-            if current != value:
+            if current == value:
+                return
+            if not self._can_repair_uncommitted_artifact(path, current, value):
                 raise StoreIntegrityError(f"immutable Store content differs at {path.name}")
-            return
-        _durable_write(path, value, exclusive=True)
-        _sync_directory(path.parent)
+        _atomic_write(path, value)
 
     # ---- native semantic boundary ------------------------------------
 
@@ -599,8 +648,13 @@ class EmbeddedStore:
         head = self.path / "head"
         temporary = head.with_name(f".{head.name}.{os.getpid()}.{time.time_ns()}.stage")
         value = HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", generation)
-        _durable_write(temporary, value, exclusive=True)
-        os.replace(temporary, head)
+        try:
+            _durable_write(temporary, value, exclusive=True)
+            self._trip("before_head_replace")
+            os.replace(temporary, head)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
         self._trip("after_head_replace_before_directory_sync")
         _sync_directory(head.parent)
         self._trip("during_head_publication")
@@ -1120,73 +1174,248 @@ class EmbeddedStore:
         except (OSError, StoreError, struct.error):
             return None
 
+    @staticmethod
+    def _parse_staging_transaction_name(name: str) -> tuple[int, int] | None:
+        parts = name.split("-")
+        if len(parts) != 2 or len(parts[0]) != 16 or len(parts[1]) != 16:
+            return None
+        try:
+            old = int(parts[0], 16)
+            new = int(parts[1], 16)
+        except ValueError:
+            return None
+        if old < 0 or new != old + 1 or f"{old:016x}-{new:016x}" != name:
+            return None
+        return old, new
+
+    def _sweep_stage_files(self) -> None:
+        directories = (
+            self.path,
+            *(
+                self.path / name
+                for name in (
+                    "chunks",
+                    "nodes",
+                    "objects",
+                    "descriptors",
+                    "bindings",
+                    "generations",
+                    "staging",
+                    "envelopes",
+                    "representations",
+                    "blocks",
+                    "reps",
+                )
+            ),
+        )
+        for directory in directories:
+            if not directory.is_dir():
+                continue
+            for child in directory.iterdir():
+                if (
+                    child.is_file()
+                    and child.name.startswith(".")
+                    and child.name.endswith(".stage")
+                ):
+                    child.unlink(missing_ok=True)
+
+    def _cleanup_uncommitted_generation(
+        self, old: int, new: int, candidate_raw: bytes | None
+    ) -> None:
+        if new <= old:
+            return
+        target = self.path / "generations" / f"{new:016x}"
+        if candidate_raw is None and target.exists():
+            try:
+                candidate_raw = target.read_bytes()
+            except OSError:
+                candidate_raw = None
+        if candidate_raw is not None:
+            try:
+                old_entries, _, _ = self._read_generation_parts(old)
+                old_bindings = {entry.binding_id for entry in old_entries}
+                old_roots = {
+                    (entry.binding_id, entry.representation_root)
+                    for entry in old_entries
+                }
+                if candidate_raw[:2] == GENERATION_DELTA_MAGIC:
+                    _, candidate_entries, _, _ = self._parse_generation_delta_parts(
+                        candidate_raw, new
+                    )
+                else:
+                    candidate_entries, _, _ = self._parse_generation_parts(
+                        candidate_raw, new
+                    )
+                bindings_dir = self.path / "bindings"
+                removed_binding = False
+                for entry in candidate_entries:
+                    if entry.binding_id not in old_bindings:
+                        orphan_bind = bindings_dir / f"{entry.binding_id.hex()}.bind"
+                        if orphan_bind.exists():
+                            orphan_bind.unlink(missing_ok=True)
+                            removed_binding = True
+                    elif (entry.binding_id, entry.representation_root) not in old_roots:
+                        orphan_ver_bind = (
+                            bindings_dir
+                            / f"{entry.binding_id.hex()}-{entry.representation_root.hex()}.bind"
+                        )
+                        if orphan_ver_bind.exists():
+                            orphan_ver_bind.unlink(missing_ok=True)
+                            removed_binding = True
+                if removed_binding:
+                    _sync_directory(bindings_dir)
+            except (StoreError, OSError, struct.error, ValueError):
+                pass
+        if target.exists():
+            target.unlink(missing_ok=True)
+            _sync_directory(target.parent)
+
+    def _recover_pending_locked(self) -> None:
+        staging = self.path / "staging"
+        has_staging = staging.is_dir() and any(staging.iterdir())
+        if not has_staging and (self.path / "head").is_file():
+            return
+        self._invalidate_projection()
+        self._invalidate_generation_parts_cache()
+        self._entry_index_generation = None
+        self._entries_by_binding = {}
+        self._entry_logical_ids = set()
+        self._max_entry_ordinal = 0
+        self.recovery_result = self._recover_locked()
+
     def _recover(self) -> StoreResultCode:
         with self._publication_lock():
-            current = self._read_head_checked()
-            result = StoreResultCode.RECOVERED_OLD
-            for transaction in sorted(self.path.joinpath("staging").iterdir()):
-                if not transaction.is_dir():
-                    continue
-                journal_path = transaction / "journal"
+            return self._recover_locked()
+
+    def _recover_locked(self) -> StoreResultCode:
+        self._sweep_stage_files()
+        current = self._read_head_checked()
+        result = StoreResultCode.RECOVERED_OLD
+        for transaction in sorted(self.path.joinpath("staging").iterdir()):
+            if not transaction.is_dir():
+                if transaction.name.startswith(".") and transaction.name.endswith(".stage"):
+                    transaction.unlink(missing_ok=True)
+                continue
+            for child in transaction.iterdir():
+                if (
+                    child.is_file()
+                    and child.name.startswith(".")
+                    and child.name.endswith(".stage")
+                ):
+                    child.unlink(missing_ok=True)
+            journal_path = transaction / "journal"
+            raw_journal: bytes | None = None
+            if journal_path.exists():
                 try:
                     raw_journal = journal_path.read_bytes()
-                    magic, version, state, old, new, digest = JOURNAL.unpack(raw_journal)
-                    if magic != JOURNAL_MAGIC or version != VERSION or state > 3:
-                        raise StoreIntegrityError("unknown Store recovery journal")
-                    staged = transaction / "generation.stage"
-                    staged_raw = staged.read_bytes() if staged.exists() else None
-                    target = self.path / "generations" / f"{new:016x}"
-                    if target.exists():
-                        candidate = target.read_bytes()
-                    else:
-                        candidate = staged_raw
-                    candidate_valid = candidate is not None and self._hash(candidate) == digest and self._valid_generation_bytes(new, candidate)
-                    old_valid = self._generation_is_valid(old)
-                    recovery_decision = self.session.recovery_decide(
-                        old_valid,
-                        0 if candidate_valid else 3,
-                    )
-                    if current == new and candidate_valid:
-                        result = StoreResultCode.RECOVERED_NEW
-                    elif current == old and old_valid:
-                        result = StoreResultCode.RECOVERED_OLD
-                    elif recovery_decision == 1 and candidate_valid:
-                        _atomic_write(self.path / "head", HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", new))
-                        current = new
-                        result = StoreResultCode.RECOVERED_NEW
-                    elif recovery_decision == 0 and old_valid:
-                        _atomic_write(self.path / "head", HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", old))
-                        current = old
-                        result = StoreResultCode.RECOVERED_OLD
-                    else:
-                        raise StoreError(
-                            StoreResultCode.RECOVERY_REQUIRED,
-                            "neither old nor new committed Store generation verifies",
-                        )
                 except FileNotFoundError:
-                    raise StoreError(
-                        StoreResultCode.RECOVERY_REQUIRED,
-                        f"incomplete Store recovery journal: {transaction.name}",
+                    raw_journal = None
+            expected_prefix = JOURNAL_MAGIC + bytes([VERSION])
+            if raw_journal is not None and len(raw_journal) > 0:
+                prefix_len = min(len(raw_journal), len(expected_prefix))
+                if raw_journal[:prefix_len] != expected_prefix[:prefix_len]:
+                    raise StoreIntegrityError("unknown Store recovery journal")
+            if raw_journal is not None and len(raw_journal) == JOURNAL.size:
+                magic, version, state, old, new, digest = JOURNAL.unpack(raw_journal)
+                if magic != JOURNAL_MAGIC or version != VERSION or state > 3:
+                    raise StoreIntegrityError("unknown Store recovery journal")
+                staged = transaction / "generation.stage"
+                staged_raw = staged.read_bytes() if staged.exists() else None
+                target = self.path / "generations" / f"{new:016x}"
+                if target.exists():
+                    candidate = target.read_bytes()
+                else:
+                    candidate = staged_raw
+                candidate_valid = (
+                    candidate is not None
+                    and self._hash(candidate) == digest
+                    and self._valid_generation_bytes(new, candidate)
+                )
+                old_valid = self._generation_is_valid(old)
+                recovery_decision = self.session.recovery_decide(
+                    old_valid,
+                    0 if candidate_valid else 3,
+                )
+                if current == new and candidate_valid:
+                    if not target.exists() and staged.exists():
+                        os.replace(staged, target)
+                        _sync_directory(target.parent)
+                    result = StoreResultCode.RECOVERED_NEW
+                elif current == old and old_valid:
+                    self._cleanup_uncommitted_generation(old, new, candidate)
+                    result = StoreResultCode.RECOVERED_OLD
+                elif recovery_decision == 1 and candidate_valid:
+                    if not target.exists() and staged.exists():
+                        os.replace(staged, target)
+                        _sync_directory(target.parent)
+                    _atomic_write(
+                        self.path / "head",
+                        HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", new),
                     )
-                # Cleanup is never used to choose authority.  A valid head
-                # and verified generation have already made that decision.
-                # Leave malformed/incomplete transactions in place so a
-                # caller receives RECOVERY_REQUIRED with the durable evidence
-                # still available for diagnosis.
-                for child in transaction.iterdir():
-                    if child.is_file():
-                        child.unlink()
-                transaction.rmdir()
-            if current is None:
-                if self._generation_is_valid(0):
-                    _atomic_write(self.path / "head", HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
+                    current = new
+                    result = StoreResultCode.RECOVERED_NEW
+                elif recovery_decision == 0 and old_valid:
+                    self._cleanup_uncommitted_generation(old, new, candidate)
+                    _atomic_write(
+                        self.path / "head",
+                        HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", old),
+                    )
+                    current = old
                     result = StoreResultCode.RECOVERED_OLD
                 else:
                     raise StoreError(
                         StoreResultCode.RECOVERY_REQUIRED,
-                        "Store head and generation are both unverifiable",
+                        "neither old nor new committed Store generation verifies",
                     )
-            return result
+            else:
+                parsed = self._parse_staging_transaction_name(transaction.name)
+                if parsed is None:
+                    raise StoreError(
+                        StoreResultCode.RECOVERY_REQUIRED,
+                        f"incomplete Store recovery journal: {transaction.name}",
+                    )
+                old, new = parsed
+                staged = transaction / "generation.stage"
+                staged_raw = staged.read_bytes() if staged.exists() else None
+                if current == new and self._generation_is_valid(new):
+                    result = StoreResultCode.RECOVERED_NEW
+                elif current == old and self._generation_is_valid(old):
+                    self._cleanup_uncommitted_generation(old, new, staged_raw)
+                    result = StoreResultCode.RECOVERED_OLD
+                elif (
+                    current is not None
+                    and current > new
+                    and self._generation_is_valid(current)
+                ):
+                    result = StoreResultCode.RECOVERED_OLD
+                else:
+                    raise StoreError(
+                        StoreResultCode.RECOVERY_REQUIRED,
+                        f"incomplete Store recovery journal: {transaction.name}",
+                    )
+            # Cleanup is never used to choose authority.  A valid head
+            # and verified generation have already made that decision.
+            # Leave malformed/incomplete transactions in place so a
+            # caller receives RECOVERY_REQUIRED with the durable evidence
+            # still available for diagnosis.
+            for child in transaction.iterdir():
+                if child.is_file():
+                    child.unlink(missing_ok=True)
+            transaction.rmdir()
+            _sync_directory(self.path / "staging")
+        if current is None:
+            if self._generation_is_valid(0):
+                _atomic_write(
+                    self.path / "head",
+                    HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0),
+                )
+                result = StoreResultCode.RECOVERED_OLD
+            else:
+                raise StoreError(
+                    StoreResultCode.RECOVERY_REQUIRED,
+                    "Store head and generation are both unverifiable",
+                )
+        return result
 
     def _generation_is_valid(self, generation: int) -> bool:
         try:
@@ -1194,6 +1423,89 @@ class EmbeddedStore:
             return True
         except (StoreError, OSError, struct.error, ValueError):
             return False
+
+    def _committed_generation_is_intact(self, generation: int) -> bool:
+        try:
+            entries = self._read_generation(generation, verify_objects=True)
+            for entry in entries:
+                *_, adaptive = self._read_manifest(entry)
+                if adaptive is not None:
+                    binding_generation = self._read_binding(
+                        entry.binding_id, entry.representation_root
+                    )[5]
+                    part = self._read_envelope_part(entry, binding_generation)
+                    rep_part = self._read_rep_tables(part)
+                    for rep_field in rep_part["rep_fields"]:
+                        if rep_field["block_count"] == 0:
+                            root = rep_field["root"]
+                            blob = (self.path / "reps" / f"{root.hex()}.payload").read_bytes()
+                            if self._verify_digest(blob) != root or len(blob) != rep_field["stored"]:
+                                return False
+            return True
+        except (StoreError, OSError, struct.error, ValueError):
+            return False
+
+    def _stage_generation_transaction(
+        self, observed: int, new_generation: int, generation_raw: bytes
+    ) -> tuple[Path, Path, bytes]:
+        transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
+        transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
+        self._trip("after_staging_dir_created")
+        staged_generation = transaction / "generation.stage"
+        _durable_write(staged_generation, generation_raw, exclusive=True)
+        self._trip("after_staged_generation_write")
+        generation_digest = self._hash(generation_raw)
+        _atomic_write(
+            transaction / "journal",
+            JOURNAL.pack(
+                JOURNAL_MAGIC,
+                VERSION,
+                0,
+                observed,
+                new_generation,
+                generation_digest,
+            ),
+        )
+        return transaction, staged_generation, generation_digest
+
+    def _commit_staged_transaction(
+        self,
+        transaction: Path,
+        staged_generation: Path,
+        observed: int,
+        new_generation: int,
+        generation_digest: bytes,
+    ) -> None:
+        self._trip("after_binding_durability")
+        self._trip("before_generation_publication")
+        os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
+        _sync_directory(self.path / "generations")
+        self._trip("after_generation_replace_before_journal_state_1")
+        self._write_journal_state(
+            transaction,
+            state=1,
+            old=observed,
+            new=new_generation,
+            digest=generation_digest,
+        )
+        self._trip("after_generation_publication")
+        self._publish_head(new_generation)
+        self._write_journal_state(
+            transaction,
+            state=2,
+            old=observed,
+            new=new_generation,
+            digest=generation_digest,
+        )
+        self._trip("after_head_publication")
+        self._trip("during_cleanup")
+        (transaction / "journal").unlink(missing_ok=True)
+        self._trip("after_journal_unlink_before_rmdir")
+        for child in transaction.iterdir():
+            if child.is_file():
+                child.unlink(missing_ok=True)
+        transaction.rmdir()
+        _sync_directory(self.path / "staging")
 
     # ---- generic binding/object operations ---------------------------
 
@@ -1728,6 +2040,7 @@ class EmbeddedStore:
         binding_id = self._binding_id(domain_schema, domain_identity)
         logical_id = self._logical_id(binding_id)
         with self._publication_lock():
+            self._recover_pending_locked()
             observed = self.current_generation
             if self._cas(observed, expected_generation) != 0:
                 token = self._conflict_token(observed, expected_generation)
@@ -1764,39 +2077,38 @@ class EmbeddedStore:
             )
             existing_entry = self._entries_by_binding.get(binding_id)
             existing_path = self._binding_path(binding_id)
-            if existing_path.exists():
+            if existing_entry is not None:
+                if not existing_path.exists():
+                    raise StoreIntegrityError(
+                        "committed Store binding file is missing",
+                    )
                 existing = self._read_binding(
                     binding_id,
-                    (existing_entry.representation_root
-                     if existing_entry is not None else None),
+                    existing_entry.representation_root,
                 )
-                if existing_entry is not None:
-                    candidate_content = self._hash(payload)
-                    if existing[3] != candidate_content:
-                        raise StoreError(
-                            StoreResultCode.IDENTITY_CONFLICT,
-                            "domain identity already names different Store content",
-                        )
-                    return CommitResult(
-                        StoreResultCode.DUPLICATE,
-                        observed,
-                        existing[2],
-                        existing[3],
-                        existing[4],
-                        binding_id,
-                        expected_generation,
-                        observed,
+                candidate_content = self._hash(payload)
+                if existing[3] != candidate_content:
+                    raise StoreError(
+                        StoreResultCode.IDENTITY_CONFLICT,
+                        "domain identity already names different Store content",
                     )
+                return CommitResult(
+                    StoreResultCode.DUPLICATE,
+                    observed,
+                    existing[2],
+                    existing[3],
+                    existing[4],
+                    binding_id,
+                    expected_generation,
+                    observed,
+                )
+            if existing_path.exists():
                 # A binding can survive a process death before generation
                 # publication.  It is not authoritative until the current
                 # committed generation names it, so remove only this orphan
                 # while holding the publication lock.
-                existing_path.unlink()
+                existing_path.unlink(missing_ok=True)
                 _sync_directory(existing_path.parent)
-            elif existing_entry is not None:
-                raise StoreIntegrityError(
-                    "committed Store binding file is missing",
-                )
             if logical_id in self._entry_logical_ids:
                 raise StoreIntegrityError(
                     "Store generation repeats a logical object",
@@ -1809,6 +2121,7 @@ class EmbeddedStore:
                 new_generation,
                 require_current_generation=True,
             )
+            self._trip("before_artifact_preparation")
             adaptive = synopsis is not None or bool(representations) or bool(blocks)
             envelope_digest: bytes | None = None
             reps_digest: bytes | None = None
@@ -1849,17 +2162,11 @@ class EmbeddedStore:
                 generation_raw = self._generation_delta_bytes(
                     new_generation, observed, [new_entry], relations, provenance,
                 )
-            transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
-            transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
-            staged_generation = transaction / "generation.stage"
-            _durable_write(staged_generation, generation_raw, exclusive=True)
-            generation_digest = self._hash(generation_raw)
-            _durable_write(
-                transaction / "journal",
-                JOURNAL.pack(JOURNAL_MAGIC, VERSION, 0, observed, new_generation, generation_digest),
-                exclusive=True,
+            transaction, staged_generation, generation_digest = (
+                self._stage_generation_transaction(
+                    observed, new_generation, generation_raw
+                )
             )
-            _sync_directory(transaction)
             # The binding and all immutable representation material are
             # durable before either the generation or head can become
             # authoritative.  Recovery can therefore verify old-or-new
@@ -1873,30 +2180,13 @@ class EmbeddedStore:
                 representation_root=root,
                 generation=new_generation,
             )
-            self._trip("after_binding_durability")
-            self._trip("before_generation_publication")
-            os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
-            _sync_directory(self.path / "generations")
-            self._write_journal_state(
+            self._commit_staged_transaction(
                 transaction,
-                state=1,
-                old=observed,
-                new=new_generation,
-                digest=generation_digest,
+                staged_generation,
+                observed,
+                new_generation,
+                generation_digest,
             )
-            self._trip("after_generation_publication")
-            self._publish_head(new_generation)
-            self._write_journal_state(
-                transaction,
-                state=2,
-                old=observed,
-                new=new_generation,
-                digest=generation_digest,
-            )
-            self._trip("after_head_publication")
-            self._trip("during_cleanup")
-            (transaction / "journal").unlink(missing_ok=True)
-            transaction.rmdir()
             self._extend_generation_parts_cache(
                 observed, new_generation, [new_entry], relations, provenance,
             )
@@ -1961,12 +2251,14 @@ class EmbeddedStore:
             raise StoreError(StoreResultCode.DENIED, "Store is closed")
         binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
         with self._publication_lock():
+            self._recover_pending_locked()
             observed = self.current_generation
             entry, _, committed, _ = self._resolve_entry(domain_schema, domain_identity)
             if self._cas(observed, expected_generation) != 0:
                 return CommitResult(StoreResultCode.STALE_GENERATION, observed, entry.logical_id,
                                     entry.content_id, entry.representation_root, binding_id,
                                     expected_generation, observed, self._conflict_token(observed, expected_generation))
+            self._trip("before_artifact_preparation")
             part = self._read_rep_tables(self._read_envelope_part(entry, committed))
             old_records = part["representations"]
             old_fields = part["rep_fields"]
@@ -2013,30 +2305,28 @@ class EmbeddedStore:
             generation_raw = self._generation_publication_bytes(
                 new_generation, old_entries, entries, relations, relations,
                 provenance, provenance)
-            transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
-            transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
-            staged_generation = transaction / "generation.stage"
-            _durable_write(staged_generation, generation_raw, exclusive=True)
-            digest = self._hash(generation_raw)
-            _durable_write(transaction / "journal",
-                           JOURNAL.pack(JOURNAL_MAGIC, VERSION, 0, observed, new_generation, digest), exclusive=True)
-            _sync_directory(transaction)
+            transaction, staged_generation, digest = (
+                self._stage_generation_transaction(
+                    observed, new_generation, generation_raw
+                )
+            )
+            versioned_binding = (
+                self.path / "bindings" / f"{binding_id.hex()}-{root.hex()}.bind"
+            )
+            if versioned_binding.exists() and root != entry.representation_root:
+                versioned_binding.unlink(missing_ok=True)
+                _sync_directory(versioned_binding.parent)
             self._write_binding(domain_schema=bytes(domain_schema), domain_identity=bytes(domain_identity),
                                 binding_id=binding_id, logical_id=entry.logical_id, content_id=entry.content_id,
                                 representation_root=root, generation=new_generation, physical_version=True)
-            self._trip("after_binding_durability")
-            self._trip("before_generation_publication")
-            os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
-            _sync_directory(self.path / "generations")
-            self._write_journal_state(transaction, state=1, old=observed, new=new_generation, digest=digest)
-            self._trip("after_generation_publication")
-            self._publish_head(new_generation)
-            self._write_journal_state(transaction, state=2, old=observed, new=new_generation, digest=digest)
-            self._trip("after_head_publication")
-            self._trip("during_cleanup")
-            (transaction / "journal").unlink()
-            transaction.rmdir()
+            self._commit_staged_transaction(
+                transaction, staged_generation, observed, new_generation, digest
+            )
             self._invalidate_projection()
+            self._entry_index_generation = None
+            self._entries_by_binding = {}
+            self._entry_logical_ids = set()
+            self._max_entry_ordinal = 0
             self._cache_generation_parts(new_generation, entries, relations, provenance)
             return CommitResult(StoreResultCode.COMMITTED, new_generation, entry.logical_id, entry.content_id,
                                 root, binding_id, expected_generation, observed)
@@ -2096,6 +2386,7 @@ class EmbeddedStore:
             )
 
         with self._publication_lock():
+            self._recover_pending_locked()
             observed = self.current_generation
             if self._cas(observed, expected_generation) != 0:
                 token = self._conflict_token(observed, expected_generation)
@@ -2121,16 +2412,20 @@ class EmbeddedStore:
                 if self._domain_index_generation == observed
                 else None
             )
-            active_bindings = {entry.binding_id for entry in old_entries}
+            entries_by_binding = {entry.binding_id: entry for entry in old_entries}
             duplicate_results: list[CommitResult] = []
             new_items: list[tuple[BoundObjectInput, bytes, bytes]] = []
             for item, binding_id in zip(normalized, bindings, strict=True):
+                existing_entry = entries_by_binding.get(binding_id)
                 existing_path = self._binding_path(binding_id)
-                if not existing_path.exists():
-                    new_items.append((item, binding_id, self._logical_id(binding_id)))
-                    continue
-                existing = self._read_binding(binding_id, next((entry.representation_root for entry in old_entries if entry.binding_id == binding_id), None))
-                if binding_id in active_bindings:
+                if existing_entry is not None:
+                    if not existing_path.exists():
+                        raise StoreIntegrityError(
+                            "committed Store binding file is missing",
+                        )
+                    existing = self._read_binding(
+                        binding_id, existing_entry.representation_root
+                    )
                     candidate_content = self._hash(item.payload)
                     if existing[3] != candidate_content:
                         raise StoreError(
@@ -2150,10 +2445,11 @@ class EmbeddedStore:
                         )
                     )
                     continue
-                # A binding left by a failed prior publication is not
-                # authoritative until a committed generation names it.
-                existing_path.unlink()
-                _sync_directory(existing_path.parent)
+                if existing_path.exists():
+                    # A binding left by a failed prior publication is not
+                    # authoritative until a committed generation names it.
+                    existing_path.unlink(missing_ok=True)
+                    _sync_directory(existing_path.parent)
                 new_items.append((item, binding_id, self._logical_id(binding_id)))
 
             if duplicate_results and new_items:
@@ -2177,6 +2473,7 @@ class EmbeddedStore:
                 new_generation,
                 require_current_generation=True,
             )
+            self._trip("before_artifact_preparation")
             next_ordinal = max((entry.ordinal for entry in old_entries), default=observed) + 1
             entries = list(old_entries)
             built: list[
@@ -2208,17 +2505,11 @@ class EmbeddedStore:
                 old_provenance,
                 next_provenance,
             )
-            transaction = self.path / "staging" / f"{observed:016x}-{new_generation:016x}"
-            transaction.mkdir(mode=0o700, parents=True, exist_ok=False)
-            staged_generation = transaction / "generation.stage"
-            _durable_write(staged_generation, generation_raw, exclusive=True)
-            generation_digest = self._hash(generation_raw)
-            _durable_write(
-                transaction / "journal",
-                JOURNAL.pack(JOURNAL_MAGIC, VERSION, 0, observed, new_generation, generation_digest),
-                exclusive=True,
+            transaction, staged_generation, generation_digest = (
+                self._stage_generation_transaction(
+                    observed, new_generation, generation_raw
+                )
             )
-            _sync_directory(transaction)
             for item, binding_id, logical_id, content_id, root, _ordinal in built:
                 self._write_binding(
                     domain_schema=item.domain_schema,
@@ -2229,30 +2520,13 @@ class EmbeddedStore:
                     representation_root=root,
                     generation=new_generation,
                 )
-            self._trip("after_binding_durability")
-            self._trip("before_generation_publication")
-            os.replace(staged_generation, self.path / "generations" / f"{new_generation:016x}")
-            _sync_directory(self.path / "generations")
-            self._write_journal_state(
+            self._commit_staged_transaction(
                 transaction,
-                state=1,
-                old=observed,
-                new=new_generation,
-                digest=generation_digest,
+                staged_generation,
+                observed,
+                new_generation,
+                generation_digest,
             )
-            self._trip("after_generation_publication")
-            self._publish_head(new_generation)
-            self._write_journal_state(
-                transaction,
-                state=2,
-                old=observed,
-                new=new_generation,
-                digest=generation_digest,
-            )
-            self._trip("after_head_publication")
-            self._trip("during_cleanup")
-            (transaction / "journal").unlink(missing_ok=True)
-            transaction.rmdir()
 
             self._cache_generation_parts(
                 new_generation, entries, next_relations, next_provenance,
@@ -3433,6 +3707,10 @@ class EmbeddedStore:
             raise StoreError(StoreResultCode.DENIED, "Store is read-only; recovery is forbidden")
         self._invalidate_projection()
         self._invalidate_generation_parts_cache()
+        self._entry_index_generation = None
+        self._entries_by_binding = {}
+        self._entry_logical_ids = set()
+        self._max_entry_ordinal = 0
         self.recovery_result = self._recover()
         self._read_generation(self.current_generation, verify_objects=True)
         return self.recovery_result
