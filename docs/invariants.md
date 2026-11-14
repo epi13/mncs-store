@@ -22,6 +22,8 @@ The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are used normatively.
 10. Uncommitted content **MUST NOT** become authoritative merely because chunks reached durable media.
 11. A durability acknowledgment **MUST NOT** precede the durability barrier promised by the selected policy.
 12. Recovery **MUST** choose a verifiably committed state; it **MUST NOT** synthesize a mixed generation from partially persisted metadata.
+12a. Immutable content-addressed and binding artifacts **MUST** be staged via temporary files and published atomically (`os.replace`) so an interrupted write **MUST NOT** leave a 0-byte or partially written file at a canonical store path.
+12b. Interrupted `staging/<old>-<new>` transactions — including journal-less or truncated-journal staging directories left before state-0 journal publication or after journal removal — **MUST** recover automatically on store open or next publication lock acquisition by rolling back to a verified `old` generation (and removing uncommitted generation/binding artifacts) or rolling forward only when `new` is fully verified (`state >= 1` or `head == new`).
 
 ## References and provenance
 

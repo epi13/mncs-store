@@ -771,21 +771,27 @@ def test_interior_chunk_corruption_fails_closed(tmp_path: Path) -> None:
         interior.write_bytes(original)
 
 
-@pytest.mark.parametrize(
-    "failpoint",
-    [
-        "during_chunk_staging",
-        "after_content_durability",
-        "during_structural_metadata_staging",
-        "after_binding_durability",
-        "before_generation_publication",
-        "after_generation_publication",
-        "after_head_replace_before_directory_sync",
-        "during_head_publication",
-        "after_head_publication",
-        "during_cleanup",
-    ],
-)
+ALL_TRANSACTION_FAILPOINTS = [
+    "before_artifact_preparation",
+    "during_chunk_staging",
+    "after_content_durability",
+    "during_structural_metadata_staging",
+    "after_staging_dir_created",
+    "after_staged_generation_write",
+    "after_binding_durability",
+    "before_generation_publication",
+    "after_generation_replace_before_journal_state_1",
+    "after_generation_publication",
+    "before_head_replace",
+    "after_head_replace_before_directory_sync",
+    "during_head_publication",
+    "after_head_publication",
+    "during_cleanup",
+    "after_journal_unlink_before_rmdir",
+]
+
+
+@pytest.mark.parametrize("failpoint", ALL_TRANSACTION_FAILPOINTS)
 def test_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None:
     def inject(name: str) -> None:
         if name == failpoint:
@@ -807,10 +813,21 @@ def test_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None
             StoreResultCode.RECOVERED_OLD,
             StoreResultCode.RECOVERED_NEW,
         }
+        assert list((tmp_path / "staging").iterdir()) == []
         if recovered.current_generation == 1:
             assert recovered.current_objects()[0].payload == b"fault" * 300
         else:
             assert recovered.current_objects() == []
+            assert not (tmp_path / "generations" / f"{1:016x}").exists()
+        followup = recovered.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"after-recovery",
+            descriptor=b"test-descriptor/1",
+            payload=b"recovered-ok",
+            expected_generation=recovered.current_generation,
+        )
+        assert followup.code is StoreResultCode.COMMITTED
+        assert recovered.verify()["ok"] is True
 
 
 def test_orphan_manifest_does_not_block_new_content_for_same_logical_identity(
@@ -864,21 +881,7 @@ def test_orphan_manifest_does_not_block_new_content_for_same_logical_identity(
         assert current[0].representation_root == retried.representation_root
 
 
-@pytest.mark.parametrize(
-    "failpoint",
-    [
-        "during_chunk_staging",
-        "after_content_durability",
-        "during_structural_metadata_staging",
-        "after_binding_durability",
-        "before_generation_publication",
-        "after_generation_publication",
-        "after_head_replace_before_directory_sync",
-        "during_head_publication",
-        "after_head_publication",
-        "during_cleanup",
-    ],
-)
+@pytest.mark.parametrize("failpoint", ALL_TRANSACTION_FAILPOINTS)
 def test_batch_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -> None:
     def inject(name: str) -> None:
         if name == failpoint:
@@ -898,6 +901,7 @@ def test_batch_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -
             StoreResultCode.RECOVERED_OLD,
             StoreResultCode.RECOVERED_NEW,
         }
+        assert list((tmp_path / "staging").iterdir()) == []
         if recovered.current_generation == 1:
             assert [item.payload for item in recovered.current_objects()] == [
                 b"payload-one",
@@ -905,6 +909,13 @@ def test_batch_fault_points_recover_old_or_new(tmp_path: Path, failpoint: str) -
             ]
         else:
             assert recovered.current_objects() == []
+            assert not (tmp_path / "generations" / f"{1:016x}").exists()
+        followup = recovered.put_bound_objects(
+            [BoundObjectInput(b"batch/1", b"three", b"descriptor/1", b"payload-three")],
+            expected_generation=recovered.current_generation,
+        )
+        assert followup.code is StoreResultCode.COMMITTED
+        assert recovered.verify()["ok"] is True
 
 
 def test_real_processes_allow_one_expected_generation_commit(tmp_path: Path) -> None:
@@ -1074,3 +1085,294 @@ def test_generation_prune_is_noop_inside_retention_window(
         for invalid in (True, 0, -1):
             with pytest.raises(StoreError):
                 store.prune_generations(keep_last=invalid, dry_run=True)
+
+
+def _abrupt_kill_worker(path_text: str, failpoint: str, identity: str) -> None:
+    import os
+
+    def inject(name: str) -> None:
+        if name == failpoint:
+            os._exit(137)
+
+    with EmbeddedStore(Path(path_text), session=_session(), failpoint=inject) as store:
+        store.put_bound_object(
+            domain_schema=b"crash.subprocess/1",
+            domain_identity=identity.encode("utf-8"),
+            descriptor=b"crash-descriptor/1",
+            payload=(identity.encode("utf-8") * 200),
+            expected_generation=store.current_generation,
+        )
+
+
+def test_journalless_and_truncated_staging_transactions_recover_cleanly(
+    tmp_path: Path,
+) -> None:
+    """Reproduce production incidents prs_9817006094b395c3 and prs_bbef8493aa6f56d5."""
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        committed = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"anchored",
+            descriptor=b"test-descriptor/1",
+            payload=b"anchored-payload",
+            expected_generation=0,
+        )
+        assert committed.code is StoreResultCode.COMMITTED
+
+    # Case 1: staging/0000000000000001-0000000000000002 with truncated generation.stage and no journal.
+    tx = tmp_path / "staging" / f"{1:016x}-{2:016x}"
+    tx.mkdir(mode=0o700)
+    (tx / "generation.stage").write_bytes(b"MD\x01\x00truncated")
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.recovery_result is StoreResultCode.RECOVERED_OLD
+        assert recovered.current_generation == 1
+        assert not tx.exists()
+
+    # Case 2: staging/0000000000000001-0000000000000002 with truncated journal prefix.
+    tx.mkdir(mode=0o700)
+    (tx / "generation.stage").write_bytes(b"MD\x02\x00truncated")
+    (tx / "journal").write_bytes(b"SJ\x02\x00")
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.recovery_result is StoreResultCode.RECOVERED_OLD
+        assert recovered.current_generation == 1
+        assert not tx.exists()
+
+    # Case 3: Corrupt journal header magic still fails closed.
+    tx.mkdir(mode=0o700)
+    (tx / "journal").write_bytes(b"XX\x99\x00" + bytes(48))
+    with pytest.raises(StoreIntegrityError, match="unknown Store recovery journal"):
+        EmbeddedStore(tmp_path, session=_session())
+    (tx / "journal").unlink()
+    tx.rmdir()
+
+
+def test_torn_uncommitted_artifacts_and_bindings_do_not_poison_retries(
+    tmp_path: Path,
+) -> None:
+    """Interrupted writes leaving torn uncommitted files or .stage files must not poison retries."""
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        first = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"first",
+            descriptor=b"desc-first/1",
+            payload=b"first-committed-payload",
+            expected_generation=0,
+        )
+        assert first.code is StoreResultCode.COMMITTED
+        retry_binding = store._binding_id(b"test.domain/1", b"retry-target")
+
+    payload = b"retry-target-payload" * 4000  # multi-chunk payload (> 64 KiB)
+    chunk0 = payload[:65536]
+    chunk0_digest = hashlib.sha256(chunk0).hexdigest()
+    desc = b"desc-retry/1"
+    desc_digest = hashlib.sha256(desc).hexdigest()
+
+    # Simulate pre-commit torn/0-byte uncommitted chunk, descriptor, binding, and leftover .stage files.
+    (tmp_path / "chunks" / f"{chunk0_digest}.chunk").write_bytes(b"torn")
+    (tmp_path / "descriptors" / f"{desc_digest}.desc").write_bytes(b"")
+    (tmp_path / "bindings" / f"{retry_binding.hex()}.bind").write_bytes(b"MB\x01")
+    (tmp_path / "chunks" / ".orphan.1234.5678.stage").write_bytes(b"partial-stage")
+    (tmp_path / ".head.1234.5678.stage").write_bytes(b"MH\x01")
+
+    with EmbeddedStore(tmp_path, session=_session()) as reopened:
+        assert not (tmp_path / "chunks" / ".orphan.1234.5678.stage").exists()
+        assert not (tmp_path / ".head.1234.5678.stage").exists()
+        second = reopened.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"retry-target",
+            descriptor=desc,
+            payload=payload,
+            expected_generation=1,
+        )
+        assert second.code is StoreResultCode.COMMITTED
+        assert reopened.get_bound_object(b"test.domain/1", b"retry-target").payload == payload
+        assert reopened.verify()["ok"] is True
+
+        # Conversely, corrupting a COMMITTED chunk must still fail closed on write and verify.
+        committed_chunk = tmp_path / "chunks" / f"{hashlib.sha256(b'first-committed-payload').hexdigest()}.chunk"
+        committed_chunk.write_bytes(b"corrupted-committed-chunk")
+        with pytest.raises(StoreIntegrityError):
+            reopened.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=b"shares-corrupted-chunk",
+                descriptor=b"desc-other/1",
+                payload=b"first-committed-payload",
+                expected_generation=2,
+            )
+
+
+@pytest.mark.parametrize("failpoint", ALL_TRANSACTION_FAILPOINTS)
+def test_same_instance_retry_after_interrupted_transaction_recovers_automatically(
+    tmp_path: Path, failpoint: str
+) -> None:
+    """A resident EmbeddedStore instance must recover pending staging state on its next write."""
+    tripped = False
+
+    def inject_once(name: str) -> None:
+        nonlocal tripped
+        if not tripped and name == failpoint:
+            tripped = True
+            raise CrashInjected(name)
+
+    with EmbeddedStore(tmp_path, session=_session(), failpoint=inject_once) as store:
+        with pytest.raises(CrashInjected):
+            store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=b"resident-retry",
+                descriptor=b"test-descriptor/1",
+                payload=b"resident-payload",
+                expected_generation=0,
+            )
+        # Retry on the SAME store instance without reopening.
+        result = store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"resident-retry",
+            descriptor=b"test-descriptor/1",
+            payload=b"resident-payload",
+            expected_generation=store.current_generation,
+        )
+        assert result.code in {StoreResultCode.COMMITTED, StoreResultCode.DUPLICATE}
+        assert store.current_generation == 1
+        assert store.get_bound_object(b"test.domain/1", b"resident-retry").payload == b"resident-payload"
+        assert list((tmp_path / "staging").iterdir()) == []
+        assert store.verify()["ok"] is True
+
+
+def test_missing_head_during_staged_transaction_recovers_nonzero_generation(
+    tmp_path: Path,
+) -> None:
+    """When head is missing during a non-zero generation transaction, _initialize_files must not reset head to 0."""
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        for gen in range(3):
+            res = store.put_bound_object(
+                domain_schema=b"test.domain/1",
+                domain_identity=f"obj-{gen}".encode(),
+                descriptor=b"desc/1",
+                payload=f"payload-{gen}".encode(),
+                expected_generation=gen,
+            )
+            assert res.committed
+
+    def stop_after_gen_pub(name: str) -> None:
+        if name == "after_generation_publication":
+            raise CrashInjected(name)
+
+    with (
+        pytest.raises(CrashInjected),
+        EmbeddedStore(tmp_path, session=_session(), failpoint=stop_after_gen_pub) as store,
+    ):
+        store.put_bound_object(
+            domain_schema=b"test.domain/1",
+            domain_identity=b"obj-3",
+            descriptor=b"desc/1",
+            payload=b"payload-3",
+            expected_generation=3,
+        )
+
+    # Simulate head missing right before head replacement while transaction 3->4 is valid in staging.
+    (tmp_path / "head").unlink()
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.recovery_result is StoreResultCode.RECOVERED_NEW
+        assert recovered.current_generation == 4
+        assert len(recovered.current_objects()) == 4
+        assert recovered.verify()["ok"] is True
+
+
+def test_checkpoint_boundary_fault_points_recover_and_advance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mncs_store import embedded as embedded_module
+
+    monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        for gen in range(3):
+            assert store.put_bound_object(
+                domain_schema=b"checkpoint/1",
+                domain_identity=f"item-{gen}".encode(),
+                descriptor=b"desc/1",
+                payload=f"data-{gen}".encode(),
+                expected_generation=gen,
+            ).committed
+
+    for failpoint in (
+        "after_staged_generation_write",
+        "after_generation_publication",
+        "after_head_replace_before_directory_sync",
+        "after_journal_unlink_before_rmdir",
+    ):
+        tripped = False
+
+        def inject_once(name: str, target: str = failpoint) -> None:
+            nonlocal tripped
+            if not tripped and name == target:
+                tripped = True
+                raise CrashInjected(name)
+
+        with (
+            pytest.raises(CrashInjected),
+            EmbeddedStore(tmp_path, session=_session(), failpoint=inject_once) as store,
+        ):
+            store.put_bound_object(
+                domain_schema=b"checkpoint/1",
+                domain_identity=f"checkpoint-{failpoint}".encode(),
+                descriptor=b"desc/1",
+                payload=f"payload-{failpoint}".encode(),
+                expected_generation=store.current_generation,
+            )
+
+        with EmbeddedStore(tmp_path, session=_session()) as recovered:
+            assert recovered.verify()["ok"] is True
+            if recovered.current_generation == 3:
+                assert recovered.put_bound_object(
+                    domain_schema=b"checkpoint/1",
+                    domain_identity=f"checkpoint-{failpoint}".encode(),
+                    descriptor=b"desc/1",
+                    payload=f"payload-{failpoint}".encode(),
+                    expected_generation=3,
+                ).committed
+            assert (tmp_path / "generations" / f"{4:016x}").read_bytes()[:2] == b"MG"
+
+
+@pytest.mark.parametrize(
+    "failpoint",
+    [
+        "after_staged_generation_write",
+        "before_generation_publication",
+        "after_generation_publication",
+        "after_head_replace_before_directory_sync",
+        "after_journal_unlink_before_rmdir",
+    ],
+)
+def test_abrupt_subprocess_kill_across_transaction_lifecycle(
+    tmp_path: Path, failpoint: str
+) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        assert store.put_bound_object(
+            domain_schema=b"crash.subprocess/1",
+            domain_identity=b"seed",
+            descriptor=b"crash-descriptor/1",
+            payload=b"seed-payload",
+            expected_generation=0,
+        ).committed
+
+    context = multiprocessing.get_context("fork")
+    proc = context.Process(
+        target=_abrupt_kill_worker,
+        args=(str(tmp_path), failpoint, f"killed-{failpoint}"),
+    )
+    proc.start()
+    proc.join(timeout=30)
+    assert proc.exitcode == 137
+
+    with EmbeddedStore(tmp_path, session=_session()) as recovered:
+        assert recovered.current_generation in {1, 2}
+        assert list((tmp_path / "staging").iterdir()) == []
+        assert recovered.verify()["ok"] is True
+        next_commit = recovered.put_bound_object(
+            domain_schema=b"crash.subprocess/1",
+            domain_identity=b"post-kill",
+            descriptor=b"crash-descriptor/1",
+            payload=b"post-kill-payload",
+            expected_generation=recovered.current_generation,
+        )
+        assert next_commit.code is StoreResultCode.COMMITTED
+        assert recovered.verify()["ok"] is True
