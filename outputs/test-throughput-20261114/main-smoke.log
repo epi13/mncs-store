@@ -1,0 +1,9 @@
+........................................................................ [ 52%]
+.................................................................        [100%]
+============================= slowest 5 durations ==============================
+13.37s call     tests/test_provider.py::test_provider_fresh_process_selective_read_and_plan_refusal
+11.32s call     tests/test_phase2.py::test_general_blob_boundaries_roundtrip
+4.95s call     tests/test_lifecycle.py::test_u32_roundtrip_close_reopen
+2.57s call     tests/test_reference_transport.py::test_compiler_timeout_and_interrupt_reap_backend_children[False]
+2.36s call     tests/test_reference_transport.py::test_compiler_timeout_and_interrupt_reap_backend_children[True]
+137 passed in 44.73s

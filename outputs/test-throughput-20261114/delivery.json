@@ -1,0 +1,21 @@
+{
+  "workstream": "A \u2014 test infrastructure",
+  "language_commit": "f8742e9",
+  "store_source_commit": "0d08e35",
+  "publication": "Both source commits merged to main and pushed; verified by git push result and remote ref readback.",
+  "canonical_activation": "Paired release CLI/embed rebuilt successfully from mncs-language/main; no running service was stopped.",
+  "activation_tests": {
+    "passed": 137,
+    "seconds": 44.73,
+    "scope": "lifecycle, boundary, embedded Store, reference transport, artifact cache, provider"
+  },
+  "binaries_sha256": {
+    "release/mncs": "134586004254ed341710e199836d99c4c2bc8a3b0a5f36735e143e9677f8bb6b",
+    "release/libmncs_embed.so": "a78e0c66b4eb55cb1d810d01c1066689ceef7cf1355faef755336585977b7b03"
+  },
+  "store_indexing": "Not modified in workstream A.",
+  "source_publication_readback": {
+    "mncs-language": "ca71830cf64860525d74b21306c2ceb7413334f6",
+    "mncs-store": "0d08e35c37ff34368c5f1848a62edaab257d0f7a"
+  }
+}
