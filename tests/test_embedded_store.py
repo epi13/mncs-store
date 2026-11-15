@@ -1394,3 +1394,181 @@ def test_abrupt_subprocess_kill_across_transaction_lifecycle(
         )
         assert next_commit.code is StoreResultCode.COMMITTED
         assert recovered.verify()["ok"] is True
+
+
+def test_get_bound_objects_batches_unindexed_and_preserves_order_and_errors(tmp_path: Path) -> None:
+    batch_calls: list[int] = []
+
+    class BatchCapableSession(SemanticSessionDouble):
+        def call_batch(self, calls: list[dict[str, object]]) -> list[dict[str, object]]:
+            batch_calls.append(len(calls))
+            results: list[dict[str, object]] = []
+            for call in calls:
+                seq = call["args"][0]["sequence"]["values"]
+                payload = bytes(item["byte"]["value"] for item in seq)
+                digest = self.sha256(payload)
+                results.append(
+                    {
+                        "status": "returned",
+                        "returned": [
+                            {"sequence": {"values": [{"byte": {"value": b}} for b in digest]}}
+                        ],
+                    }
+                )
+            return results
+
+    with EmbeddedStore(tmp_path, session=BatchCapableSession()) as store:
+        assert store.get_bound_objects([]) == []
+        for idx in range(5):
+            assert store.put_bound_object(
+                domain_schema=b"batch.domain/1",
+                domain_identity=f"item-{idx}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=f"payload-{idx}".encode(),
+                expected_generation=idx,
+            ).committed
+
+    with EmbeddedStore(tmp_path, session=BatchCapableSession(), read_only=True) as reader:
+        requested = [
+            (b"batch.domain/1", b"item-3"),
+            (b"batch.domain/1", b"item-0"),
+            (b"batch.domain/1", b"item-3"),
+            (b"batch.domain/1", b"item-4"),
+        ]
+        objs = reader.get_bound_objects(requested)
+        assert [obj.domain_identity for obj in objs] == [b"item-3", b"item-0", b"item-3", b"item-4"]
+        assert [obj.payload for obj in objs] == [b"payload-3", b"payload-0", b"payload-3", b"payload-4"]
+        # Unindexed batch deduplicates unique keys and computes their binding IDs in one batch.
+        assert batch_calls == [3]
+
+        # Repeated queries hit the bounded binding-id cache without issuing another call_batch.
+        again = reader.get_bound_objects(requested)
+        assert [obj.payload for obj in again] == [b"payload-3", b"payload-0", b"payload-3", b"payload-4"]
+        assert batch_calls == [3]
+
+        # Missing object fails atomically with the exact current-binding denial.
+        with pytest.raises(StoreError, match="not current") as exc_info:
+            reader.get_bound_objects([(b"batch.domain/1", b"item-0"), (b"batch.domain/1", b"missing")])
+        assert exc_info.value.code is StoreResultCode.DENIED
+
+
+def test_get_bound_objects_uses_domain_index_and_detects_corruption(tmp_path: Path) -> None:
+    session = _session()
+    with EmbeddedStore(tmp_path, session=session) as store:
+        for idx in range(6):
+            schema = b"schema.a/1" if idx % 2 == 0 else b"schema.b/1"
+            assert store.put_bound_object(
+                domain_schema=schema,
+                domain_identity=f"obj-{idx}".encode(),
+                descriptor=b"test-descriptor/1",
+                payload=f"body-{idx}".encode(),
+                expected_generation=idx,
+            ).committed
+
+    read_session = _session()
+    with EmbeddedStore(tmp_path, session=read_session, read_only=True) as reader:
+        bindings = reader.domain_bindings_at(reader.current_generation)
+        assert len(bindings) == 6
+        sha_calls = 0
+        binding_id_calls = 0
+        orig_sha = read_session.sha256
+        orig_binding_id = reader._binding_id
+
+        def count_sha(payload: bytes) -> bytes:
+            nonlocal sha_calls
+            sha_calls += 1
+            return orig_sha(payload)
+
+        def count_binding_id(schema: bytes, identity: bytes) -> bytes:
+            nonlocal binding_id_calls
+            binding_id_calls += 1
+            return orig_binding_id(schema, identity)
+
+        read_session.sha256 = count_sha  # type: ignore[method-assign]
+        read_session.sha256_buffer = orig_sha  # type: ignore[attr-defined]
+        reader._binding_id = count_binding_id  # type: ignore[method-assign]
+        batch = reader.get_bound_objects([(b"schema.a/1", b"obj-0"), (b"schema.b/1", b"obj-3")])
+        assert [o.payload for o in batch] == [b"body-0", b"body-3"]
+        single = reader.get_bound_object(b"schema.a/1", b"obj-4")
+        assert single.payload == b"body-4"
+        assert binding_id_calls == 0
+        assert sha_calls == 0
+
+        found_b = reader.find_bound_objects(b"schema.b/1")
+        assert [o.domain_identity for o in found_b] == [b"obj-1", b"obj-3", b"obj-5"]
+
+    # Corrupt one chunk on disk -> get_bound_objects must fail with StoreIntegrityError.
+    chunk_file = next((tmp_path / "chunks").iterdir())
+    chunk_file.write_bytes(b"corrupt")
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+        with pytest.raises(StoreIntegrityError):
+            reader.get_bound_objects(
+                [(b"schema.a/1", f"obj-{i}".encode()) for i in (0, 2, 4)]
+                + [(b"schema.b/1", f"obj-{i}".encode()) for i in (1, 3, 5)]
+            )
+
+
+def test_get_bound_objects_preserves_binding_tamper_detection_and_bounded_cache(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        store.put_bound_object(
+            domain_schema=b"tamper/1",
+            domain_identity=b"target",
+            descriptor=b"test-descriptor/1",
+            payload=b"payload",
+            expected_generation=0,
+        )
+        # Re-write the existing binding file's domain_identity in place without changing header length.
+        bid = store._binding_id(b"tamper/1", b"target")
+        bpath = store._binding_path(bid)
+        bpath.write_bytes(bpath.read_bytes().replace(b"target", b"forged"))
+
+    with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+        # Even after building domain_bindings_at, requesting original key must detect tamper, not report missing.
+        reader.domain_bindings_at(reader.current_generation)
+        with pytest.raises(StoreIntegrityError):
+            reader.get_bound_objects([(b"tamper/1", b"target")])
+        with pytest.raises(StoreIntegrityError):
+            reader.get_bound_object(b"tamper/1", b"target")
+
+
+def test_get_bound_objects_pins_single_generation_across_concurrent_publish(tmp_path: Path) -> None:
+    with EmbeddedStore(tmp_path, session=_session()) as writer:
+        writer.put_bound_object(
+            domain_schema=b"pin/1",
+            domain_identity=b"k1",
+            descriptor=b"test-descriptor/1",
+            payload=b"v1",
+            expected_generation=0,
+        )
+        writer.put_bound_object(
+            domain_schema=b"pin/1",
+            domain_identity=b"k2",
+            descriptor=b"test-descriptor/1",
+            payload=b"v2",
+            expected_generation=1,
+        )
+
+        with EmbeddedStore(tmp_path, session=_session(), read_only=True) as reader:
+            reader.domain_bindings_at(reader.current_generation)
+            # External writer commits k3 at gen 3 AFTER reader cached gen 2 index.
+            writer.put_bound_object(
+                domain_schema=b"pin/1",
+                domain_identity=b"k3",
+                descriptor=b"test-descriptor/1",
+                payload=b"v3",
+                expected_generation=2,
+            )
+            # Reader observes gen 3 atomically via incremental index / lookup.
+            objs = reader.get_bound_objects([(b"pin/1", b"k1"), (b"pin/1", b"k3")])
+            assert [o.payload for o in objs] == [b"v1", b"v3"]
+            assert [o.generation for o in objs] == [3, 3]
+
+
+def test_binding_id_cache_is_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from mncs_store import embedded as embedded_module
+
+    monkeypatch.setattr(embedded_module, "_BINDING_ID_CACHE_MAX", 4)
+    with EmbeddedStore(tmp_path, session=_session()) as store:
+        for i in range(6):
+            store._binding_id(b"bound/1", f"k-{i}".encode())
+        assert len(store._binding_id_cache) == 4

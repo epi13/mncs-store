@@ -15,13 +15,14 @@ import os
 import stat
 import struct
 import time
+from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
 from .errors import BatchCommitResult, CommitResult, StoreError, StoreIntegrityError, StoreResultCode
-from .session import StoreSession, as_bytes, as_int, u32, u64, _returned
+from .session import STORE_CALL_BATCH_MAX, StoreSession, as_bytes, as_int, bytes_value, u32, u64, _returned
 
 
 CHUNK_SIZE = 64 * 1024
@@ -52,6 +53,7 @@ GENERATION_HEADER = struct.Struct(">2sBBQIII")
 GENERATION_DELTA_HEADER = struct.Struct(">2sBBQQIII")
 GENERATION_ENTRY = struct.Struct(">12s32s32s32sQQ")
 GENERATION_PARTS_CACHE_MAX_BYTES = 16 * 1024 * 1024
+_BINDING_ID_CACHE_MAX = 16_384
 BINDING_HEADER = struct.Struct(">2sBBII")
 JOURNAL = struct.Struct(">2sBBQQ32s")
 RELATION_SIZE = 172
@@ -322,6 +324,10 @@ class EmbeddedStore:
         self.read_only = read_only
         self._maintenance = maintenance
         self._lifetime_lock_fd: int | None = None
+        self._dir_fds: dict[str, int] = {}
+        self._path_str = str(self.path)
+        self._binding_id_cache: OrderedDict[tuple[bytes, bytes], bytes] = OrderedDict()
+        self._known_versioned_bindings: set[str] | None = None
         try:
             # The immutable existing meta inode is the coordination point. Read
             # only opens create no files. Old, nonparticipating binaries require
@@ -343,6 +349,8 @@ class EmbeddedStore:
             self._commit_feed: bytes | None = None
             self._domain_index_generation: int | None = None
             self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
+            self._domain_entries_by_key: dict[tuple[bytes, bytes], _Entry] = {}
+            self._domain_entries_by_schema: dict[bytes, tuple[tuple[_Entry, bytes], ...]] = {}
             self._entry_index_generation: int | None = None
             self._entries_by_binding: dict[bytes, _Entry] = {}
             # A single exact-generation metadata view avoids reparsing an
@@ -412,6 +420,39 @@ class EmbeddedStore:
     def _read_file(self, path: Path) -> bytes:
         reader = getattr(self, "_reclamation_reader", None)
         return reader(path) if reader is not None else path.read_bytes()
+
+    def _read_dir_bytes(self, subdir: str, filename: str) -> bytes:
+        """Read one immutable file via cached directory descriptor when unthrottled."""
+        reader = getattr(self, "_reclamation_reader", None)
+        if reader is not None:
+            return reader(self.path / subdir / filename)
+        dfd = self._dir_fds.get(subdir)
+        if dfd is None:
+            if not self._closed and hasattr(os, "O_DIRECTORY"):
+                try:
+                    dfd = os.open(
+                        os.path.join(self._path_str, subdir),
+                        os.O_RDONLY | os.O_DIRECTORY,
+                    )
+                    self._dir_fds[subdir] = dfd
+                except OSError:
+                    dfd = None
+        if dfd is None:
+            with open(os.path.join(self._path_str, subdir, filename), "rb") as handle:
+                return handle.read()
+        fd = os.open(filename, os.O_RDONLY, dir_fd=dfd)
+        try:
+            raw = os.read(fd, 65536)
+            if len(raw) < 65536:
+                return raw
+            chunks = [raw]
+            while True:
+                more = os.read(fd, 65536)
+                if not more:
+                    return b"".join(chunks)
+                chunks.append(more)
+        finally:
+            os.close(fd)
 
     def _initialize_files(self) -> None:
         meta = self.path / "meta"
@@ -543,8 +584,80 @@ class EmbeddedStore:
 
     # ---- identity and canonical structural records ------------------
 
+    def _cache_binding_id(self, key: tuple[bytes, bytes], digest: bytes) -> bytes:
+        cache = getattr(self, "_binding_id_cache", None)
+        if cache is None:
+            return digest
+        if key in cache:
+            cache.move_to_end(key)
+            return digest
+        limit = _BINDING_ID_CACHE_MAX
+        if limit <= 0:
+            return digest
+        cache[key] = digest
+        while len(cache) > limit:
+            cache.popitem(last=False)
+        return digest
+
     def _binding_id(self, domain_schema: bytes, domain_identity: bytes) -> bytes:
-        return self._hash(domain_schema + b"\x00" + domain_identity)
+        key = (bytes(domain_schema), bytes(domain_identity))
+        cache = getattr(self, "_binding_id_cache", None)
+        if cache is not None:
+            cached = cache.get(key)
+            if cached is not None:
+                cache.move_to_end(key)
+                return cached
+        digest = self._hash(key[0] + b"\x00" + key[1])
+        return self._cache_binding_id(key, digest)
+
+    def _binding_ids(self, items: Sequence[tuple[bytes, bytes]]) -> list[bytes]:
+        """Compute native binding IDs in bounded call_batch chunks, reusing cache."""
+        cache = getattr(self, "_binding_id_cache", None)
+        resolved: dict[tuple[bytes, bytes], bytes] = {}
+        short_keys: list[tuple[bytes, bytes]] = []
+        short_calls: list[dict[str, object]] = []
+        large_keys: list[tuple[bytes, bytes]] = []
+        hash_unpatched = (
+            "_hash" not in self.__dict__
+            and getattr(type(self), "_hash", None) is EmbeddedStore._hash
+        )
+        call_batch = getattr(self.session, "call_batch", None) if hash_unpatched else None
+
+        for raw_schema, raw_identity in items:
+            key = (bytes(raw_schema), bytes(raw_identity))
+            if key in resolved:
+                continue
+            cached = cache.get(key) if cache is not None else None
+            if cached is not None:
+                cache.move_to_end(key)
+                resolved[key] = cached
+                continue
+            payload = key[0] + b"\x00" + key[1]
+            if callable(call_batch) and len(payload) <= 1024:
+                function = "digest_short" if len(payload) <= 64 else "digest_window"
+                short_keys.append(key)
+                short_calls.append(
+                    {"module": "store.content.v1", "function": function, "args": [bytes_value(payload)]}
+                )
+            else:
+                large_keys.append(key)
+
+        if len(short_keys) == 1:
+            key = short_keys[0]
+            resolved[key] = self._cache_binding_id(key, self._hash(key[0] + b"\x00" + key[1]))
+        elif len(short_keys) > 1:
+            assert callable(call_batch)
+            for start in range(0, len(short_keys), STORE_CALL_BATCH_MAX):
+                batch_keys = short_keys[start : start + STORE_CALL_BATCH_MAX]
+                batch_calls = short_calls[start : start + STORE_CALL_BATCH_MAX]
+                outputs = call_batch(batch_calls)
+                for key, output in zip(batch_keys, outputs, strict=True):
+                    resolved[key] = self._cache_binding_id(key, as_bytes(_returned(output)))
+
+        for key in large_keys:
+            resolved[key] = self._cache_binding_id(key, self._hash(key[0] + b"\x00" + key[1]))
+
+        return [resolved[(bytes(s), bytes(i))] for s, i in items]
 
     def _logical_id(self, binding_id: bytes) -> bytes:
         # Store's native logical-object identity is a 12-byte opaque value;
@@ -1102,6 +1215,8 @@ class EmbeddedStore:
         self._commit_feed = None
         self._domain_index_generation = None
         self._domain_index = ()
+        self._domain_entries_by_key = {}
+        self._domain_entries_by_schema = {}
 
     def _rebuild_lookup_maps(self, projection: tuple[StoredObject, ...]) -> None:
         by_binding = {item.binding_id: item for item in projection}
@@ -1639,7 +1754,28 @@ class EmbeddedStore:
         self._write_immutable(target, raw)
 
     def _read_binding(self, binding_id: bytes, root: bytes | None = None) -> tuple[bytes, bytes, bytes, bytes, bytes, int]:
-        raw = self._read_file(self._binding_path(binding_id, root))
+        if getattr(self, "_reclamation_reader", None) is not None:
+            raw = self._read_file(self._binding_path(binding_id, root))
+        else:
+            bhex = binding_id.hex()
+            if root is not None:
+                vname = f"{bhex}-{root.hex()}.bind"
+                known_versioned = getattr(self, "_known_versioned_bindings", None)
+                if known_versioned is not None:
+                    if vname in known_versioned:
+                        raw = self._read_dir_bytes("bindings", vname)
+                    else:
+                        try:
+                            raw = self._read_dir_bytes("bindings", f"{bhex}.bind")
+                        except FileNotFoundError:
+                            raw = self._read_dir_bytes("bindings", vname)
+                else:
+                    try:
+                        raw = self._read_dir_bytes("bindings", vname)
+                    except FileNotFoundError:
+                        raw = self._read_dir_bytes("bindings", f"{bhex}.bind")
+            else:
+                raw = self._read_dir_bytes("bindings", f"{bhex}.bind")
         if len(raw) < BINDING_HEADER.size + 12 + 32 + 32 + 8:
             raise StoreIntegrityError("Store binding is truncated")
         magic, version, reserved, schema_length, identity_length = BINDING_HEADER.unpack_from(raw)
@@ -1660,10 +1796,16 @@ class EmbeddedStore:
     def _read_manifest(
         self, entry: _Entry
     ) -> tuple[bytes, int, int, int, bytes, bytes, bytes, tuple[bytes, bytes] | None]:
-        manifest_path = self.path / "objects" / f"{entry.representation_root.hex()}.physical"
-        if not manifest_path.exists():
-            manifest_path = self.path / "objects" / f"{entry.logical_id.hex()}.manifest"
-        raw = self._read_file(manifest_path)
+        if getattr(self, "_reclamation_reader", None) is not None:
+            manifest_path = self.path / "objects" / f"{entry.representation_root.hex()}.physical"
+            if not manifest_path.exists():
+                manifest_path = self.path / "objects" / f"{entry.logical_id.hex()}.manifest"
+            raw = self._read_file(manifest_path)
+        else:
+            try:
+                raw = self._read_dir_bytes("objects", f"{entry.representation_root.hex()}.physical")
+            except FileNotFoundError:
+                raw = self._read_dir_bytes("objects", f"{entry.logical_id.hex()}.manifest")
         adaptive: tuple[bytes, bytes] | None = None
         if len(raw) == MANIFEST_V2.size:
             values = MANIFEST_V2.unpack(raw)
@@ -1712,13 +1854,13 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store object manifest root identity mismatch")
         if chunk_size != CHUNK_SIZE or chunk_count < 1:
             raise StoreIntegrityError("Store object manifest geometry is invalid")
-        descriptor = self._read_file(self.path / "descriptors" / f"{descriptor_id.hex()}.desc")
+        descriptor = self._read_dir_bytes("descriptors", f"{descriptor_id.hex()}.desc")
         if self._verify_digest(descriptor) != descriptor_id:
             raise StoreIntegrityError("Store descriptor integrity failure")
         return raw, total_length, chunk_count, depth, content_id, tree_root, descriptor, adaptive
 
     def _read_node(self, digest: bytes, *, level: int, start: int, expected_count: int) -> list[bytes]:
-        raw = self._read_file(self.path / "nodes" / f"{digest.hex()}.node")
+        raw = self._read_dir_bytes("nodes", f"{digest.hex()}.node")
         if self._verify_digest(raw) != digest or len(raw) < NODE_HEADER.size:
             raise StoreIntegrityError("Store content node integrity failure")
         magic, version, reserved, actual_level, actual_start, count = NODE_HEADER.unpack_from(raw)
@@ -1753,7 +1895,7 @@ class EmbeddedStore:
                 result: list[bytes] = []
                 for index, child in enumerate(children):
                     chunk_index = start + index
-                    raw = self._read_file(self.path / "chunks" / f"{child.hex()}.chunk")
+                    raw = self._read_dir_bytes("chunks", f"{child.hex()}.chunk")
                     if self._verify_digest(raw) != child:
                         raise StoreIntegrityError(f"Store content chunk {chunk_index} failed integrity")
                     expected_length = min(CHUNK_SIZE, total_length - chunk_index * CHUNK_SIZE)
@@ -1772,8 +1914,20 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store content tree total length failed")
         return payload
 
-    def _read_entry(self, entry: _Entry, generation: int, *, verify_payload: bool) -> StoredObject:
-        schema, identity, logical, content, root, binding_generation = self._read_binding(entry.binding_id, entry.representation_root)
+    def _read_entry(
+        self,
+        entry: _Entry,
+        generation: int,
+        *,
+        verify_payload: bool,
+        _binding_record: tuple[bytes, bytes, bytes, bytes, bytes, int] | None = None,
+    ) -> StoredObject:
+        binding_record = (
+            _binding_record
+            if _binding_record is not None
+            else self._read_binding(entry.binding_id, entry.representation_root)
+        )
+        schema, identity, logical, content, root, binding_generation = binding_record
         if logical != entry.logical_id or content != entry.content_id or root != entry.representation_root:
             raise StoreIntegrityError("Store binding does not match generation entry")
         if binding_generation > generation:
@@ -3436,17 +3590,27 @@ class EmbeddedStore:
         )
 
     def get_bound_object(self, domain_schema: bytes, domain_identity: bytes) -> StoredObject:
-        binding_id = self._binding_id(bytes(domain_schema), bytes(domain_identity))
+        schema_b = bytes(domain_schema)
+        identity_b = bytes(domain_identity)
         generation = self.current_generation
-        entry = self._entry_by_binding(generation, binding_id)
+        entry = (
+            self._domain_entries_by_key.get((schema_b, identity_b))
+            if self._domain_index_generation == generation
+            else None
+        )
         if entry is None:
-            raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
+            binding_id = self._binding_id(schema_b, identity_b)
+            entry = self._entry_by_binding(generation, binding_id)
+            if entry is None:
+                raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
+        else:
+            binding_id = entry.binding_id
         schema, identity, logical, content, root, binding_generation = self._read_binding(
             binding_id, entry.representation_root
         )
         if (
-            schema != bytes(domain_schema)
-            or identity != bytes(domain_identity)
+            schema != schema_b
+            or identity != identity_b
             or logical != entry.logical_id
             or content != entry.content_id
             or root != entry.representation_root
@@ -3455,6 +3619,65 @@ class EmbeddedStore:
         if binding_generation > generation:
             raise StoreIntegrityError("Store binding points into a future generation")
         return self._read_entry(entry, generation, verify_payload=True)
+
+    def get_bound_objects(
+        self,
+        bindings: Sequence[tuple[bytes, bytes]],
+    ) -> list[StoredObject]:
+        """Return verified current objects for ordered domain bindings at one head."""
+        pairs = [
+            (bytes(domain_schema), bytes(domain_identity))
+            for domain_schema, domain_identity in bindings
+        ]
+        if not pairs:
+            return []
+
+        generation = self.current_generation
+        unique_keys = list(dict.fromkeys(pairs))
+        resolved_entries: dict[tuple[bytes, bytes], _Entry] = {}
+        missing_keys: list[tuple[bytes, bytes]] = []
+
+        if self._domain_index_generation == generation:
+            by_key = self._domain_entries_by_key
+            for key in unique_keys:
+                entry = by_key.get(key)
+                if entry is not None:
+                    resolved_entries[key] = entry
+                else:
+                    missing_keys.append(key)
+        else:
+            missing_keys = unique_keys
+
+        if missing_keys:
+            for key, binding_id in zip(missing_keys, self._binding_ids(missing_keys), strict=True):
+                entry = self._entry_by_binding(generation, binding_id)
+                if entry is None:
+                    raise StoreError(StoreResultCode.DENIED, "Store object binding is not current")
+                resolved_entries[key] = entry
+
+        objects_by_key: dict[tuple[bytes, bytes], StoredObject] = {}
+        for key in unique_keys:
+            entry = resolved_entries[key]
+            binding_record = self._read_binding(entry.binding_id, entry.representation_root)
+            schema, identity, logical, content, root, binding_generation = binding_record
+            if (
+                schema != key[0]
+                or identity != key[1]
+                or logical != entry.logical_id
+                or content != entry.content_id
+                or root != entry.representation_root
+            ):
+                raise StoreIntegrityError("Store binding does not match generation entry")
+            if binding_generation > generation:
+                raise StoreIntegrityError("Store binding points into a future generation")
+            objects_by_key[key] = self._read_entry(
+                entry,
+                generation,
+                verify_payload=True,
+                _binding_record=binding_record,
+            )
+
+        return [objects_by_key[key] for key in pairs]
 
     def _cache_entry_index(
         self, generation: int, entries: Sequence[_Entry],
@@ -3514,6 +3737,27 @@ class EmbeddedStore:
         )
         self._entry_index_generation = generation
 
+    def _set_domain_index(
+        self,
+        generation: int,
+        indexed: tuple[tuple[_Entry, bytes, bytes], ...],
+    ) -> tuple[tuple[_Entry, bytes, bytes], ...]:
+        by_key: dict[tuple[bytes, bytes], _Entry] = {}
+        by_schema_list: dict[bytes, list[tuple[_Entry, bytes]]] = {}
+        for entry, schema, identity in indexed:
+            key = (schema, identity)
+            if key in by_key:
+                raise StoreIntegrityError("Store generation repeats a domain binding")
+            by_key[key] = entry
+            by_schema_list.setdefault(schema, []).append((entry, identity))
+        self._domain_index_generation = generation
+        self._domain_index = indexed
+        self._domain_entries_by_key = by_key
+        self._domain_entries_by_schema = {
+            schema: tuple(entries) for schema, entries in by_schema_list.items()
+        }
+        return indexed
+
     def _domain_binding_index(
         self, generation: int
     ) -> tuple[tuple[_Entry, bytes, bytes], ...]:
@@ -3524,24 +3768,56 @@ class EmbeddedStore:
             self._read_generation(generation, verify_objects=False),
             key=lambda item: item.ordinal,
         )
-        indexed: list[tuple[_Entry, bytes, bytes]] = []
-        for entry in entries:
-            schema, identity, logical, content, root, binding_generation = self._read_binding(
-                entry.binding_id, entry.representation_root
-            )
-            if (
-                logical != entry.logical_id
-                or content != entry.content_id
-                or root != entry.representation_root
-            ):
-                raise StoreIntegrityError("Store binding does not match generation entry")
-            if binding_generation > generation:
-                raise StoreIntegrityError("Store binding points into a future generation")
-            indexed.append((entry, schema, identity))
+        prev_gen = self._domain_index_generation
+        prev_by_binding: dict[bytes, tuple[_Entry, bytes, bytes]] | None = None
+        if (
+            prev_gen is not None
+            and 0 <= prev_gen < generation
+            and generation - prev_gen <= 128
+            and self._domain_index
+        ):
+            prev_by_binding = {
+                prev_entry.binding_id: (prev_entry, schema, identity)
+                for prev_entry, schema, identity in self._domain_index
+            }
 
-        self._domain_index_generation = generation
-        self._domain_index = tuple(indexed)
-        return self._domain_index
+        versioned_hint: set[str] | None = None
+        if (
+            prev_by_binding is None
+            and getattr(self, "_reclamation_reader", None) is None
+            and len(entries) > 64
+        ):
+            try:
+                with os.scandir(os.path.join(self._path_str, "bindings")) as it:
+                    versioned_hint = {de.name for de in it if "-" in de.name}
+            except OSError:
+                versioned_hint = None
+
+        indexed: list[tuple[_Entry, bytes, bytes]] = []
+        self._known_versioned_bindings = versioned_hint
+        try:
+            for entry in entries:
+                if prev_by_binding is not None:
+                    cached = prev_by_binding.get(entry.binding_id)
+                    if cached is not None and cached[0] == entry:
+                        indexed.append(cached)
+                        continue
+                schema, identity, logical, content, root, binding_generation = self._read_binding(
+                    entry.binding_id, entry.representation_root
+                )
+                if (
+                    logical != entry.logical_id
+                    or content != entry.content_id
+                    or root != entry.representation_root
+                ):
+                    raise StoreIntegrityError("Store binding does not match generation entry")
+                if binding_generation > generation:
+                    raise StoreIntegrityError("Store binding points into a future generation")
+                indexed.append((entry, schema, identity))
+        finally:
+            self._known_versioned_bindings = None
+
+        return self._set_domain_index(generation, tuple(indexed))
 
     def _advance_domain_binding_index(
         self,
@@ -3559,8 +3835,7 @@ class EmbeddedStore:
         """
         if previous_index is None or len(previous_index) != len(previous_entries):
             return
-        self._domain_index_generation = generation
-        self._domain_index = (*previous_index, *additions)
+        self._set_domain_index(generation, (*previous_index, *additions))
 
     def find_bound_objects(
         self,
@@ -3587,9 +3862,10 @@ class EmbeddedStore:
                 and item.domain_identity.startswith(identity_prefix)
             ]
 
+        self._domain_binding_index(selected_generation)
         found: list[StoredObject] = []
-        for entry, schema, identity in self._domain_binding_index(selected_generation):
-            if schema != schema_prefix or not identity.startswith(identity_prefix):
+        for entry, identity in self._domain_entries_by_schema.get(schema_prefix, ()):
+            if not identity.startswith(identity_prefix):
                 continue
             found.append(
                 self._read_entry(entry, selected_generation, verify_payload=True)
@@ -4066,6 +4342,17 @@ class EmbeddedStore:
             if self._owns_session:
                 self.session.close()
         finally:
+            dir_fds = getattr(self, "_dir_fds", None)
+            if dir_fds:
+                for dfd in dir_fds.values():
+                    try:
+                        os.close(dfd)
+                    except OSError:
+                        pass
+                dir_fds.clear()
+            id_cache = getattr(self, "_binding_id_cache", None)
+            if id_cache is not None:
+                id_cache.clear()
             descriptor = self._lifetime_lock_fd
             self._lifetime_lock_fd = None
             if descriptor is not None:
