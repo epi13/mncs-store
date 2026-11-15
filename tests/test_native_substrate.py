@@ -247,8 +247,8 @@ def test_relation_object_survives_store_commit_close_and_reopen(tmp_path: Path):
         )
     )
     # The Phase-2 driver is a frozen differential oracle.  Keep its legacy
-    # descriptor/manifest calls on the explicit subprocess engine rather than
-    # widening the current retained Store application artifact again.
+    # descriptor/manifest calls on their independently compiled reference
+    # artifacts rather than widening the current Store application artifact.
     differential = DifferentialEngine(backend=RESEARCH)
     store = StorePhase2.create(tmp_path / "store", engine=differential)
     try:

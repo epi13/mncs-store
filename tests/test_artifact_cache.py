@@ -136,6 +136,15 @@ def test_cache_failure_and_invalid_keys_do_not_publish(tmp_path, monkeypatch):
     assert not (tmp_path / "outside").exists()
 
 
+def test_oversized_admission_metadata_is_not_published_unreadable(tmp_path, monkeypatch):
+    root = configure(tmp_path, monkeypatch)
+    monkeypatch.setattr("mncs_store.session.STORE_ARTIFACT_MANIFEST_MAX_BYTES", 512)
+    StoreSession._write_cached_artifact("a" * 64, {"reference": "x" * 1024}, b"artifact")
+    assert not (root / ("a" * 64)).exists()
+    key = put("b")
+    assert StoreSession._read_cached_artifact(key) == b"payload"
+
+
 def test_invalid_settings_use_safe_defaults(tmp_path, monkeypatch):
     configure(tmp_path, monkeypatch, MAX_BYTES=-1, MAX_ENTRIES="invalid")
     assert artifact_cache.Limits.configured() == artifact_cache.Limits()

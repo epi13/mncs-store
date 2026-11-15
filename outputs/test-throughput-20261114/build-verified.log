@@ -1,0 +1,18 @@
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/mncs-model/src/process_runtime.rs:446:14
+    |
+446 |             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+    |              ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+446 -             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+446 +             .try_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+    |
+
+warning: `mncs-model` (lib) generated 1 warning (run `cargo fix --lib -p mncs-model` to apply 1 suggestion)
+   Compiling mncs-translation-check v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-translation-check)
+   Compiling mncs-conformance v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-conformance)
+   Compiling mncs-cli v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-cli)
+    Finished `release` profile [optimized] target(s) in 26.73s

@@ -1,0 +1,380 @@
+{
+  "samples": [
+    {
+      "profile": "debug",
+      "source": "identity",
+      "elapsed": 5.123789286008105,
+      "code": 0,
+      "incomplete": false,
+      "output_bytes": 2876170
+    },
+    {
+      "profile": "debug",
+      "source": "manifest",
+      "elapsed": 41.8013462999952,
+      "code": 0,
+      "incomplete": false,
+      "output_bytes": 22355782
+    },
+    {
+      "profile": "release",
+      "source": "identity",
+      "elapsed": 0.41460486501455307,
+      "code": 0,
+      "incomplete": false,
+      "output_bytes": 2876170
+    },
+    {
+      "profile": "release",
+      "source": "manifest",
+      "elapsed": 3.4205389420385472,
+      "code": 0,
+      "incomplete": false,
+      "output_bytes": 22355782
+    }
+  ],
+  "blob-debug-before": {
+    "workload": "blob",
+    "status": "UNKNOWN",
+    "error": "KeyboardInterrupt()",
+    "elapsed": 60.12733494996792,
+    "compiler_processes": 4,
+    "batches": 4,
+    "cases": 186,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 0,
+      "opens": 0,
+      "batches": 0
+    },
+    "user_cpu": 59.713656,
+    "system_cpu": 0.219619,
+    "self_peak_rss_kib": 72404,
+    "child_peak_rss_kib": 141800
+  },
+  "small-release-before": {
+    "workload": "0",
+    "status": "UNKNOWN",
+    "error": "KeyboardInterrupt()",
+    "elapsed": 90.13922181003727,
+    "compiler_processes": 42,
+    "batches": 42,
+    "cases": 46,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 0,
+      "opens": 0,
+      "batches": 0
+    },
+    "user_cpu": 86.676021,
+    "system_cpu": 3.108141,
+    "self_peak_rss_kib": 99968,
+    "child_peak_rss_kib": 227816
+  },
+  "large-release-before": {
+    "workload": "992",
+    "status": "UNKNOWN",
+    "error": "KeyboardInterrupt()",
+    "elapsed": 45.12768401700305,
+    "compiler_processes": 17,
+    "batches": 17,
+    "cases": 77,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 0,
+      "opens": 0,
+      "batches": 0
+    },
+    "user_cpu": 43.474263,
+    "system_cpu": 1.575347,
+    "self_peak_rss_kib": 101668,
+    "child_peak_rss_kib": 227800
+  },
+  "blob-verified-cold": {
+    "workload": "blob",
+    "status": "PASS",
+    "error": null,
+    "elapsed": 16.64247391204117,
+    "compiler_processes": 6,
+    "batches": 1734,
+    "cases": 4330,
+    "reference": {
+      "compilations": 6,
+      "cache_hits": 0,
+      "opens": 6,
+      "batches": 1734
+    },
+    "user_cpu": 14.792819999999999,
+    "system_cpu": 1.857874,
+    "self_peak_rss_kib": 252468,
+    "child_peak_rss_kib": 252468
+  },
+  "blob-verified-warm": {
+    "workload": "blob",
+    "status": "PASS",
+    "error": null,
+    "elapsed": 13.420514411991462,
+    "compiler_processes": 0,
+    "batches": 1734,
+    "cases": 4330,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 6,
+      "opens": 6,
+      "batches": 1734
+    },
+    "user_cpu": 11.665721,
+    "system_cpu": 1.7105839999999999,
+    "self_peak_rss_kib": 247724,
+    "child_peak_rss_kib": 0
+  },
+  "small-verified": {
+    "workload": "0",
+    "status": "PASS",
+    "error": null,
+    "elapsed": 2.392387328960467,
+    "compiler_processes": 0,
+    "batches": 55,
+    "cases": 60,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 6,
+      "opens": 6,
+      "batches": 55
+    },
+    "user_cpu": 2.337552,
+    "system_cpu": 0.15245499999999998,
+    "self_peak_rss_kib": 238532,
+    "child_peak_rss_kib": 0
+  },
+  "large-verified": {
+    "workload": "992",
+    "status": "PASS",
+    "error": null,
+    "elapsed": 3.738881391007453,
+    "compiler_processes": 0,
+    "batches": 237,
+    "cases": 662,
+    "reference": {
+      "compilations": 0,
+      "cache_hits": 6,
+      "opens": 6,
+      "batches": 237
+    },
+    "user_cpu": 3.47163,
+    "system_cpu": 0.33441299999999996,
+    "self_peak_rss_kib": 240580,
+    "child_peak_rss_kib": 0
+  },
+  "repeated-cli": {
+    "mode": "cli",
+    "code": 0,
+    "elapsed": 10.221276202995796,
+    "sampled_tree_peak_rss_kib": 260740,
+    "max_processes": 2,
+    "sampling_interval_s": 0.02,
+    "result": {
+      "rows": [
+        {
+          "elapsed": 3.3501574770198204,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 161
+        },
+        {
+          "elapsed": 3.393570523010567,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 161
+        },
+        {
+          "elapsed": 3.421392099990044,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 161
+        }
+      ],
+      "metrics": {
+        "compilations": 0,
+        "cache_hits": 0,
+        "opens": 0,
+        "batches": 0
+      },
+      "compiler_processes": 3,
+      "user_cpu": 9.777917,
+      "system_cpu": 0.36691199999999996
+    },
+    "stderr": ""
+  },
+  "repeated-retained": {
+    "mode": "retained",
+    "code": 0,
+    "elapsed": 1.042632388009224,
+    "sampled_tree_peak_rss_kib": 133904,
+    "max_processes": 1,
+    "sampling_interval_s": 0.02,
+    "result": {
+      "rows": [
+        {
+          "elapsed": 0.9718777170055546,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 421
+        },
+        {
+          "elapsed": 0.0037908279919065535,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 421
+        },
+        {
+          "elapsed": 0.0035921359667554498,
+          "status": "returned",
+          "returned": [
+            {
+              "integer": {
+                "value": 370612249,
+                "type": {
+                  "bits": 32,
+                  "signed": false
+                }
+              }
+            }
+          ],
+          "steps": 22,
+          "result_json_bytes": 421
+        }
+      ],
+      "metrics": {
+        "compilations": 0,
+        "cache_hits": 1,
+        "opens": 1,
+        "batches": 3
+      },
+      "compiler_processes": 0,
+      "user_cpu": 0.957402,
+      "system_cpu": 0.055632
+    },
+    "stderr": ""
+  },
+  "source": {
+    "store_base": "b2050582c3ad29399c06f3bd01f86481a2e5cab1",
+    "language_base": "99077372dcec92e072b3cc515bb274336cd58cd2",
+    "language_change": "f8742e9"
+  },
+  "binary_sha256": {
+    "debug/mncs": "129ef764bd56f6a3e05ee19631c46c044217590d537d52ee1c62b0fba335d7ae",
+    "release/mncs": "7e9fdad9b60f706183eda0d26df564ab4957f3ccf73b068de5b36916559677fb",
+    "release/libmncs_embed.so": "a78e0c66b4eb55cb1d810d01c1066689ceef7cf1355faef755336585977b7b03"
+  },
+  "prior_run": {
+    "source": "user-reported; historical task-1805 log not recovered",
+    "elapsed_seconds": 36120,
+    "completed": 226,
+    "collected": 286,
+    "status": "incomplete"
+  },
+  "cli_conformance": {
+    "status": "UNKNOWN",
+    "unresolved_reasons": [
+      "compilation retained required unresolved obligations"
+    ],
+    "cases": [
+      {
+        "case_id": "evidence-classify-absent",
+        "status": "returned",
+        "expectation_met": true
+      },
+      {
+        "case_id": "evidence-classify-present",
+        "status": "returned",
+        "expectation_met": true
+      },
+      {
+        "case_id": "root-summarize-both-present",
+        "status": "returned",
+        "expectation_met": true
+      },
+      {
+        "case_id": "root-summarize-left-only",
+        "status": "returned",
+        "expectation_met": true
+      },
+      {
+        "case_id": "root-summarize-none",
+        "status": "returned",
+        "expectation_met": true
+      }
+    ],
+    "translation_judgements": [
+      "PASS"
+    ]
+  },
+  "original_profile_equivalence": {
+    "identity": {
+      "artifact_equal": true,
+      "cases_equal": true,
+      "experiment_status": "PASS"
+    },
+    "manifest": {
+      "artifact_equal": true,
+      "cases_equal": true,
+      "experiment_status": "UNKNOWN"
+    }
+  }
+}

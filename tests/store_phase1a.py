@@ -110,9 +110,9 @@ class UnsupportedWidthError(StoreError):
 class Engine:
     """Batched MNCS invocation with I/O instrumentation.
 
-    Counts CLI invocations and transported bytes so the test report can
-    state the (considerable) subprocess-shell-out cost honestly
-    (pressure P1-016): there is currently no in-process call boundary.
+    Counts logical batches and transported values. The reference transport
+    retains a native session when the selected toolchain supports layered
+    comparison; older toolchains retain the full CLI verification path.
     """
 
     def __init__(self, backend=DEFAULT_BACKEND):
@@ -125,7 +125,8 @@ class Engine:
         """Run one batched corpus; return {case_id: case_result}."""
         self.invocations += 1
         out = call_many(source, module, calls, self.backend, grants=grants)
-        for cid, fn, args in calls:
+        for call in calls:
+            cid, fn, args = call[:3]
             self.bytes_out += len(str(args))
         for case in out.values():
             self.bytes_in += len(str(case.get("returned")))

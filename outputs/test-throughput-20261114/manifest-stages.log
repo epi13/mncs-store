@@ -1,0 +1,83 @@
+mncs-timing stage=parse elapsed_ms=3
+mncs-timing stage=elaboration elapsed_ms=80
+mncs-timing stage=hir-prelude-canonicalization elapsed_ms=30
+mncs-timing stage=compiler-semantic elapsed_ms=30
+mncs-timing stage=ir-prelude-validation elapsed_ms=12
+mncs-timing stage=compiler-validation elapsed_ms=43
+mncs-timing stage=ir-prelude-semantic-identities elapsed_ms=56
+mncs-timing stage=ir-prelude-semantic-graph elapsed_ms=12
+mncs-timing stage=ir-prelude-evidence-manifest elapsed_ms=0
+mncs-timing stage=ir-prelude-obligations elapsed_ms=11
+mncs-timing stage=ir-prelude elapsed_ms=81
+mncs-timing stage=ir-functions elapsed_ms=150
+mncs-timing stage=ir-total elapsed_ms=221
+mncs-timing stage=compiler-hir elapsed_ms=319
+mncs-timing stage=ssa-validate elapsed_ms=100
+mncs-timing stage=ssa-ir-reused elapsed_ms=100
+mncs-timing stage=ssa-functions elapsed_ms=128
+mncs-timing stage=ssa-total elapsed_ms=226
+mncs-timing stage=compiler-ssa elapsed_ms=587
+mncs-phase-begin phase=research-bytecode-ssa-fingerprint
+mncs-timing stage=research-bytecode-ssa-fingerprint elapsed_ms=40
+mncs-phase-begin phase=research-bytecode-ssa-validation
+mncs-timing stage=research-bytecode-ssa-validation elapsed_ms=53
+mncs-phase-begin phase=research-bytecode-artifact-construction
+mncs-phase-begin phase=research-bytecode-export-names
+mncs-timing stage=research-bytecode-export-names elapsed_ms=0
+mncs-phase-begin phase=research-bytecode-proof-binding-refs
+mncs-timing stage=research-bytecode-proof-binding-refs elapsed_ms=43
+mncs-phase-begin phase=research-bytecode-function-value-contracts
+mncs-timing stage=research-bytecode-function-value-contracts elapsed_ms=0
+mncs-phase-begin phase=research-bytecode-callable-bindings
+mncs-timing stage=research-bytecode-callable-bindings elapsed_ms=0
+mncs-phase-begin phase=research-bytecode-composite-value-contracts
+mncs-timing stage=research-bytecode-composite-value-contracts elapsed_ms=0
+mncs-phase-begin phase=research-bytecode-interface-identity
+mncs-timing stage=research-bytecode-interface-identity elapsed_ms=1
+mncs-phase-begin phase=research-bytecode-generic-entrypoints
+mncs-timing stage=research-bytecode-generic-entrypoints elapsed_ms=0
+mncs-phase-begin phase=backend-artifact-payload-size-count
+mncs-timing stage=backend-artifact-payload-size-count elapsed_ms=14
+mncs-phase-begin phase=backend-artifact-payload-stream-encoding
+mncs-timing stage=backend-artifact-payload-stream-encoding elapsed_ms=82
+mncs-phase-begin phase=backend-artifact-identity-seal
+mncs-timing stage=backend-artifact-identity-seal elapsed_ms=89
+mncs-timing stage=research-bytecode-artifact-construction elapsed_ms=232
+mncs-timing stage=compiler-backend elapsed_ms=918
+mncs-timing stage=compiler-bundle-seal elapsed_ms=924
+mncs-timing stage=compiler-bundle-validate elapsed_ms=933
+mncs-timing stage=compiler-total elapsed_ms=1148
+mncs-timing stage=cli-compile cumulative_elapsed_ms=1180 exclusive_elapsed_ms=1180
+mncs-timing stage=cli-definition cumulative_elapsed_ms=1232 exclusive_elapsed_ms=52
+mncs-phase-begin phase=backend-artifact-identity-validation
+mncs-phase-begin phase=backend-artifact-bytes-digest-validation
+mncs-timing stage=backend-artifact-bytes-digest-validation elapsed_ms=54
+mncs-timing stage=backend-artifact-identity-validation elapsed_ms=146
+mncs-phase-begin phase=research-bytecode-payload-stream-decode
+mncs-timing stage=research-bytecode-payload-stream-decode elapsed_ms=73
+mncs-phase-begin phase=research-bytecode-session-build
+mncs-timing stage=research-bytecode-session-build elapsed_ms=135
+mncs-timing stage=compare-body elapsed_ms=271
+mncs-timing stage=compare-ssa elapsed_ms=271
+mncs-timing stage=compare-backend elapsed_ms=271
+mncs-timing stage=compare-total elapsed_ms=271
+mncs-timing stage=cli-translation-validation cumulative_elapsed_ms=2156 exclusive_elapsed_ms=923
+mncs-phase-begin phase=backend-artifact-identity-validation
+mncs-phase-begin phase=backend-artifact-bytes-digest-validation
+mncs-timing stage=backend-artifact-bytes-digest-validation elapsed_ms=54
+mncs-timing stage=backend-artifact-identity-validation elapsed_ms=146
+mncs-phase-begin phase=research-bytecode-payload-stream-decode
+mncs-timing stage=research-bytecode-payload-stream-decode elapsed_ms=74
+mncs-phase-begin phase=research-bytecode-session-build
+mncs-timing stage=research-bytecode-session-build elapsed_ms=126
+mncs-timing stage=cli-case-observations cumulative_elapsed_ms=2503 exclusive_elapsed_ms=347
+mncs-phase-begin phase=backend-artifact-identity-validation
+mncs-phase-begin phase=backend-artifact-bytes-digest-validation
+mncs-timing stage=backend-artifact-bytes-digest-validation elapsed_ms=53
+mncs-timing stage=backend-artifact-identity-validation elapsed_ms=143
+mncs-phase-begin phase=research-bytecode-payload-stream-decode
+mncs-timing stage=research-bytecode-payload-stream-decode elapsed_ms=74
+mncs-phase-begin phase=research-bytecode-session-build
+mncs-timing stage=research-bytecode-session-build elapsed_ms=126
+mncs-timing stage=cli-stateful-case-observations cumulative_elapsed_ms=2848 exclusive_elapsed_ms=344
+mncs-timing stage=cli-properties cumulative_elapsed_ms=2848 exclusive_elapsed_ms=0

@@ -321,6 +321,8 @@ class StoreSession:
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode()
+                if len(manifest_bytes) > STORE_ARTIFACT_MANIFEST_MAX_BYTES:
+                    return
                 if limits.entries == 0 or len(artifact) + len(manifest_bytes) > limits.bytes:
                     return
                 if entry.is_symlink() or (entry.exists() and (

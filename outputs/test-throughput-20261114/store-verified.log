@@ -1,0 +1,19 @@
+........................................................................ [ 24%]
+........................................................................ [ 49%]
+........................................................................ [ 73%]
+........................................................................ [ 98%]
+....                                                                     [100%]
+============================= slowest 12 durations =============================
+29.59s call     tests/test_mncs_corpora.py::test_cross_backend_agreement
+12.71s call     tests/test_phase2.py::test_general_blob_boundaries_roundtrip
+10.76s call     tests/test_mncs_corpora.py::test_corpus_on_backend[generation-corpus.json@mncs-portable-wasm-mvp]
+9.77s call     tests/test_native_substrate.py::test_relation_object_survives_store_commit_close_and_reopen
+8.06s call     tests/test_provider.py::test_provider_fresh_process_selective_read_and_plan_refusal
+7.39s call     tests/test_adaptive_store.py::test_rle_windows_chunk_across_batch_crossings
+7.08s setup    tests/test_adaptive_store.py::test_envelope_inspection_touches_no_payload
+6.37s call     tests/test_native_substrate.py::test_native_publication_effect_is_explicitly_granted
+6.33s call     tests/test_native_substrate.py::test_retained_session_reuses_one_admitted_artifact
+5.18s call     tests/test_adaptive_store.py::test_plan_admission_and_block_checks
+4.47s call     tests/test_adaptive_store.py::test_adaptive_modules_agree_across_fast_backends
+3.43s call     tests/test_mncs_corpora.py::test_corpus_on_backend[manifest-corpus.json@mncs-research-bytecode]
+292 passed in 221.88s (0:03:41)

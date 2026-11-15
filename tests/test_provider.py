@@ -8,9 +8,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from mncs_store.session import _language_root
 
 ROOT = Path(__file__).resolve().parents[1]
-LANGUAGE = ROOT.parent / "mncs-language"
+# Use the selected owning toolchain in linked worktrees as in production;
+# a worktree's physical parent is not the family workspace.
+LANGUAGE = _language_root().resolve()
 SCRIPT = ROOT / "scripts/provider.py"
 spec = importlib.util.spec_from_file_location("store_provider", SCRIPT)
 provider = importlib.util.module_from_spec(spec)

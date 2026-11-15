@@ -11,16 +11,19 @@ is hashlib, used strictly as an INDEPENDENT oracle for SHA-256 agreement
 import json
 import os
 import subprocess
+import signal
+from pathlib import Path
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(REPO_ROOT, "src")
 CORPORA_DIR = os.path.join(REPO_ROOT, "tests", "corpora")
 FIXTURES_DIR = os.path.join(REPO_ROOT, "tests", "fixtures")
 
-MNCS_BIN = os.environ.get(
-    "MNCS_BIN",
-    "/home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
-)
+_LANGUAGE = Path(os.environ.get("MNCS_LANGUAGE_ROOT", "/home/epi13/Documents/Projects/mncs-language"))
+MNCS_BIN = os.environ.get("MNCS_BIN", str(next(
+    (p for profile in ("release", "debug")
+     if (p := _LANGUAGE / "target" / profile / "mncs").is_file()),
+    _LANGUAGE / "target/debug/mncs")))
 def _selected_library():
     from pathlib import Path
     explicit = os.environ.get('MNCS_LANG_LIB') or os.environ.get('MNCS_LIBRARY_ROOT')
@@ -52,6 +55,27 @@ FAST_BACKENDS = ["mncs-research-bytecode", "mncs-portable-wasm-mvp"]
 
 STEP_BUDGET = 32768
 RUN_TIMEOUT_S = 280
+
+
+def _run(command, env):
+    """Bound the entire compiler/runtime process group, including cancellation."""
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True, env=env, start_new_session=True)
+    try:
+        stdout, stderr = process.communicate(timeout=RUN_TIMEOUT_S)
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    except BaseException:
+        # A compiler may own external backend children. Reap them as well as
+        # the immediate child on a timeout, interrupt, or pytest cancellation.
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+        except ProcessLookupError:
+            process.communicate()
+        raise
 
 
 def backends_to_test():
@@ -136,9 +160,7 @@ def run_corpus(source, corpus, backend, grants=(), corpus_path=None):
                "--corpus", cpath] + list(grants)
         env = dict(os.environ)
         env["MNCS_LIBRARY_PATH"] = library_path()
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=RUN_TIMEOUT_S, env=env
-        )
+        proc = _run(cmd, env)
         try:
             result = json.loads(proc.stdout) if proc.stdout.strip() else None
         except json.JSONDecodeError:
@@ -169,6 +191,10 @@ def call_many(source, module, calls, backend, grants=(), budget=STEP_BUDGET):
         "name": "mncs-store-batch",
         "cases": cases,
     }
+    from retained_session import run_reference_calls
+    retained = run_reference_calls(source, corpus, backend, grants)
+    if retained is not None:
+        return retained
     code, result, stderr = run_corpus(source, corpus, backend, grants=grants)
     if result is None or "cases" not in result:
         raise StoreHarnessError(
@@ -213,10 +239,7 @@ def source_study(path):
     full = path if os.path.isabs(path) else os.path.join(REPO_ROOT, path)
     env = dict(os.environ)
     env["MNCS_LIBRARY_PATH"] = library_path()
-    proc = subprocess.run(
-        [MNCS_BIN, "source-study", full],
-        capture_output=True, text=True, timeout=RUN_TIMEOUT_S, env=env,
-    )
+    proc = _run([MNCS_BIN, "source-study", full], env)
     return json.loads(proc.stdout)
 
 

@@ -1,0 +1,483 @@
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/mncs-model/src/process_runtime.rs:446:14
+    |
+446 |             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+    |              ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+446 -             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+446 +             .try_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+    |
+
+warning: `mncs-model` (lib) generated 1 warning (run `cargo fix --lib -p mncs-model` to apply 1 suggestion)
+warning: `mncs-model` (lib test) generated 1 warning (1 duplicate)
+   Compiling mncs-codegen v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-codegen)
+   Compiling mncs-compiler v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-compiler)
+   Compiling mncs-embed v0.1.0 (/home/epi13/Documents/Projects/mncs-language/.worktrees/test-throughput-20261114/crates/mncs-embed)
+    Finished `release` profile [optimized] target(s) in 1m 34s
+     Running unittests src/lib.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/mncs_codegen-52271cf6813970f0)
+
+running 76 tests
+test composite::codec_tests::exact_byte_sequence_round_trips_through_the_canonical_cell ... ok
+test composite::codec_tests::exact_u64_sequence_preserves_high_bit_values ... ok
+test composite::codec_tests::status_pair_record_encodes_to_the_canonical_layout ... ok
+test c11::native_ssa::tests::native_ssa_c11_refuses_arithmetic_outside_the_envelope ... ok
+test composite::codec_tests::view_descriptor_packs_offset_and_length ... ok
+test composite::codec_tests::typed_decode_prefers_identity_over_same_short_name ... ok
+test composite::codec_tests::unsigned_u64_slot_bits_keep_the_high_bit ... ok
+test c11::native_ssa::tests::native_ssa_c11_refuses_unbound_or_malformed_facts ... ok
+test composite::codec_tests::view_cell_marker_survives_outside_address_and_length ... ok
+test cranelift_backend::arena_configuration_tests::jit_arena_capacity_is_bounded_and_advertised ... ok
+test cranelift_backend::slot_range_tests::in_bounds_ranges_validate_exactly ... ok
+test cranelift_backend::slot_range_tests::sentinel_and_wrapping_addresses_never_validate ... ok
+test lower::region_copy_tests::packed_bounded_views_are_preserved_as_nonallocating_words ... ok
+test matrix::tests::external_backends_never_claim_realized ... ok
+test lower::region_copy_tests::nested_flatten_wraps_i64_scratch_addresses_before_memory_access ... ok
+test matrix::tests::profile_envelope_covers_every_registry_profile ... ok
+test matrix::tests::lowerable_envelope_matches_profile_support ... ok
+test matrix::tests::unknown_backends_fail_closed ... ok
+test native::tests::native_cache_entry_requires_complete_marked_executable ... ok
+test external::concurrency_tests::invocation_nonces_are_unique_across_threads ... ok
+test native::tests::native_cache_rejects_path_aliases_in_source_names ... ok
+test scalar::tests::record_values_without_a_declared_layout_fail_closed ... ok
+test support::contract_tests::compact_byte_string_rejects_noncanonical_and_oversized_base64 ... ok
+test support::contract_tests::compact_byte_string_resolves_canonical_base64_within_sequence_capacity ... ok
+test support::contract_tests::finite_accepts_name_spelling_with_discriminant ... ok
+test support::contract_tests::finite_name_never_aliases_across_variants ... ok
+test support::contract_tests::finite_payload_fields_resolve_by_name ... ok
+test support::contract_tests::legacy_shared_short_name_stays_unresolved_and_refused ... ok
+test support::contract_tests::legacy_string_elements_rehydrate_by_identity ... ok
+test support::contract_tests::legacy_unique_short_name_rehydrates_nested ... ok
+test support::contract_tests::record_accepts_full_identity_spelling ... ok
+test support::contract_tests::record_accepts_name_spelling_with_reordered_fields ... ok
+test support::contract_tests::record_empty_name_never_aliases ... ok
+test support::contract_tests::record_refuses_unknown_names_and_bad_fields ... ok
+test support::contract_tests::same_named_sequences_carry_distinct_identities_end_to_end ... ok
+test support::driver_tests::cell_runtime_driver_defines_the_canonical_symbols ... ok
+test support::driver_tests::full_semantic_finite_identity_resolves_to_a_finite_contract ... ok
+test support::driver_tests::index_only_module_reports_cell_use_for_its_prelude ... ok
+test support::driver_tests::mask_only_signatures_use_the_call_file_protocol ... ok
+test support::driver_tests::nested_nominal_contract_fields_resolve_in_declaring_module ... ok
+test support::generic_entry_tests::named_instantiations_resolve_to_the_emitted_entry ... ok
+test support::generic_entry_tests::pre_map_artifacts_fail_closed_with_a_recompile_diagnostic ... ok
+test support::generic_entry_tests::spelling_normalization_agrees_across_whitespace ... ok
+test support::generic_entry_tests::requests_without_type_arguments_pass_through_untouched ... ok
+test support::generic_entry_tests::uncompiled_spellings_list_the_compiled_ones ... ok
+test support::generic_entry_tests::unseeded_generics_name_the_corpus_remedy ... ok
+test tests::artifact_hex_reader_streams_json_bytes_and_rejects_malformed_hex ... ok
+test cranelift_backend::guarded_division_tests::jit_guarded_division_never_traps_the_host_process ... ok
+test tests::backend_capabilities_are_identity_bound_and_non_wasm_shaped ... ok
+test tests::borrowed_research_bytecode_payload_preserves_owned_wire_encoding ... ok
+test record_tests::record_values_forward_through_wasm_and_agree_with_reference_execution ... ok
+test tests::body_session_matches_one_shot_with_nested_calls ... ok
+test tests::executable_lowering_rejects_generic_templates_at_the_backend_boundary ... ok
+test tests::checked_add_lowers_to_wasm_and_agrees_with_body_and_ssa ... ok
+test tests::llvm_and_c11_reject_missing_target_facts ... ok
+test tests::execution_session_reuse_matches_one_shot_on_both_backends ... ok
+test cranelift_backend::call_region_tests::jit_call_regions_reclaim_temporaries_and_rebase_nested_results ... ok
+test tests::malformed_wasm_is_not_executed_as_success ... ok
+test tests::llvm_emits_nsw_only_with_a_recheckable_constant_range_certificate ... ok
+test tests::production_only_test_case_lookup_skips_program_identity_rebuild ... ok
+test tests::artifact_and_backend_mismatch_is_not_returned ... ok
+test tests::saturating_and_widening_arithmetic_agree_across_both_executable_backends ... ok
+test tests::two_backend_adapters_share_selected_ssa_without_sharing_artifact_shape ... ok
+test tests::unevidenced_target_does_not_emit_a_backend_artifact ... ok
+test wasm::tests::arena_allocator_stays_aligned_monotonic_and_bounded ... ok
+test wasm::tests::branchless_signed_max_keeps_negative_values ... ok
+test wasm::tests::host_buffer_export_returns_packed_capacity_and_offset ... ok
+test wasm::tests::memory_export_and_packed_byte_load_roundtrip ... ok
+test wasm::tests::signed_leb_roundtrips_integer_extremes ... ok
+test tests::retained_reference_comparison_matches_fresh_layers_on_new_requests ... ok
+test tests::llvm_withholds_nsw_without_current_no_overflow_evidence ... ok
+test c11::native_ssa::tests::native_ssa_c11_executes_imported_call_and_block_parameter_join ... ok
+test c11::native_ssa::tests::native_ssa_c11_executes_checked_and_wrapping_integer_arithmetic ... ok
+test tests::llvm_c11_and_cranelift_lower_checked_add ... ok
+test tests::native_execution_session_reuse_matches_one_shot ... ok
+test external::concurrency_tests::concurrent_same_ir_realizations_never_collide ... ok
+
+test result: ok. 76 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running unittests src/lib.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/mncs_embed-43ecdf8a5f4560db)
+
+running 13 tests
+test cache::tests::absent_entry_is_a_miss ... ok
+test cache::tests::key_identity_changes_with_semantic_inputs ... ok
+test cache::tests::present_corrupt_entry_fails_closed ... ok
+test cache::tests::oversized_artifacts_execute_without_becoming_persistent_cache_entries ... ok
+test cache::tests::distinct_admission_keys_share_identical_complete_payloads ... ok
+test structured::tests::rejects_excessive_depth ... ok
+test cache::tests::existing_cache_records_remain_readable_and_can_supply_deduplicated_payloads ... ok
+test structured::tests::canonicalizes_object_order_and_preserves_arrays ... ok
+test cache::tests::toolchain_namespaces_share_one_storage_budget_and_payload_pool ... ok
+test cache::tests::eviction_preserves_unrecognized_files_and_reaps_interrupted_publications ... ok
+test cache::tests::recent_reads_protect_entries_from_lru_eviction ... ok
+test cache::tests::byte_and_age_limits_remove_old_generated_entries ... ok
+test cache::tests::concurrent_writers_and_readers_never_admit_partial_or_evicted_payloads ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/embedding.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/embedding-f728f489664840cb)
+
+running 11 tests
+test named_typed_call_resolves_against_artifact_metadata ... ok
+test repeated_calls_agree_and_carry_digest ... ok
+test cold_warm_retained_and_batch_costs_are_reported ... ok
+test repeated_call_latency_is_millisecond_scale ... ok
+test reference_comparison_crosses_c_abi_and_refuses_bad_input ... ok
+test c_abi_round_trip_without_rust_layout ... ok
+test reference_validation_observes_writes_and_realizes_only_the_explicit_call ... ok
+test tampered_artifact_is_refused_at_open ... ok
+test typed_batch_calls_share_one_retained_session ... ok
+test unknown_entrypoint_reports_structured_failure ... ok
+test seeded_artifacts_serve_generic_entrypoints_in_process ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/identity_calls.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/identity_calls-b95af979e7c421ce)
+
+running 8 tests
+test generic_identity_rejects_missing_wrong_and_uncompiled_arguments ... ok
+test one_identity_dispatcher_invokes_heterogeneous_declarations ... ok
+test artifact_with_ambiguous_compiler_callable_identity_is_rejected ... ok
+test generic_identity_dispatch_binds_runtime_type_arguments ... ok
+test c_batch_boundary_dispatches_identity_and_generic_calls ... ok
+test identity_and_named_calls_share_results_and_authority_checks ... ok
+test identity_resolution_and_invocation_fail_closed ... ok
+test retained_session_rejects_reference_from_another_artifact_revision ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/jit_execution.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/jit_execution-f9f0810393032701)
+
+running 5 tests
+test jit_end_to_end_cranelift_definitions_with_mncs_orchestration ... ok
+test jit_deterministic_bindings_for_committed_state ... ok
+test jit_proof_era_and_lifecycle ... ok
+test jit_dependency_policy_signature_vs_body ... ok
+test jit_cranelift_threads_session_values ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.83s
+
+     Running tests/process_lifecycle.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/process_lifecycle-af1a6f35c53ca7c1)
+
+running 8 tests
+test process_tree_leaf_fixture ... ok
+test process_tree_parent_fixture ... ok
+test mncs_process_effect_reports_tiny_cgroup_memory_exhaustion ... ok
+test process_observation_carries_a_truncated_window_of_chatty_output ... ok
+test cancellation_terminates_the_complete_owned_process_tree ... ok
+test retained_mncs_process_capability_starts_cancels_and_reaps_owned_work ... ok
+test process_stdin_streams_the_full_mncs_capacity_without_loss_or_reordering ... ok
+test process_launch_vectors_accept_capacity_and_reject_capacity_plus_one ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+     Running tests/structured_projection.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/structured_projection-2ff65162fd72a3d1)
+
+running 5 tests
+test typed_calls_and_structured_projection_share_contract_authority ... ok
+test c_abi_exposes_artifact_bound_composite_metadata_and_projection ... ok
+test compiler_owned_projection_materializes_records_and_nested_bounds ... ok
+test compiler_contract_rejects_bad_shapes_values_bounds_and_identities ... ok
+test stale_revision_and_wrong_nested_nominal_material_fail_closed ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/task_scope.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/task_scope-4bcf5faf6ea9542a)
+
+running 8 tests
+test fs_grant_lists_granted_root_per_task ... ok
+test closed_scope_refuses_further_runs ... ok
+test pre_cancel_publishes_nothing_and_counts_cleanup ... ok
+test concurrent_tasks_join_with_distinct_values ... ok
+test c_abi_batch_returns_outputs_in_order ... ok
+test failure_aggregates_by_index_with_inspectable_reason ... ok
+test concurrent_merge_matches_sequential_batch ... ok
+test index_shaped_workload_is_millisecond_scale ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (/home/epi13/Documents/Projects/mncs-language/target/release/deps/mncs_model-1d91e0c39fd67218)
+
+running 258 tests
+test authority::tests::canonical_confirm_matrix ... ok
+test authority::tests::attestation_mismatch_never_supplies ... ok
+test authority::tests::attested_evidence_supplies_but_bare_values_do_not ... ok
+test authority::tests::empty_fold_refuses ... ok
+test authority::tests::conditional_promotes_only_on_attested_evidence ... ok
+test authority::tests::duplicate_fold_is_order_independent ... ok
+test authority::tests::issuance_binding_fails_closed ... ok
+test authority::tests::issuance_binding_parses_fixed_vector ... ok
+test authority::tests::issuance_signed_bytes_are_canonical ... ok
+test authority::tests::multiple_authorized_targets_are_options ... ok
+test authority::tests::requirement_identity_is_stable_and_order_free ... ok
+test authority::tests::session_context_rejects_replay ... ok
+test authority::tests::target_binding_refuses_mismatch ... ok
+test authority::tests::conditional_union_is_order_independent ... ok
+test authority::tests::digest_verify_detects_tamper ... ok
+test body::tests::body_rejects_mismatched_block_arguments ... ok
+test body::tests::body_rejects_non_wrapping_bitwise_intent ... ok
+test body::tests::body_rejects_value_from_non_dominating_branch ... ok
+test authority::tests::requirement_identity_binds_evidence_bounds_session ... ok
+test body::tests::body_rejects_unknown_integer_comparison_predicate ... ok
+test body::tests::body_rejects_undefined_values_and_type_mismatches ... ok
+test body::tests::bool_is_semantic_not_named ... ok
+test body::tests::from_program_resolves_nested_record_sequence_elements ... ok
+test authority::tests::verdict_fold_is_conservative ... ok
+test body::tests::bool_body_validates_without_unresolved_names ... ok
+test body::tests::body_rejects_unreachable_blocks_explicitly ... ok
+test body::tests::body_rejects_undeclared_effect_and_bad_return ... ok
+test body::tests::nominal_identities_do_not_collapse_by_structure ... ok
+test body::tests::legacy_bool_normalizes_recursively ... ok
+test body::tests::sequence_spellings_keep_bool_and_nominal_elements ... ok
+test body::tests::type_relation_distinguishes_equality_from_widening ... ok
+test body::tests::unresolved_named_is_an_invariant_violation ... ok
+test body::tests::body_requires_the_exact_widening_result_type ... ok
+test body::tests::view_result_with_unresolved_name_reports_mismatch_and_invariant ... ok
+test canonical::tests::canonical_form_is_compact_and_hashed_deterministically ... ok
+test canonical::tests::interface_fingerprint_matches_the_body_erased_canonical_function ... ok
+test canonical::tests::semantic_change_changes_canonical_fingerprint ... ok
+test canonical::tests::production_fingerprint_excludes_verification_only_test_declarations ... ok
+test canonical::tests::streaming_canonical_hash_matches_materialized_json_hash ... ok
+test canonical::tests::set_like_declaration_order_is_non_semantic_but_parameter_order_is_semantic ... ok
+test capability_gap::tests::cranelift_far_relocation_gap_fixture_round_trips ... ok
+test capability_gap::tests::embeddable_execution_fixture_round_trips ... ok
+test capability_gap::tests::bounds_fail_closed ... ok
+test canonical::tests::streaming_fingerprint_matches_linked_canonical_form ... ok
+test capability_gap::tests::identity_is_stable_and_verifies ... ok
+test capability_gap::tests::process_environment_value_fixture_round_trips ... ok
+test capability_gap::tests::checked_in_fixture_round_trips ... ok
+test capability_gap::tests::tampering_breaks_verification ... ok
+test capability_gap::tests::process_resource_handle_fixture_round_trips ... ok
+test compiler::tests::backend_assumption_cannot_be_omitted_from_target_plan_identity ... ok
+test capability_gap::tests::redaction_removes_local_directories ... ok
+test capability_gap::tests::ptx_entry_annotation_fixture_round_trips ... ok
+test body::tests::symbolic_body_validates_and_has_deterministic_identity ... ok
+test compiler::tests::hex_encoded_payload_digest_matches_decoded_bytes_without_accepting_malformed_hex ... ok
+test compiler::tests::canonical_construction_is_deterministic_and_map_order_independent ... ok
+test cfg::tests::cfg_is_deterministic_and_computes_dominance ... ok
+test compiler::tests::incomplete_or_laundered_host_identity_is_rejected ... ok
+test compiler::tests::identity_contracts_have_no_path_timestamp_or_process_fields ... ok
+test compiler::tests::legacy_artifact_json_without_proof_bindings_stays_valid ... ok
+test compiler::tests::host_and_build_changes_affect_request_without_laundering_roles ... ok
+test compiler::tests::streamed_serialized_payload_matches_byte_vector_artifact ... ok
+test compiler::tests::target_and_backend_identity_changes_do_not_mutate_earlier_artifacts ... ok
+test compiler::tests::one_shot_compiler_metadata_matches_chained_artifact_builders ... ok
+test compiler::tests::proof_bindings_change_artifact_identity_and_roundtrip ... ok
+test compiler::tests::scalar_element_contracts_survive_a_serde_round_trip_with_identity_intact ... ok
+test compiler_architecture::tests::rejects_a_stage_contract_that_hides_a_logical_stage ... ok
+test compiler::tests::transformation_edge_rejects_wrong_artifact_or_pass_shape ... ok
+test cost::tests::timing_report_labels_cumulative_and_exclusive_durations_separately ... ok
+test evidence::tests::receipt_identity_tampering_fails_closed ... ok
+test execution::tests::abi_validation_resolves_nominal_records_inside_bounded_sequences ... ok
+test execution::tests::arithmetic_edges_are_explicit_and_host_safe ... ok
+test evidence::tests::manifest_binds_subject_property_and_assumption_dependencies ... ok
+test execution::tests::arc_backed_aggregate_values_preserve_json_round_trip_and_equality ... ok
+test evidence::tests::receipt_reuse_requires_exact_subject_validator_scope_and_dependencies ... ok
+test execution::tests::body_runtime_profile_attributes_nested_steps_to_the_callee ... ok
+test execution::tests::body_call_reuses_only_same_typed_validated_parameters ... ok
+test execution::tests::body_runtime_progress_is_bounded_by_frame_step_interval ... ok
+test execution::tests::comparison_predicates_use_signed_and_unsigned_domains ... ok
+test execution::tests::disabled_body_runtime_profile_keeps_no_frame_or_function_samples ... ok
+test execution::tests::host_seed_requests_collect_top_level_and_stateful_instantiations_once ... ok
+test evidence::tests::contract_change_makes_saved_evidence_stale ... ok
+test execution::tests::selected_ssa_digest_uses_language_owned_finite_projection ... ok
+test execution::tests::stateful_steps_carry_type_arguments_into_backend_requests ... ok
+test execution::tests::stateful_trace_rejects_forward_result_references_before_execution ... ok
+test execution::tests::trace_is_bounded ... ok
+test execution::tests::stateful_trace_threads_previous_logical_results_and_hashes_every_transition ... ok
+test execution::tests::stateful_prefix_checkpoint_reuses_only_the_verified_prefix ... ok
+test fs_resource::tests::dangling_symlinks_refuse_create_and_mkdir ... ok
+test fs_resource::tests::intent_only_validates_without_touching_the_tree ... ok
+test fs_resource::tests::gated_open_passes_files_and_refuses_links ... ok
+test delta::tests::delta_separates_semantic_authority_and_evidence_changes ... ok
+test fs_resource::tests::post_create_verification_is_exact_on_fixtures ... ok
+test fs_resource::tests::symlinks_are_never_touched ... ok
+test fs_resource::tests::outside_pointing_symlinks_refuse_on_every_indexed_entrypoint ... ok
+test generics::tests::generic_nominals_resolve_in_the_declaring_module_and_keep_identity ... ok
+test fs_resource::tests::rename_replace_covers_files_never_directories ... ok
+test fs_resource::tests::refusal_matrix_leaves_no_trace ... ok
+test fs_resource::tests::staged_lifecycle_lands_byte_exact ... ok
+test graph::tests::impact_bounds_root_seeding_and_classifies_shared_types ... ok
+test graph::tests::impact_neighborhood_is_bounded_and_exposes_test_cases ... ok
+test graph::tests::graph_is_deterministic_and_contains_authority_edges ... ok
+test graph::tests::local_callee_effect_edges_use_the_exact_function_identity ... ok
+test graph::tests::contract_change_invalidates_supporting_evidence ... ok
+test identity::tests::identity_is_deterministic_and_namespaced ... ok
+test identity::tests::record_type_identity_is_canonical_in_field_order ... ok
+test identity::tests::record_type_ids_use_the_record_kind_namespace ... ok
+test graph::tests::requires_obligation_edges_resolve_to_generated_obligations ... ok
+test ir::tests::machine_intent_lowering_keeps_requirements_and_unknown_obligations ... ok
+test ir::tests::canonicalized_program_preserves_invalid_report ... ok
+test identity::tests::local_contract_change_changes_contract_and_function_fingerprints ... ok
+test machine_intent::tests::alignment_capability_rejects_mismatched_subject_or_scope ... ok
+test ir::tests::semantic_program_lowers_to_deterministic_ir_with_failure_and_authority_paths ... ok
+test ir::tests::validated_hir_prelude_reuses_canonical_identity_and_preserves_facts ... ok
+test machine_intent::tests::arithmetic_intents_have_distinct_explicit_semantics ... ok
+test machine_intent::tests::backend_promises_require_current_pass_for_the_exact_subject ... ok
+test machine_intent::tests::lowering_preserves_operation_and_obligation_identity ... ok
+test machine_intent::tests::saturating_and_widening_edges_are_exact_and_type_directed ... ok
+test machine_intent::tests::scalar_integer_operators_have_explicit_edge_behavior ... ok
+test machine_intent::tests::static_disjointness_is_exact_to_ranges_and_epoch ... ok
+test obligations::tests::exact_nonempty_same_sequence_clamp_discharges_projection_bounds ... ok
+test obligations::tests::checked_bound_projection_discharges_after_bound_check ... ok
+test obligations::tests::generated_machine_intent_obligations_start_unknown ... ok
+test obligations::tests::language_generation_marks_effect_closure_pass_and_missing_contract_evidence_unknown ... ok
+test obligations::tests::literal_nonzero_divisor_discharges_both_division_facts ... ok
+test obligations::tests::exact_sequence_clamp_refuses_empty_wrong_fallback_wrong_sequence_and_wrong_predicate ... ok
+test obligations::tests::unknown_divisor_keeps_both_division_facts_open ... ok
+test obligations::tests::zero_and_neg_one_divisors_refuse_precisely ... ok
+test obligations::tests::unsigned_division_has_no_signed_overflow_obligation ... ok
+test obligations::tests::runtime_checked_projection_keeps_index_bounds_open ... ok
+test process::tests::explicit_argv_captures_output_and_status ... ok
+test process_runtime::tests::provider_start_waits_for_the_matching_unit_control_group ... ok
+test proof_dep::tests::artifact_seal_covers_canonical_set_and_rejects_tampering ... ok
+test proof_dep::tests::canonical_set_distinguishes_level_carrier_and_membership ... ok
+test proof_dep::tests::canonical_set_records_open_assumptions_exactly ... ok
+test proof_dep::tests::corroboration_consumes_mncs_pass_with_rust_agreement ... ok
+test proof_dep::tests::corroboration_never_overrides_mncs_fail ... ok
+test proof_dep::tests::corroboration_never_upgrades_mncs_unknown ... ok
+test proof_dep::tests::corroboration_quarantines_without_checker_under_explicit_policy ... ok
+test fs_resource::tests::final_component_swap_stress_never_escapes ... ok
+test proof_dep::tests::corroboration_refuses_mncs_pass_under_rust_disagreement ... ok
+test proof_dep::tests::corroboration_rejects_mutated_assumption_claim ... ok
+test proof_dep::tests::corroboration_rejects_mutated_proof_cells ... ok
+test proof_dep::tests::reference_checks_const_family_elim ... ok
+test proof_dep::tests::reference_checks_open_proof_and_counts_assumption ... ok
+test proof_dep::tests::reference_computes_plus_defeq ... ok
+test proof_dep::tests::reference_evaluates_beta_identity ... ok
+test proof_dep::tests::reference_fails_dependent_hyp ... ok
+test proof_dep::tests::reference_fails_embedded_hyp ... ok
+test proof_dep::tests::reference_fails_hyp_as_proof ... ok
+test proof_dep::tests::reference_fails_undeclared_variable ... ok
+test proof_dep::tests::reference_passes_closed_refl ... ok
+test proof_dep::tests::reference_passes_flagship_plus_zero_right ... ok
+test proof_dep::tests::reference_reports_empty_assumptions_for_flagship ... ok
+test proof_dep::tests::reference_resolves_nested_lam ... ok
+test proof_kernel::tests::artifact_identity_tampering_fails_closed ... ok
+test proof_kernel::tests::binding_requires_exact_kernel_and_pass ... ok
+test proof_kernel::tests::kernel_backed_range_result_is_fail_closed ... ok
+test proof_kernel::tests::reference_accepts_minimal_closed_theorem ... ok
+test process::tests::capture_is_bounded ... ok
+test proof_kernel::tests::reference_computes_closed_plus ... ok
+test proof_kernel::tests::reference_holds_pure_unknown_for_open_dependent_claim ... ok
+test proof_kernel::tests::reference_holds_unknown_for_unsupported_terms ... ok
+test proof_kernel::tests::reference_rejects_forward_references_and_cycles ... ok
+test proof_kernel::tests::reference_rejects_universe_ceiling_breach ... ok
+test proof_kernel::tests::reference_rejects_wrong_equality_sides ... ok
+test proof_transport::tests::binding_refs_are_sorted_deduped_and_ssa_bound ... ok
+test proof_transport::tests::consumable_requires_every_leg ... ok
+test proof_transport::tests::validation_rejects_each_drift_leg ... ok
+test provenance::tests::realization_requires_envelopes_and_current_obligations ... ok
+test provenance::tests::transformation_identity_is_deterministic_and_separate ... ok
+test refinement::tests::authority_kinds_do_not_imply_each_other_and_scope_broadening_is_visible ... ok
+test refinement::tests::causal_slice_is_deterministic_and_marks_incompleteness ... ok
+test refinement::tests::default_budget_is_finite_and_proposals_are_untrusted ... ok
+test refinement::tests::isolated_candidate_changes_contract_without_mutating_baseline_or_promoting ... ok
+test refinement::tests::isolated_candidate_requires_mutation_authority ... ok
+test proof_kernel::tests::reference_agrees_with_checked_in_corpus_expectations ... ok
+test representation::tests::aligned_aosoa_is_selected_without_changing_logical_identity ... ok
+test refinement::tests::typed_patch_isolated_application_and_protected_property_evaluation_are_conservative ... ok
+test representation::tests::physical_observation_blocks_an_incompatible_layout_change ... ok
+test representation::tests::unknown_alignment_withholds_aosoa_and_keeps_aos_fallback ... ok
+test ssa::tests::exact_current_verifier_pass_allows_only_the_bound_transformation ... ok
+test ssa::tests::executable_body_lowers_to_deterministic_valid_ssa_with_trace ... ok
+test ssa::tests::language_ssa_function_facts_reuse_only_exact_verified_units ... ok
+test ssa::tests::ssa_preserves_machine_intent_and_rejects_unknown_stronger_transformation ... ok
+test process::tests::deadline_terminates_explicit_program ... ok
+test ssa::tests::ssa_validation_rejects_an_undefined_operand ... ok
+test ssa::tests::ssa_validation_rejects_an_unbounded_cycle_without_iteration_metadata ... ok
+test ssa_execution::tests::divergence_context_is_bounded_and_explicit ... ok
+test ssa_execution::tests::raw_value_map_insert_does_not_claim_validation ... ok
+test ssa_execution::tests::ssa_owned_external_arguments_remain_untrusted ... ok
+test ssa_execution::tests::ssa_runtime_profile_progress_due_is_bounded_by_request_steps ... ok
+test ssa_execution::tests::ssa_internal_call_reuses_validated_aggregate_input ... ok
+test ssa_execution::tests::ssa_session_rejects_schema_identity_and_reordered_block_mutations ... ok
+test structured::tests::identity_ingress_refuses_unknown_extensions_and_accepts_declared_nonsemantic ... ok
+test ssa::tests::language_ssa_artifact_cache_reuses_unchanged_functions_after_restart ... ok
+test structured::tests::retained_value_identity_rejects_tampered_content ... ok
+test ssa_execution::tests::ssa_session_is_bound_to_one_owned_program_and_module_pair ... ok
+test structured::tests::schema_identity_and_traversal_fail_closed ... ok
+test structured::tests::round_trip_is_nominal_and_deterministic ... ok
+test structured::tests::symlinked_intermediate_component_is_refused ... ok
+test structured::tests::schema_versioned_external_document_is_type_directed ... ok
+test termination::tests::bodyless_function_fails_closed ... ok
+test termination::tests::empty_chain_fails_closed ... ok
+test termination::tests::non_finite_first_parameter_fails_closed ... ok
+test termination::tests::generic_template_never_verifies ... ok
+test termination::tests::param_value_mismatch_fails_closed ... ok
+test termination::tests::unknown_function_fails_closed ... ok
+test translation::tests::fail_retains_a_counterexample ... ok
+test translation::tests::unknown_never_authorizes_promotion ... ok
+test validation::tests::accepts_consistent_program ... ok
+test proof_dep::tests::reference_agrees_with_checked_in_corpus_expectations ... ok
+test validation::tests::rejects_effect_without_declared_capability ... ok
+test structured::tests::schema_version_field_is_preserved_for_owner_defined_external_record ... ok
+test validation::tests::frontend_validation_reuses_one_canonical_identity_and_graph_snapshot ... ok
+test validation::tests::rejects_evidence_for_unknown_property ... ok
+test validation::tests::warns_when_contract_lacks_evidence ... ok
+test value_contract::tests::canonical_order_resolves_to_identity_permutation ... ok
+test value_contract::tests::declaration_order_resolves_by_name ... ok
+test value_contract::tests::duplicate_field_wins_over_other_problems ... ok
+test value_contract::tests::unknown_field_names_expected_and_received ... ok
+test value_contract::tests::missing_field_reports_the_absent_name ... ok
+test verification_facts::tests::call_name_text_does_not_create_a_nominal_type_dependency ... ok
+test verification_facts::tests::changed_body_and_profile_cannot_reuse_a_successful_fact ... ok
+test verification_facts::tests::changed_declaration_interface_rechecks_body_and_reports_fresh_error ... ok
+test verification_facts::tests::changed_callee_implementation_rechecks_direct_callers_only ... ok
+test verification_facts::tests::changed_callee_interface_rechecks_callers_and_returns_current_diagnostics ... ok
+test verification_facts::tests::declaration_fact_witness_and_profile_are_required_for_reuse ... ok
+test verification_facts::tests::declaration_facts_invalidate_changed_assumptions_and_refresh_diagnostics ... ok
+test verification_facts::tests::changed_verifier_policy_and_assumptions_isolate_prior_receipts ... ok
+test verification_facts::tests::changed_generic_specialization_rechecks_callers_and_reuses_independent_bodies ... ok
+test verification_facts::tests::declaration_facts_round_trip_reuse_and_refresh_location_paths ... ok
+test verification_facts::tests::declaration_fingerprints_share_interface_work_and_preserve_evidence ... ok
+test verification_facts::tests::duplicate_function_identity_remains_a_fresh_global_error ... ok
+test verification_facts::tests::fingerprint_index_matches_first_identity_record_for_sorted_and_unsorted_inputs ... ok
+test verification_facts::tests::facts_record_effect_and_capability_assumptions_as_invalidators ... ok
+test verification_facts::tests::finite_type_declaration_facts_reuse_refresh_locations_and_revalidate_changes ... ok
+test verification_facts::tests::effect_and_capability_dependencies_recheck_only_their_callers ... ok
+test verification_facts::tests::invalid_declaration_does_not_issue_or_reuse_a_body_fact ... ok
+test verification_facts::tests::nominal_dependencies_invalidate_only_functions_that_reference_them ... ok
+test verification_facts::tests::record_type_declaration_facts_reuse_refresh_locations_and_invalidate_dependencies ... ok
+test verification_facts::tests::specialized_generic_type_arguments_retain_nominal_dependencies ... ok
+test verification_facts::tests::generic_specialization_dependency_uses_the_resolved_call_selector ... ok
+test verification_facts::tests::unrelated_body_text_does_not_create_an_assumption_dependency ... ok
+test verification_facts::tests::transitive_callee_dependency_rechecks_reachable_callers ... ok
+test verification_facts::tests::verified_body_fact_round_trips_and_refreshes_locations ... ok
+test verification_facts::tests::whole_program_declaration_errors_are_not_hidden_by_body_reuse ... ok
+test verifier::tests::capability_verifier_preserves_unknown_without_authority_fact ... ok
+test verifier::tests::deterministic_verifier_returns_identity_bound_pass_and_artifact ... ok
+test verifier::tests::diagnostic_observation_cannot_satisfy_a_proof_obligation ... ok
+test verifier::tests::verifier_cannot_satisfy_wrong_subject_or_stale_obligation ... ok
+test verifier::tests::imported_verifier_artifacts_are_scope_and_dependency_bound ... ok
+test verifier::tests::verifier_result_becomes_stale_when_dependency_fingerprint_changes ... ok
+test verification_facts::tests::record_type_dependency_index_preserves_resolution_with_many_unrelated_types ... ok
+test verification_facts::tests::body_fact_dependency_index_skips_unrelated_declarations_across_many_functions ... ok
+test process_runtime::tests::lifecycle_handle_is_provider_issued_and_cancel_requires_reap ... ok
+test process_runtime::tests::expired_execution_is_distinct_from_external_cancellation ... ok
+test process_runtime::tests::active_execution_limit_is_enforced_and_reaped ... ok
+test process_runtime::tests::completed_handle_retention_is_bounded_and_eviction_fails_closed ... ok
+
+test result: ok. 258 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.81s
+
+   Doc-tests mncs_codegen
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mncs_embed
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mncs_model
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

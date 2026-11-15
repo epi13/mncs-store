@@ -40,7 +40,6 @@ from mncs_exec import (
     as_bytes,
     as_int,
     require_returned,
-    run_corpus,
 )
 from store_phase1a import (
     GRANT_CHUNK,
@@ -369,30 +368,9 @@ class StorePhase2(StorePhase1a):
         if budget is None:
             return engine.check(engine.run(source, module, calls, grants),
                                 [c[0] for c in calls])
-        corpus = {
-            "schema_version": "0.1",
-            "name": "mncs-store-batch",
-            "cases": [
-                {"id": cid, "request": {
-                    "schema_version": "0.1",
-                    "target": {"module": module, "function": fn},
-                    "arguments": args, "step_budget": budget}}
-                for cid, fn, args in calls
-            ],
-        }
-        self.engine.invocations += 1
-        code, result, stderr = run_corpus(source, corpus, self.engine.backend,
-                                          grants=grants)
-        if result is None or "cases" not in result:
-            raise StoreHarnessError(
-                f"mncs run produced no result JSON (exit={code}): "
-                f"{stderr[-2000:]}"
-            )
-        out = {c["case_id"]: c for c in result["cases"]}
-        missing = [cid for cid, _, _ in calls if cid not in out]
-        if missing:
-            raise StoreHarnessError(f"mncs run dropped cases: {missing}")
-        return engine.check(out, [c[0] for c in calls])
+        bounded = [(cid, fn, args, budget) for cid, fn, args in calls]
+        return engine.check(engine.run(source, module, bounded, grants),
+                            [c[0] for c in calls])
 
     def _transition(self, state, ok):
         """One MNCS commit-state transition; recorded on the trace."""
