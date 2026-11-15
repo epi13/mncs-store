@@ -658,3 +658,203 @@ def test_maintenance_recovery_never_waits_on_a_legacy_publication_lock(
             )
         with EmbeddedStore(root, session=_session(), read_only=True) as reader:
             assert reader.current_generation == 1
+
+
+def _artifact_names(root: Path) -> tuple[set[str], set[str]]:
+    generations = {path.name for path in (root / "generations").iterdir()}
+    chunks = {path.name for path in (root / "chunks").iterdir()}
+    return generations, chunks
+
+
+def test_prune_rejects_missing_interval_before_checkpoint_both_modes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import EmbeddedStore, StoreIntegrityError, StoreSession, embedded
+
+    monkeypatch.setattr(embedded, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with StoreSession() as session:
+        populate(tmp_path, count=12, session=session)
+        for gen in range(8, 12):
+            (tmp_path / "generations" / f"{gen:016x}").unlink()
+        before_generations, before_chunks = _artifact_names(tmp_path)
+
+        with EmbeddedStore(tmp_path, session=session, maintenance=True) as store:
+            assert store.retention_floor(keep_last=8) == 4
+            for reclaim_chunks in (False, True):
+                for dry_run in (True, False):
+                    audit = tmp_path.parent / f"audit-{reclaim_chunks}-{dry_run}.jsonl"
+                    with pytest.raises(StoreIntegrityError):
+                        store.prune_generations(
+                            keep_last=8,
+                            dry_run=dry_run,
+                            reclaim_chunks=reclaim_chunks,
+                            policy_id="retention-completeness-regression",
+                            audit_path=audit,
+                        )
+                    assert not audit.exists()
+
+        after_generations, after_chunks = _artifact_names(tmp_path)
+        assert after_generations == before_generations
+        assert after_chunks == before_chunks
+        for gen in range(1, 4):
+            assert (tmp_path / "generations" / f"{gen:016x}").exists()
+
+
+def test_prune_rejects_missing_interval_at_floor_zero_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import EmbeddedStore, StoreIntegrityError, StoreSession, embedded
+
+    monkeypatch.setattr(embedded, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    for label, missing_range in (
+        ("before-mid-checkpoint", range(2, 4)),
+        ("before-head-checkpoint", range(8, 12)),
+    ):
+        store_dir = tmp_path / label
+        with StoreSession() as session:
+            populate(store_dir, count=12, session=session)
+            for gen in missing_range:
+                (store_dir / "generations" / f"{gen:016x}").unlink()
+            before_generations, before_chunks = _artifact_names(store_dir)
+
+            with EmbeddedStore(store_dir, session=session, maintenance=True) as store:
+                assert store.retention_floor(keep_last=12) == 0
+                for reclaim_chunks in (False, True):
+                    for dry_run in (True, False):
+                        audit = tmp_path / f"floor0-{label}-{reclaim_chunks}-{dry_run}.jsonl"
+                        with pytest.raises(StoreIntegrityError):
+                            store.prune_generations(
+                                keep_last=12,
+                                dry_run=dry_run,
+                                reclaim_chunks=reclaim_chunks,
+                                policy_id="retention-floor-zero-regression",
+                                audit_path=audit,
+                            )
+                        assert not audit.exists()
+
+            after_generations, after_chunks = _artifact_names(store_dir)
+            assert after_generations == before_generations
+            assert after_chunks == before_chunks
+
+
+def test_prune_rejects_missing_floor_head_or_genesis_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import EmbeddedStore, StoreIntegrityError, StoreSession, embedded
+
+    monkeypatch.setattr(embedded, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    for label, missing_gen in (("floor", 4), ("head", 12), ("genesis", 0)):
+        store_dir = tmp_path / label
+        with StoreSession() as session:
+            populate(store_dir, count=12, session=session)
+            with EmbeddedStore(store_dir, session=session, maintenance=True) as store:
+                assert store.retention_floor(keep_last=8) == 4
+                (store_dir / "generations" / f"{missing_gen:016x}").unlink()
+                before_generations, before_chunks = _artifact_names(store_dir)
+                for reclaim_chunks in (False, True):
+                    audit = tmp_path / f"audit-{label}-{reclaim_chunks}.jsonl"
+                    with pytest.raises(StoreIntegrityError):
+                        store.prune_generations(
+                            keep_last=8,
+                            dry_run=False,
+                            reclaim_chunks=reclaim_chunks,
+                            policy_id="missing-boundary-regression",
+                            audit_path=audit,
+                        )
+                    assert not audit.exists()
+                after_generations, after_chunks = _artifact_names(store_dir)
+                assert after_generations == before_generations
+                assert after_chunks == before_chunks
+
+
+def test_prune_allows_historical_gaps_strictly_below_positive_floor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mncs_store import EmbeddedStore, StoreSession, embedded
+
+    monkeypatch.setattr(embedded, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with StoreSession() as session:
+        populate(tmp_path, count=12, session=session)
+        # Historical gaps strictly below floor=8 remain acceptable when
+        # genesis, pins, and floor..head are intact.
+        for gen in (1, 2, 5, 6):
+            (tmp_path / "generations" / f"{gen:016x}").unlink()
+
+        with EmbeddedStore(tmp_path, session=session, maintenance=True) as store:
+            assert store.retention_floor(keep_last=4) == 8
+            audit = tmp_path.parent / "valid-gap-below-floor.jsonl"
+            report = store.prune_generations(
+                keep_last=4,
+                dry_run=False,
+                reclaim_chunks=True,
+                protected_generations=[8],
+                policy_id="gap-below-floor-regression",
+                audit_path=audit,
+            )
+            assert report["status"] == "complete"
+            assert report["floor"] == 8
+            assert report["removed_files"] == 3  # generations 3, 4, 7
+            assert audit.exists()
+            assert (tmp_path / "generations" / f"{0:016x}").exists()
+            for gen in range(8, 13):
+                assert (tmp_path / "generations" / f"{gen:016x}").exists()
+            assert store.verify()["ok"] is True
+
+
+def test_prune_completeness_validation_is_bounded_for_arbitrary_numeric_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import struct
+    import time
+
+    from mncs_store import EmbeddedStore, StoreIntegrityError, StoreSession, embedded
+
+    monkeypatch.setattr(embedded, "GENERATION_CHECKPOINT_INTERVAL", 4)
+    with StoreSession() as session:
+        populate(tmp_path, count=4, session=session)
+        with EmbeddedStore(tmp_path, session=session, maintenance=True) as store:
+            huge_head = 10**12
+            (tmp_path / "generations" / f"{huge_head:016x}").write_bytes(
+                embedded.GENERATION_HEADER.pack(
+                    embedded.GENERATION_MAGIC, embedded.VERSION, 0, huge_head, 0, 0, 0
+                )
+            )
+            (tmp_path / "head").write_bytes(
+                struct.pack(">2sBBQ", embedded.HEAD_MAGIC, embedded.VERSION, 0, huge_head)
+            )
+            for keep_last, pattern in (
+                (huge_head, "incomplete"),
+                (8, "retention checkpoint is missing"),
+            ):
+                audit = tmp_path.parent / f"huge-head-{keep_last}.jsonl"
+                started = time.monotonic()
+                with pytest.raises(StoreIntegrityError, match=pattern):
+                    store.prune_generations(
+                        keep_last=keep_last,
+                        dry_run=True,
+                        reclaim_chunks=True,
+                        max_files=64,
+                        max_seconds=2.0,
+                        audit_path=audit,
+                    )
+                assert time.monotonic() - started < 1.0
+                assert not audit.exists()
+
+            positive_floor = store.retention_floor(keep_last=8)
+            assert positive_floor > 0
+            (tmp_path / "generations" / f"{positive_floor:016x}").write_bytes(
+                embedded.GENERATION_HEADER.pack(
+                    embedded.GENERATION_MAGIC, embedded.VERSION, 0, positive_floor, 0, 0, 0
+                )
+            )
+            started = time.monotonic()
+            with pytest.raises(StoreIntegrityError, match="incomplete"):
+                store.prune_generations(
+                    keep_last=8,
+                    dry_run=True,
+                    reclaim_chunks=True,
+                    max_files=64,
+                    max_seconds=2.0,
+                    audit_path=tmp_path.parent / "huge-head-pos-floor.jsonl",
+                )
+            assert time.monotonic() - started < 1.0

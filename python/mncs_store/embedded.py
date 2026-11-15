@@ -280,6 +280,24 @@ class _ReclamationBudget:
         return value
 
 
+def _validate_retained_generation_inventory(
+    generations: dict[int, Path],
+    head: int,
+    floor: int,
+    pins: Sequence[int],
+) -> None:
+    """Validate O(len(generations)) coverage for genesis, pins, and [floor, head]."""
+    if head not in generations or 0 not in generations:
+        raise StoreIntegrityError("head or genesis generation is missing")
+    if floor < 0 or floor > head or floor not in generations:
+        raise StoreIntegrityError("retention checkpoint is missing")
+    for n in pins:
+        if n not in generations:
+            raise StoreIntegrityError(f"protected generation is missing: {n}")
+    if sum(1 for n in generations if n >= floor) != head - floor + 1:
+        raise StoreIntegrityError("retained generation history is incomplete in [floor, head]")
+
+
 class EmbeddedStore:
     """Supported retained-session Store API for local native consumers."""
 
@@ -3915,13 +3933,12 @@ class EmbeddedStore:
                     generations[n] = Path(path.path)
                     if 0 < n < floor:
                         candidates.append((Path(path.path), path.stat(follow_symlinks=False).st_size))
-            # Verify the full retained suffix and each old self-contained island.
-            # Existing gaps below floor are acceptable; retained gaps never are.
+            # Verify genesis, pins, and full [floor, head] retained coverage
+            # using the already-scanned inventory before parsing or unlinking.
+            # Existing gaps strictly in (0, floor) remain acceptable.
+            _validate_retained_generation_inventory(generations, head, floor, pins)
             if floor > 0:
                 self._parse_generation_parts(budget.read(generations[floor]), floor)
-            for n in pins:
-                if n not in generations:
-                    raise StoreIntegrityError(f"protected generation is missing: {n}")
             seen_roots: dict[bytes, _Entry] = {}
             for n in sorted(generations):
                 if 0 < n < floor:
@@ -3958,8 +3975,6 @@ class EmbeddedStore:
                         if total > budget.max_bytes - budget.bytes:
                             raise _ReclamationIncomplete("payload exceeds reclamation byte budget")
                         self._read_entry(entry, n, verify_payload=True)
-            if head not in generations or 0 not in generations:
-                raise StoreIntegrityError("head or genesis generation is missing")
             if reclaim_chunks:
                 with os.scandir(self.path / "chunks") as paths:
                     for path in paths:

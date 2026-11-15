@@ -1,0 +1,28 @@
+{
+  "base_commit": "83bc983f564ba3a1743379157d8f62eeb8a96c33",
+  "branch": "fix/store-retention-completeness-20261115",
+  "environment_session": "ses_5effc9fdf90dec9f",
+  "scope": {
+    "repository": "mncs-store",
+    "other_repositories_modified": false,
+    "production_destructive_operations": 0,
+    "production_reclaimed_bytes": 0,
+    "automatic_deletion_enabled": false
+  },
+  "checks": {
+    "full_store_suite": {
+      "command": "pytest tests/ -q",
+      "passed": 316,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 249.51
+    },
+    "environment_lookup_smoke": {
+      "command": "PYTHONPATH=.:<worktree>/python MNCS_LANGUAGE_ROOT=/home/epi13/Documents/Projects/mncs-language MNCS_STORE_PYTHON=<worktree>/python pytest tests/test_store_session_lookup.py -v",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 14.40
+    }
+  }
+}
