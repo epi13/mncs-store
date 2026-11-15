@@ -1,0 +1,71 @@
+{
+  "source_commit": "124f62d843067be850c9227bc8472ae610fc5c11",
+  "source_publication": {
+    "main": "124f62d843067be850c9227bc8472ae610fc5c11",
+    "origin_main_readback": "124f62d843067be850c9227bc8472ae610fc5c11",
+    "workflow": "Exact worktree claim; implementation committed; main fast-forwarded and pushed. Delivery-only follow-up follows this source commit."
+  },
+  "scope": {
+    "repository": "mncs-store",
+    "environment_base": "2a4d0ff",
+    "other_repositories_modified": false,
+    "production_destructive_operations": 0,
+    "production_reclaimed_bytes": 0,
+    "automatic_deletion_enabled": false
+  },
+  "tests": {
+    "full_store": {
+      "passed": 308,
+      "seconds": 225.23,
+      "skipped": 0
+    },
+    "final_targeted": {
+      "passed": 21,
+      "seconds": 11.38,
+      "includes": "19 retention tests plus two original generation-prune tests; three test additions after the full run"
+    },
+    "environment_lookup": {
+      "passed": 8,
+      "seconds": 13.65,
+      "provider_selection": "explicit tested Store checkout"
+    },
+    "environment_forwarding": {
+      "passed": 1
+    },
+    "canonical_smoke": {
+      "passed": 2,
+      "seconds": 7.48
+    },
+    "note": "No single final 311-test full-suite execution claimed; changed maintenance path covered by final targeted run."
+  },
+  "production_observation": {
+    "head": 131859,
+    "file_bytes": 31439752010,
+    "allocated_file_block_bytes": 34255347712,
+    "files": 1006515,
+    "known_authorized_reclaimable_bytes": 0,
+    "hypothetical_4096_window_candidate_bytes": 12848515320,
+    "read_only_generation_analysis_seconds": 6.647640829964075,
+    "payload_integrity": "UNKNOWN — production payload graph not scrubbed"
+  },
+  "isolated_measurements": {
+    "delta_1024": {
+      "wall_seconds": 0.3317240730393678,
+      "reclaimed_file_bytes": 2311772,
+      "reclaimed_allocated_bytes": 5328896
+    },
+    "legacy_full_1024": {
+      "wall_seconds": 0.6639950409880839,
+      "reclaimed_file_bytes": 38637032,
+      "reclaimed_allocated_bytes": 40210432
+    },
+    "scope": "Platform scaling uses existing semantic double; native and real Environment correctness tested separately."
+  },
+  "activation": {
+    "new_handles": "Updated native source selected automatically through existing admission cache; canonical smoke passed.",
+    "production_apply": "Requires explicit approved policy/pins, verified whole-Store preservation/restore, legacy-client drain/upgrade, complete proof and authorization.",
+    "production_content_sweep": "Not activation-ready: exceeds current bounded proof ceiling; adaptive/v3 collector also deferred.",
+    "background_service_added": false,
+    "persistent_store_index_added": false
+  }
+}

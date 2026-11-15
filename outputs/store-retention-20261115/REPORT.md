@@ -262,7 +262,7 @@ not an in-place rewrite of old checkpoints.
 
 ## Delivery
 
-See `delivery.json` for published commits and ref readback. Only Store source,
+Source commit `124f62d` is merged into main and pushed; remote-ref readback agrees. A canonical-checkout smoke run passed both the native collector and maintenance-recovery admission tests in 7.48 seconds. See `delivery.json` for publication and verification details. Only Store source,
 tests and documentation changed. Environment `2a4d0ff`, Control, Language,
 foreign claims, existing worktrees and unrelated source were preserved. New
 Store handles select the updated native artifact through the existing bounded
