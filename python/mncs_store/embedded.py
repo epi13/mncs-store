@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import errno
 import fcntl
+import json
 import os
+import stat
 import struct
 import time
 from contextlib import contextmanager
@@ -241,6 +243,43 @@ def _atomic_write(path: Path, value: bytes) -> None:
     _sync_directory(path.parent)
 
 
+class _ReclamationIncomplete(RuntimeError):
+    pass
+
+
+class _ReclamationBudget:
+    def __init__(self, root: Path, files: int, size: int, seconds: float):
+        self.root, self.max_files, self.max_bytes, self.seconds = root, files, size, seconds
+        self.files = self.bytes = 0
+        self.start = time.monotonic()
+        self.chunks: set[str] = set()
+
+    def tick(self, count: int = 1) -> None:
+        self.files += count
+        if self.files > self.max_files or time.monotonic() - self.start > self.seconds:
+            raise _ReclamationIncomplete("reclamation resource budget exhausted")
+
+    def read(self, path: Path) -> bytes:
+        self.tick()
+        size = path.lstat().st_size
+        if size > self.max_bytes - self.bytes:
+            raise _ReclamationIncomplete("reclamation byte budget exhausted")
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise StoreIntegrityError("reclamation encountered a non-regular artifact")
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                value = stream.read(size + 1)
+            if len(value) != size:
+                raise _ReclamationIncomplete("artifact changed during analysis")
+        finally:
+            os.close(fd)
+        self.bytes += size
+        if path.parent == self.root / "chunks":
+            self.chunks.add(path.name)
+        return value
+
+
 class EmbeddedStore:
     """Supported retained-session Store API for local native consumers."""
 
@@ -253,6 +292,7 @@ class EmbeddedStore:
         failpoint: Failpoint | None = None,
         verify_on_open: bool = True,
         read_only: bool = False,
+        maintenance: bool = False,
     ) -> None:
         if session is not None and command_executor is not None:
             raise ValueError("provide either a Store session or a command executor, not both")
@@ -262,61 +302,98 @@ class EmbeddedStore:
         self._failpoint = failpoint
         self._closed = False
         self.read_only = read_only
-        # A verified current-generation projection is a rebuildable read cache.
-        # The generation head remains the authority; a publication invalidates
-        # this cache and a changed head causes the next read to rebuild it.
-        self._projection_generation: int | None = None
-        self._projection: tuple[StoredObject, ...] = ()
-        self._verified_generation: int | None = None
-        self._objects_by_binding: dict[bytes, StoredObject] = {}
-        self._logical_ids_by_domain: dict[tuple[bytes, bytes], bytes] = {}
-        self._logical_ids_by_identity: dict[bytes, tuple[bytes, ...]] = {}
-        self._commit_feed_generation: int | None = None
-        self._commit_feed: bytes | None = None
-        self._domain_index_generation: int | None = None
-        self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
-        self._entry_index_generation: int | None = None
-        self._entries_by_binding: dict[bytes, _Entry] = {}
-        # A single exact-generation metadata view avoids reparsing an
-        # unchanged checkpoint for every publication in one resident process.
-        # It is derived, bounded, and discarded on cache miss or oversized
-        # generations; the on-disk head remains authoritative.
-        self._generation_parts_cache_generation: int | None = None
-        self._generation_parts_cache: tuple[
-            list[_Entry], list[bytes], list[bytes]
-        ] | None = None
-        self._entry_logical_ids: set[bytes] = set()
-        self._max_entry_ordinal = 0
-        if read_only:
-            # Read the committed head only. No recovery, lock creation,
-            # directory initialization, or eager payload projection.
-            if not self.path.is_dir():
-                raise StoreError(StoreResultCode.DENIED, "Store does not exist")
-            generation = self.current_generation
-            self._read_generation(generation, verify_objects=False)
-            self.recovery_result = StoreResultCode.RECOVERED_OLD
-        else:
-            for name in (
-                "chunks",
-                "nodes",
-                "objects",
-                "descriptors",
-                "bindings",
-                "generations",
-                "staging",
-                "envelopes",
-                "representations",
-                "blocks",
-                "reps",
-            ):
-                (self.path / name).mkdir(mode=0o700, parents=True, exist_ok=True)
-            self._initialize_files()
-            self.recovery_result = self._recover()
-            if verify_on_open:
+        self._maintenance = maintenance
+        self._lifetime_lock_fd: int | None = None
+        try:
+            # The immutable existing meta inode is the coordination point. Read
+            # only opens create no files. Old, nonparticipating binaries require
+            # an offline activation window; a lease is not a policy grant.
+            if (self.path / "meta").exists():
+                self._lock_lifetime()
+            elif maintenance:
+                raise StoreError(StoreResultCode.DENIED, "maintenance requires an initialized Store")
+            # A verified current-generation projection is a rebuildable read cache.
+            # The generation head remains the authority; a publication invalidates
+            # this cache and a changed head causes the next read to rebuild it.
+            self._projection_generation: int | None = None
+            self._projection: tuple[StoredObject, ...] = ()
+            self._verified_generation: int | None = None
+            self._objects_by_binding: dict[bytes, StoredObject] = {}
+            self._logical_ids_by_domain: dict[tuple[bytes, bytes], bytes] = {}
+            self._logical_ids_by_identity: dict[bytes, tuple[bytes, ...]] = {}
+            self._commit_feed_generation: int | None = None
+            self._commit_feed: bytes | None = None
+            self._domain_index_generation: int | None = None
+            self._domain_index: tuple[tuple[_Entry, bytes, bytes], ...] = ()
+            self._entry_index_generation: int | None = None
+            self._entries_by_binding: dict[bytes, _Entry] = {}
+            # A single exact-generation metadata view avoids reparsing an
+            # unchanged checkpoint for every publication in one resident process.
+            # It is derived, bounded, and discarded on cache miss or oversized
+            # generations; the on-disk head remains authoritative.
+            self._generation_parts_cache_generation: int | None = None
+            self._generation_parts_cache: tuple[
+                list[_Entry], list[bytes], list[bytes]
+            ] | None = None
+            self._entry_logical_ids: set[bytes] = set()
+            self._max_entry_ordinal = 0
+            if read_only:
+                # Read the committed head only. No recovery, lock creation,
+                # directory initialization, or eager payload projection.
+                if not self.path.is_dir():
+                    raise StoreError(StoreResultCode.DENIED, "Store does not exist")
                 generation = self.current_generation
-                self._read_generation(generation, verify_objects=True)
+                self._read_generation(generation, verify_objects=False)
+                self.recovery_result = StoreResultCode.RECOVERED_OLD
+            else:
+                for name in (
+                    "chunks",
+                    "nodes",
+                    "objects",
+                    "descriptors",
+                    "bindings",
+                    "generations",
+                    "staging",
+                    "envelopes",
+                    "representations",
+                    "blocks",
+                    "reps",
+                ):
+                    (self.path / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+                self._initialize_files()
+                if self._lifetime_lock_fd is None:
+                    self._lock_lifetime()
+                self.recovery_result = self._recover()
+                if verify_on_open:
+                    generation = self.current_generation
+                    self._read_generation(generation, verify_objects=True)
+        except BaseException:
+            self.close()
+            raise
 
     # ---- platform boundary -------------------------------------------
+
+    def _lock_lifetime(self) -> None:
+        descriptor = os.open(self.path / "meta", os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise StoreIntegrityError("Store meta is not a regular file")
+            mode = fcntl.LOCK_EX if self._maintenance else fcntl.LOCK_SH
+            try:
+                fcntl.flock(descriptor, mode | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise StoreError(
+                    StoreResultCode.DENIED,
+                    "Store maintenance busy: close other readers/writers and retry",
+                ) from exc
+            self._lifetime_lock_fd = descriptor
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _read_file(self, path: Path) -> bytes:
+        reader = getattr(self, "_reclamation_reader", None)
+        return reader(path) if reader is not None else path.read_bytes()
 
     def _initialize_files(self) -> None:
         meta = self.path / "meta"
@@ -346,13 +423,16 @@ class EmbeddedStore:
                 _atomic_write(head, HEAD_MAGIC + bytes([VERSION, 0]) + struct.pack(">Q", 0))
 
     @contextmanager
-    def _publication_lock(self) -> Iterator[None]:
+    def _publication_lock(self, *, nonblocking: bool = False) -> Iterator[None]:
         if self.read_only:
             raise StoreError(StoreResultCode.DENIED, "Store is read-only; mutation and recovery are forbidden")
         lock_path = self.path / "publication.lock"
         descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0))
+            except BlockingIOError as exc:
+                raise _ReclamationIncomplete("publication is busy; defer maintenance") from exc
             yield
         finally:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
@@ -1284,8 +1364,11 @@ class EmbeddedStore:
         self.recovery_result = self._recover_locked()
 
     def _recover(self) -> StoreResultCode:
-        with self._publication_lock():
-            return self._recover_locked()
+        try:
+            with self._publication_lock(nonblocking=self._maintenance):
+                return self._recover_locked()
+        except _ReclamationIncomplete as exc:
+            raise StoreError(StoreResultCode.DENIED, "publication is busy; defer maintenance recovery") from exc
 
     def _recover_locked(self) -> StoreResultCode:
         self._sweep_stage_files()
@@ -1538,7 +1621,7 @@ class EmbeddedStore:
         self._write_immutable(target, raw)
 
     def _read_binding(self, binding_id: bytes, root: bytes | None = None) -> tuple[bytes, bytes, bytes, bytes, bytes, int]:
-        raw = self._binding_path(binding_id, root).read_bytes()
+        raw = self._read_file(self._binding_path(binding_id, root))
         if len(raw) < BINDING_HEADER.size + 12 + 32 + 32 + 8:
             raise StoreIntegrityError("Store binding is truncated")
         magic, version, reserved, schema_length, identity_length = BINDING_HEADER.unpack_from(raw)
@@ -1562,7 +1645,7 @@ class EmbeddedStore:
         manifest_path = self.path / "objects" / f"{entry.representation_root.hex()}.physical"
         if not manifest_path.exists():
             manifest_path = self.path / "objects" / f"{entry.logical_id.hex()}.manifest"
-        raw = manifest_path.read_bytes()
+        raw = self._read_file(manifest_path)
         adaptive: tuple[bytes, bytes] | None = None
         if len(raw) == MANIFEST_V2.size:
             values = MANIFEST_V2.unpack(raw)
@@ -1611,13 +1694,13 @@ class EmbeddedStore:
             raise StoreIntegrityError("Store object manifest root identity mismatch")
         if chunk_size != CHUNK_SIZE or chunk_count < 1:
             raise StoreIntegrityError("Store object manifest geometry is invalid")
-        descriptor = (self.path / "descriptors" / f"{descriptor_id.hex()}.desc").read_bytes()
+        descriptor = self._read_file(self.path / "descriptors" / f"{descriptor_id.hex()}.desc")
         if self._verify_digest(descriptor) != descriptor_id:
             raise StoreIntegrityError("Store descriptor integrity failure")
         return raw, total_length, chunk_count, depth, content_id, tree_root, descriptor, adaptive
 
     def _read_node(self, digest: bytes, *, level: int, start: int, expected_count: int) -> list[bytes]:
-        raw = (self.path / "nodes" / f"{digest.hex()}.node").read_bytes()
+        raw = self._read_file(self.path / "nodes" / f"{digest.hex()}.node")
         if self._verify_digest(raw) != digest or len(raw) < NODE_HEADER.size:
             raise StoreIntegrityError("Store content node integrity failure")
         magic, version, reserved, actual_level, actual_start, count = NODE_HEADER.unpack_from(raw)
@@ -1652,7 +1735,7 @@ class EmbeddedStore:
                 result: list[bytes] = []
                 for index, child in enumerate(children):
                     chunk_index = start + index
-                    raw = (self.path / "chunks" / f"{child.hex()}.chunk").read_bytes()
+                    raw = self._read_file(self.path / "chunks" / f"{child.hex()}.chunk")
                     if self._verify_digest(raw) != child:
                         raise StoreIntegrityError(f"Store content chunk {chunk_index} failed integrity")
                     expected_length = min(CHUNK_SIZE, total_length - chunk_index * CHUNK_SIZE)
@@ -3715,146 +3798,264 @@ class EmbeddedStore:
         self._read_generation(self.current_generation, verify_objects=True)
         return self.recovery_result
 
-    def retention_floor(self, *, keep_last: int = 4096) -> int:
-        """Return the oldest generation retained under a bounded replay window.
+    def retention_floor(
+        self, *, keep_last: int = 4096, protected_generations: Sequence[int] = (),
+    ) -> int:
+        """Native checkpoint floor for an explicitly selected window and pins.
 
-        The floor is the full checkpoint at or below ``head - keep_last``,
-        so every generation in the retained window stays readable through
-        its delta chain. The default window matches the bounded replay cap
-        accepted by :meth:`domain_bindings_since`.
+        This calculation is not authorization to retire consumer history.
+        A protected generation conservatively retains its checkpoint suffix.
         """
-
-        if isinstance(keep_last, bool) or not isinstance(keep_last, int) or keep_last < 1:
+        if type(keep_last) is not int or not 1 <= keep_last < 2**64:
             raise StoreError(StoreResultCode.DENIED, "retained generation window is invalid")
         head = self.current_generation
-        if keep_last > head:
-            return 0
-        return ((head - keep_last) // GENERATION_CHECKPOINT_INTERVAL) * GENERATION_CHECKPOINT_INTERVAL
+        if not isinstance(protected_generations, (list, tuple, range)) or len(protected_generations) > 8192:
+            raise StoreError(StoreResultCode.DENIED, "protected generations must be a bounded sequence")
+        pins = tuple(protected_generations)
+        if any(type(n) is not int or not 0 <= n <= head for n in pins):
+            raise StoreError(StoreResultCode.DENIED, "protected generation is invalid")
+        return self.session.retention_floor(
+            head, keep_last, GENERATION_CHECKPOINT_INTERVAL, min(pins) if pins else None,
+        )
 
     def generation_inventory(self, *, keep_last: int = 4096) -> dict[str, object]:
-        """Classify generation files against the retention floor without mutating."""
-
+        """Bounded metadata classification, not a retained-data integrity proof."""
         head = self.current_generation
         floor = self.retention_floor(keep_last=keep_last)
-        prunable_files = 0
-        prunable_bytes = 0
-        retained_files = 0
-        retained_bytes = 0
-        unknown_files = 0
-        generations = self.path / "generations"
-        try:
-            names = sorted(path.name for path in generations.iterdir() if path.is_file())
-        except FileNotFoundError:
-            names = []
-        for name in names:
-            try:
-                generation = int(name, 16)
-            except ValueError:
-                unknown_files += 1
-                continue
-            if len(name) != 16 or generation < 0 or f"{generation:016x}" != name:
-                unknown_files += 1
-                continue
-            size = (generations / name).stat().st_size
-            if 0 < generation < floor:
-                prunable_files += 1
-                prunable_bytes += size
-            else:
-                retained_files += 1
-                retained_bytes += size
-        floor_is_checkpoint = False
-        if floor <= head:
-            try:
-                floor_is_checkpoint = (generations / f"{floor:016x}").read_bytes()[:2] == GENERATION_MAGIC
-            except OSError:
-                floor_is_checkpoint = False
-        return {
-            "head": head,
-            "floor": floor,
-            "keep_last": keep_last,
-            "checkpoint_interval": GENERATION_CHECKPOINT_INTERVAL,
-            "prunable_files": prunable_files,
-            "prunable_bytes": prunable_bytes,
-            "retained_files": retained_files,
-            "retained_bytes": retained_bytes,
-            "unknown_files": unknown_files,
-            "floor_is_checkpoint": floor_is_checkpoint,
-        }
-
-    def prune_generations(self, *, keep_last: int = 4096, dry_run: bool = True) -> dict[str, object]:
-        """Reclaim generation files below the retention floor.
-
-        Only files strictly below the verified full-checkpoint floor are
-        removed; unknown files, the genesis anchor, the floor, and every
-        newer generation are never touched. A dry run classifies without
-        deleting. After a real prune the floor and head are re-read from
-        disk to prove the retained delta chain is intact.
-        """
-
-        if self._closed:
-            raise StoreError(StoreResultCode.DENIED, "Store is closed")
-        if not dry_run and self.read_only:
-            raise StoreError(StoreResultCode.DENIED, "Store is read-only; pruning is forbidden")
-        if isinstance(keep_last, bool) or not isinstance(keep_last, int) or keep_last < 1:
-            raise StoreError(StoreResultCode.DENIED, "retained generation window is invalid")
-        head = self.current_generation
-        floor = self.retention_floor(keep_last=keep_last)
-        generations = self.path / "generations"
-        candidates = [generation for generation in range(1, floor)]
-        prunable = [generation for generation in candidates if (generations / f"{generation:016x}").is_file()]
-        prunable_bytes = sum((generations / f"{generation:016x}").stat().st_size for generation in prunable)
-        report: dict[str, object] = {
-            "head": head,
-            "floor": floor,
-            "keep_last": keep_last,
-            "dry_run": bool(dry_run),
-            "prunable_files": len(prunable),
-            "prunable_bytes": prunable_bytes,
-            "removed_files": 0,
-            "removed_bytes": 0,
-        }
-        if dry_run or not prunable:
-            return report
-        with self._publication_lock():
-            head = self.current_generation
-            floor = self.retention_floor(keep_last=keep_last)
-            try:
-                floor_raw = (generations / f"{floor:016x}").read_bytes()
-            except OSError as exc:
-                raise StoreIntegrityError(f"retention floor generation is missing: {floor}") from exc
-            # Fail closed unless the floor is a self-contained full checkpoint.
-            self._parse_generation_parts(floor_raw, floor)
-            removed = 0
-            removed_bytes = 0
-            for generation in range(1, floor):
-                path = generations / f"{generation:016x}"
+        report = dict(head=head, floor=floor, keep_last=keep_last,
+                      checkpoint_interval=GENERATION_CHECKPOINT_INTERVAL,
+                      prunable_files=0, prunable_bytes=0, retained_files=0,
+                      retained_bytes=0, unknown_files=0, complete=True)
+        with os.scandir(self.path / "generations") as paths:
+            for count, path in enumerate(paths):
+                if count >= 200000:
+                    report["complete"] = False
+                    break
                 try:
-                    removed_bytes += path.stat().st_size
-                except FileNotFoundError:
+                    generation = int(path.name, 16)
+                except ValueError:
+                    generation = -1
+                if (generation < 0 or path.name != f"{generation:016x}"
+                        or not path.is_file(follow_symlinks=False)):
+                    report["unknown_files"] += 1
                     continue
-                path.unlink()
-                removed += 1
-            _sync_directory(generations)
-            # Prove the retained window still reads from disk.
+                size = path.stat(follow_symlinks=False).st_size
+                kind = "prunable" if 0 < generation < floor else "retained"
+                report[kind + "_files"] += 1
+                report[kind + "_bytes"] += size
+        try:
+            with (self.path / "generations" / f"{floor:016x}").open("rb") as stream:
+                report["floor_is_checkpoint"] = stream.read(2) == GENERATION_MAGIC
+        except OSError:
+            report["floor_is_checkpoint"] = False
+        return report
+
+    def prune_generations(
+        self, *, keep_last: int = 4096, dry_run: bool = True,
+        protected_generations: Sequence[int] = (), policy_id: str | None = None,
+        reclaim_chunks: bool = False, audit_path: Path | None = None,
+        max_files: int = 8192, max_bytes: int = 64 * 1024 * 1024,
+        max_seconds: float = 30,
+    ) -> dict[str, object]:
+        """Prove then reclaim under caller-owned policy and exclusive maintenance.
+
+        No incomplete analysis authorizes unlink. All existing generations
+        outside the retired interval are roots, including old checkpoints and
+        physical versions. Only chunks and eligible generation files are
+        reclaimed; unknown/adaptive formats, staging and exhausted budgets defer.
+        The external audit is evidence, never replayed as deletion authority.
+        """
+        if self._closed or (not dry_run and self.read_only):
+            raise StoreError(StoreResultCode.DENIED, "closed/read-only Store cannot reclaim")
+        if not dry_run and not self._maintenance:
+            raise StoreError(StoreResultCode.DENIED, "reclamation requires exclusive maintenance=True")
+        if policy_id is not None and (not isinstance(policy_id, str) or not 1 <= len(policy_id) <= 256):
+            raise StoreError(StoreResultCode.DENIED, "policy_id must identify caller retention authority")
+        if not dry_run and policy_id is None:
+            raise StoreError(StoreResultCode.DENIED, "explicit retention policy_id required")
+        if (type(max_files) is not int or not 1 <= max_files <= 200000
+                or type(max_bytes) is not int or not 1 <= max_bytes <= 1024**3
+                or type(max_seconds) not in (int, float) or not 0 < max_seconds <= 900):
+            raise StoreError(StoreResultCode.DENIED, "invalid reclamation budget")
+        head = self.current_generation
+        if not isinstance(protected_generations, (list, tuple, range)) or len(protected_generations) > 8192:
+            raise StoreError(StoreResultCode.DENIED, "protected generations must be a bounded sequence")
+        pins = tuple(protected_generations)
+        floor = self.retention_floor(keep_last=keep_last, protected_generations=pins)
+        report = dict(head=head, floor=floor, keep_last=keep_last, dry_run=bool(dry_run),
+                      policy_id=policy_id, protected_generations=sorted(set(pins)),
+                      policy_asserted=policy_id is not None,
+                      verification_scope=("all-retained-v2-payloads" if reclaim_chunks else "generation-chain-only"),
+                      status="unknown", prunable_files=0, prunable_bytes=0,
+                      removed_files=0, removed_bytes=0, candidates=[], removed=[])
+        budget = _ReclamationBudget(self.path, max_files, max_bytes, max_seconds)
+        self._reclamation_reader = budget.read
+        publication_guard = None
+        try:
+            if not dry_run:
+                guard = self._publication_lock(nonblocking=True)
+                guard.__enter__()
+                publication_guard = guard
+            if any((self.path / "staging").iterdir()):
+                raise _ReclamationIncomplete("pending recovery roots: reopen with recovery before maintenance")
+            generations: dict[int, Path] = {}
+            candidates = []
+            with os.scandir(self.path / "generations") as paths:
+                for path in paths:
+                    budget.tick()
+                    try:
+                        n = int(path.name, 16)
+                    except ValueError:
+                        n = -1
+                    if (n < 0 or path.name != f"{n:016x}"
+                            or not path.is_file(follow_symlinks=False)):
+                        raise _ReclamationIncomplete("unknown generation artifact must be retained")
+                    if n > head:
+                        raise _ReclamationIncomplete("uncommitted generation requires recovery investigation")
+                    generations[n] = Path(path.path)
+                    if 0 < n < floor:
+                        candidates.append((Path(path.path), path.stat(follow_symlinks=False).st_size))
+            # Verify the full retained suffix and each old self-contained island.
+            # Existing gaps below floor are acceptable; retained gaps never are.
+            if floor > 0:
+                self._parse_generation_parts(budget.read(generations[floor]), floor)
+            for n in pins:
+                if n not in generations:
+                    raise StoreIntegrityError(f"protected generation is missing: {n}")
+            seen_roots: dict[bytes, _Entry] = {}
+            for n in sorted(generations):
+                if 0 < n < floor:
+                    continue
+                raw = budget.read(generations[n])
+                if raw[:2] == GENERATION_MAGIC:
+                    entries, _, _ = self._parse_generation_parts(raw, n)
+                elif raw[:2] == GENERATION_DELTA_MAGIC:
+                    parent, entries, _, _ = self._parse_generation_delta_parts(raw, n)
+                    if parent not in generations or (0 < parent < floor):
+                        raise StoreIntegrityError(f"retained delta parent is missing: {parent}")
+                else:
+                    raise StoreIntegrityError("unknown retained generation encoding")
+                if reclaim_chunks:
+                    for entry in entries:
+                        if entry.representation_root in seen_roots:
+                            if seen_roots[entry.representation_root] != entry:
+                                raise StoreIntegrityError("physical root has conflicting generation entries")
+                            continue
+                        budget.tick()
+                        seen_roots[entry.representation_root] = entry
+                        manifest = self._read_manifest(entry)
+                        if manifest[-1] is not None:
+                            raise _ReclamationIncomplete("adaptive reachability requires a verified collector")
+                        total, chunks, depth = manifest[1:4]
+                        if chunks != max(1, (total + CHUNK_SIZE - 1) // CHUNK_SIZE):
+                            raise StoreIntegrityError("content geometry is inconsistent")
+                        capacity, expected_depth = FANOUT, 0
+                        while capacity < chunks:
+                            capacity *= FANOUT
+                            expected_depth += 1
+                        if depth != expected_depth:
+                            raise StoreIntegrityError("content depth is inconsistent")
+                        if total > budget.max_bytes - budget.bytes:
+                            raise _ReclamationIncomplete("payload exceeds reclamation byte budget")
+                        self._read_entry(entry, n, verify_payload=True)
+            if head not in generations or 0 not in generations:
+                raise StoreIntegrityError("head or genesis generation is missing")
+            if reclaim_chunks:
+                with os.scandir(self.path / "chunks") as paths:
+                    for path in paths:
+                        budget.tick()
+                        name = path.name
+                        if (len(name) != 70 or not name.endswith(".chunk")
+                                or any(c not in "0123456789abcdef" for c in name[:64])
+                                or not path.is_file(follow_symlinks=False)):
+                            raise _ReclamationIncomplete("unknown chunk artifact must be retained")
+                        if name not in budget.chunks and self.session.prune_decide(False) == 0:
+                            candidates.append((Path(path.path), path.stat(follow_symlinks=False).st_size))
+            if self.current_generation != head:
+                raise _ReclamationIncomplete("head changed during analysis; retry")
+            # Retire historical manifests before orphan chunks: a crash must
+            # not leave a still-present eligible generation naming a removed
+            # chunk. No retained generation is ever removed.
+            candidates.sort(key=lambda item: (item[0].parent.name != "generations", str(item[0])))
+            items = [{"path": str(path.relative_to(self.path)), "bytes": size}
+                     for path, size in candidates]
+            report.update(status="complete", candidates=items,
+                          prunable_files=len(items), prunable_bytes=sum(size for _, size in candidates),
+                          verified_physical_roots=len(seen_roots),
+                          referenced_chunks=len(budget.chunks) if reclaim_chunks else None)
+            plan = json.dumps({k: report[k] for k in (
+                "head", "floor", "keep_last", "policy_id", "protected_generations", "candidates"
+            )}, sort_keys=True, separators=(",", ":")).encode()
+            report["plan_digest"] = self._verify_digest(plan).hex()
+            if dry_run or not candidates:
+                return report
+            if audit_path is None:
+                raise StoreError(StoreResultCode.DENIED, "destructive maintenance requires an external audit_path")
+            audit_path = Path(audit_path).absolute()
+            if audit_path.resolve().is_relative_to(self.path):
+                raise StoreError(StoreResultCode.DENIED, "audit must live outside the reclaimed Store")
+            fd = os.open(audit_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+            def audit(value: object) -> None:
+                data = memoryview(json.dumps(value, sort_keys=True).encode() + b"\n")
+                while data:
+                    written = os.write(fd, data)
+                    if written <= 0:
+                        raise OSError("short reclamation audit write")
+                    data = data[written:]
+                os.fsync(fd)
+            try:
+                audit({"plan_digest": report["plan_digest"], "plan": json.loads(plan)})
+                _sync_directory(audit_path.parent)
+                for (path, size), item in zip(candidates, items):
+                    try:
+                        budget.tick(0)
+                    except _ReclamationIncomplete as error:
+                        report.update(status="partial", reason=str(error))
+                        break
+                    audit({"attempt": item["path"]})
+                    self._trip("before_reclamation_unlink")
+                    path.unlink()
+                    self._trip("after_reclamation_unlink_before_receipt")
+                    _sync_directory(path.parent)
+                    report["removed"].append(item)
+                    report["removed_files"] += 1
+                    report["removed_bytes"] += size
+                    audit({"removed": item})
+                audit({"status": report["status"], "removed_files": report["removed_files"],
+                       "removed_bytes": report["removed_bytes"]})
+            finally:
+                os.close(fd)
+            self._invalidate_projection()
             self._invalidate_generation_parts_cache()
-            self._read_generation_parts(floor)
-            self._read_generation_parts(head)
-            report.update(
-                {
-                    "head": head,
-                    "floor": floor,
-                    "removed_files": removed,
-                    "removed_bytes": removed_bytes,
-                }
-            )
+            self._entry_index_generation = None
             return report
+        except _ReclamationIncomplete as error:
+            report.update(status="unknown", reason=str(error))
+            return report
+        except KeyError as error:
+            raise StoreIntegrityError("retention checkpoint is missing") from error
+        finally:
+            self._reclamation_reader = None
+            self._invalidate_projection()
+            self._invalidate_generation_parts_cache()
+            self._entry_index_generation = None
+            if publication_guard is not None:
+                publication_guard.__exit__(None, None, None)
+            report.update(scanned_files=budget.files, read_bytes=budget.bytes,
+                          elapsed_seconds=time.monotonic() - budget.start)
 
     def close(self) -> None:
         if self._closed:
             return
-        if self._owns_session:
-            self.session.close()
-        self._closed = True
+        try:
+            if self._owns_session:
+                self.session.close()
+        finally:
+            descriptor = self._lifetime_lock_fd
+            self._lifetime_lock_fd = None
+            if descriptor is not None:
+                os.close(descriptor)
+            self._closed = True
 
     def __del__(self) -> None:
         try:

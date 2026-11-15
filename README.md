@@ -61,6 +61,14 @@ is replaceable (identity + windowed RLE codecs today) while logical
 identity stays stable; objects stored without adaptive parameters keep
 their v2 bytes and synthesize the same view at read time.
 
+Store's existing generation pruning also supports bounded, explicitly governed
+maintenance and optional verified v2 orphan-chunk reclamation. Normal handles
+hold shared reader/writer leases; destructive maintenance requires an exclusive
+handle, explicit policy and external audit. Dry-run remains the default.
+See [retention and production preparation](docs/retention.md) and
+[RFC 0021](rfcs/0021-bounded-retention-maintenance.md). No production retention
+window or automatic deletion is enabled by this facility.
+
 ## Why this exists
 
 MNCS components increasingly need durable state, but repeatedly reducing machine state to JSON, rows, documents, or application-specific blobs throws away information the machine already knows: type, layout, alignment, shape, provenance, relations, generation, placement, integrity, and hardware affinity.

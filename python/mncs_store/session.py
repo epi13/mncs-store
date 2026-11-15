@@ -1490,6 +1490,22 @@ class StoreSession:
         )
         return as_int(_returned(output))
 
+    def retention_floor(self, head: int, window: int, interval: int, oldest_pin: int | None) -> int:
+        output = self.call(
+            "store.recovery.v1", "retention_floor",
+            [u64(head), u64(window), u64(interval),
+             {"boolean": {"value": oldest_pin is not None}}, u64(oldest_pin or 0)],
+            step_budget=32_768,
+        )
+        return as_int(_returned(output))
+
+    def prune_decide(self, referenced: bool) -> int:
+        output = self.call(
+            "store.recovery.v1", "prune_decide",
+            [{"boolean": {"value": referenced}}], step_budget=32_768,
+        )
+        return as_int(_returned(output))
+
     def close(self) -> None:
         if self._closed:
             return

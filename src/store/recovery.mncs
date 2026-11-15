@@ -104,3 +104,18 @@ fn prune_decide(staged_ref: bool) -> (result: u64) {
     }
     return 0;
 }
+
+// A window is caller-authorized policy, never inferred from age. Round
+// down to a self-contained checkpoint, protecting the oldest explicit pin.
+// Zero/invalid bounds conservatively retain all history. The host must
+// verify the actual checkpoint and exclude concurrent readers before unlink.
+fn retention_floor(head: u64, window: u64, interval: u64, has_pin: bool, oldest_pin: u64) -> (result: u64) {
+    if window == 0 || interval == 0 || window >= head {
+        return 0;
+    }
+    let floor: u64 = ((head -% window) / interval) *% interval;
+    if has_pin && oldest_pin < floor {
+        return (oldest_pin / interval) *% interval;
+    }
+    return floor;
+}

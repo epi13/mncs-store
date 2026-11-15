@@ -1,0 +1,90 @@
+{
+  "root": "/home/epi13/.local/share/mncs-environment/store",
+  "files": 1006515,
+  "complete": true,
+  "seconds": 15.000223637965973,
+  "components": {
+    "meta": {
+      "files": 1,
+      "bytes": 12,
+      "allocated": 4096,
+      "nonregular": 0
+    },
+    "publication.lock": {
+      "files": 1,
+      "bytes": 0,
+      "allocated": 0,
+      "nonregular": 0
+    },
+    "entry-store.lock": {
+      "files": 1,
+      "bytes": 0,
+      "allocated": 0,
+      "nonregular": 0
+    },
+    "head": {
+      "files": 1,
+      "bytes": 12,
+      "allocated": 4096,
+      "nonregular": 0
+    },
+    "store": {
+      "files": 4,
+      "bytes": 48,
+      "allocated": 12288,
+      "nonregular": 0
+    },
+    "environment": {
+      "files": 41,
+      "bytes": 34480,
+      "allocated": 167936,
+      "nonregular": 0
+    },
+    "generations": {
+      "files": 97557,
+      "bytes": 13122984396,
+      "allocated": 13502672896,
+      "nonregular": 0
+    },
+    "bindings": {
+      "files": 132137,
+      "bytes": 22557487,
+      "allocated": 541233152,
+      "nonregular": 0
+    },
+    "descriptors": {
+      "files": 132138,
+      "bytes": 13836406,
+      "allocated": 541237248,
+      "nonregular": 0
+    },
+    "objects": {
+      "files": 132140,
+      "bytes": 22199520,
+      "allocated": 541245440,
+      "nonregular": 0
+    },
+    "nodes": {
+      "files": 135179,
+      "bytes": 21497948,
+      "allocated": 553693184,
+      "nonregular": 0
+    },
+    "chunks": {
+      "files": 377315,
+      "bytes": 18236641701,
+      "allocated": 18575077376,
+      "nonregular": 0
+    }
+  },
+  "persistent_bytes": 31439752010,
+  "allocated_bytes": 34255347712,
+  "head_before": 131859,
+  "head_after": 131859,
+  "current_generation_chain_bytes": 16385620,
+  "current_chain_checkpoint": 131840,
+  "staging_entries": 0,
+  "temporary_stage_files": [],
+  "payload_reachability": "not scanned; unclassified canonical artifacts remain protected",
+  "method": "non-chunk components completed before the original 15s cap; chunks completed separately in 1.02s at the same stable head. All canonical file trees counted; filesystem inode/directory metadata not included."
+}

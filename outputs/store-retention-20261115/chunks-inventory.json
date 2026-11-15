@@ -1,0 +1,13 @@
+{
+  "seconds": 1.0230315580265597,
+  "head_before": 131859,
+  "head_after": 131859,
+  "chunks": {
+    "files": 377315,
+    "bytes": 18236641701,
+    "allocated": 18575077376,
+    "nonregular": 0,
+    "complete": true
+  },
+  "stage_files": []
+}

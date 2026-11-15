@@ -1,0 +1,63 @@
+{
+  "mode": "baseline",
+  "generations": 32,
+  "layout": "delta",
+  "reclaimed_allocated_bytes": 0,
+  "semantics": "platform-only semantic-session double; native authority tested separately",
+  "recovery": {
+    "wall": 0.01984300697222352,
+    "cpu": 0.01972000000000001
+  },
+  "reopen": {
+    "wall": 0.0014101210399530828,
+    "cpu": 0.0014050000000000243
+  },
+  "current_cold": {
+    "wall": 0.0007783500477671623,
+    "cpu": 0.0007710000000000043
+  },
+  "current_20_warm": {
+    "wall": 0.0031827280181460083,
+    "cpu": 0.003171000000000014
+  },
+  "historical": {
+    "wall": 0.0013397550210356712,
+    "cpu": 0.0013149999999999863
+  },
+  "maintenance": {
+    "wall": 4.888098919764161e-05,
+    "cpu": 4.9999999999991024e-05
+  },
+  "transaction": {
+    "wall": 0.0008283230126835406,
+    "cpu": 0.0008240000000000018
+  },
+  "post_current": {
+    "wall": 0.00020383804803714156,
+    "cpu": 0.00020399999999998197
+  },
+  "post_historical": {
+    "wall": 0.0013352800160646439,
+    "cpu": 0.00132899999999999
+  },
+  "physical_bytes_before": 2245103,
+  "physical_bytes_after_including_one_new_transaction": 2245596,
+  "python_filesystem_calls_during_maintenance": {
+    "open": 0,
+    "stat": 413,
+    "unlink": 0,
+    "fsync": 0,
+    "replace": 0
+  },
+  "result": {
+    "head": 32,
+    "floor": 0,
+    "keep_last": 32,
+    "dry_run": false,
+    "prunable_files": 0,
+    "prunable_bytes": 0,
+    "removed_files": 0,
+    "removed_bytes": 0
+  },
+  "max_rss_kib": 40188
+}

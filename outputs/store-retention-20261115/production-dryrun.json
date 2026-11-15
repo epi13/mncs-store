@@ -1,0 +1,44 @@
+{
+  "header_inventory": {
+    "MG": {
+      "files": 2475,
+      "bytes": 13108117132
+    },
+    "MD": {
+      "files": 95082,
+      "bytes": 14867264
+    },
+    "other": {
+      "files": 0,
+      "bytes": 0
+    }
+  },
+  "header_complete": true,
+  "dry_run": {
+    "head": 131859,
+    "floor": 127744,
+    "keep_last": 4096,
+    "dry_run": true,
+    "policy_id": null,
+    "protected_generations": [],
+    "policy_asserted": false,
+    "verification_scope": "generation-chain-only",
+    "status": "complete",
+    "prunable_files": 93440,
+    "prunable_bytes": 12848515320,
+    "removed_files": 0,
+    "removed_bytes": 0,
+    "verified_physical_roots": 0,
+    "referenced_chunks": null,
+    "plan_digest": "6cd954eea2960aa42940009c9562b0f421bccc9584dddb1ce0ae0e5a20b5c727",
+    "scanned_files": 101675,
+    "read_bytes": 290318656,
+    "elapsed_seconds": 6.647640829964075,
+    "authorization": "hypothetical window only; no Environment retention policy approved",
+    "production_deleted": false
+  },
+  "head_before": 131859,
+  "head_after": 131859,
+  "wall_seconds": 20.79024898604257,
+  "max_rss_kib": 490512
+}

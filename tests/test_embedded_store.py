@@ -109,6 +109,17 @@ class SemanticSessionDouble:
             return 1
         return 0 if previous_valid else 2
 
+    @staticmethod
+    def retention_floor(head: int, window: int, interval: int, oldest_pin: int | None) -> int:
+        if window == 0 or interval == 0 or window >= head:
+            return 0
+        floor = ((head - window) // interval) * interval
+        return min(floor, (oldest_pin // interval) * interval) if oldest_pin is not None else floor
+
+    @staticmethod
+    def prune_decide(referenced: bool) -> int:
+        return int(referenced)
+
     def call(self, _module: str, function: str, arguments: list[dict[str, object]], **_kwargs: object):
         self.call_count += 1
         if function == "cas_decide":
@@ -1004,7 +1015,9 @@ def test_generation_prune_reclaims_below_checkpoint_floor(
     from mncs_store import embedded as embedded_module
 
     monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
-    with EmbeddedStore(tmp_path, session=_session()) as store:
+    with EmbeddedStore(tmp_path, session=_session()) as initializer:
+        assert initializer.current_generation == 0
+    with EmbeddedStore(tmp_path, session=_session(), maintenance=True) as store:
         for index in range(1, 11):
             result = store.put_bound_object(
                 domain_schema=b"fixture/1",
@@ -1033,7 +1046,10 @@ def test_generation_prune_reclaims_below_checkpoint_floor(
         assert preview["prunable_files"] == 3
         assert (generations / f"{1:016x}").exists()
 
-        pruned = store.prune_generations(keep_last=4, dry_run=False)
+        pruned = store.prune_generations(
+            keep_last=4, dry_run=False, policy_id="isolated-fixture",
+            audit_path=tmp_path.parent / "prune-audit.jsonl",
+        )
         assert pruned["removed_files"] == 3
         assert pruned["removed_bytes"] == inventory["prunable_bytes"]
         assert pruned["floor"] == 4
@@ -1070,7 +1086,9 @@ def test_generation_prune_is_noop_inside_retention_window(
     from mncs_store import embedded as embedded_module
 
     monkeypatch.setattr(embedded_module, "GENERATION_CHECKPOINT_INTERVAL", 4)
-    with EmbeddedStore(tmp_path, session=_session()) as store:
+    with EmbeddedStore(tmp_path, session=_session()) as initializer:
+        assert initializer.current_generation == 0
+    with EmbeddedStore(tmp_path, session=_session(), maintenance=True) as store:
         store.put_bound_object(
             domain_schema=b"fixture/1",
             domain_identity=b"only",
@@ -1079,7 +1097,7 @@ def test_generation_prune_is_noop_inside_retention_window(
             expected_generation=0,
         )
         assert store.retention_floor(keep_last=4096) == 0
-        pruned = store.prune_generations(keep_last=4096, dry_run=False)
+        pruned = store.prune_generations(keep_last=4096, dry_run=False, policy_id="isolated-fixture")
         assert pruned["removed_files"] == 0
         assert (tmp_path / "generations" / f"{0:016x}").exists()
         for invalid in (True, 0, -1):

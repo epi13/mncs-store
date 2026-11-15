@@ -1,0 +1,12 @@
+.....................                                                    [100%]
+--- generated xml file: /tmp/mncs-retention-20261115/retention-delivery.xml ----
+============================= slowest 8 durations ==============================
+5.95s call     tests/test_retention.py::test_environment_snapshots_events_checkpoints_handoffs_and_binding_cache
+1.80s call     tests/test_retention.py::test_native_policy_and_orphan_collector
+1.42s call     tests/test_retention.py::test_native_adaptive_history_is_deferred_not_base_only_collected
+1.37s call     tests/test_retention.py::test_native_transaction_orphans_collected_after_automatic_recovery
+0.15s call     tests/test_retention.py::test_process_death_reopens_and_reproves_without_replaying_audit
+0.15s call     tests/test_retention.py::test_historical_reader_survives_writer_and_blocks_maintenance
+0.14s call     tests/test_retention.py::test_other_process_admission_and_kernel_lock_release
+0.03s call     tests/test_retention.py::test_policy_pin_checkpoint_history_sharing_and_idempotence
+21 passed, 85 deselected in 11.38s

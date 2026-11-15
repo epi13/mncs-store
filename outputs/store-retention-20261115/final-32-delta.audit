@@ -1,0 +1,66 @@
+{"plan": {"candidates": [{"bytes": 65536, "path": "chunks/086317bd0c9bcd77537c8a6cfe66f8e7dd84ded162673903b29f9b3f5e5ea244.chunk"}, {"bytes": 65536, "path": "chunks/0e4019018cd2cc60b69331eb001098c67eb392f139d4aba856a9b98cdfd80231.chunk"}, {"bytes": 65536, "path": "chunks/183fc00e50b877b7aede0f1b3cb32becddcee33168226c42fa373a2946dda7f9.chunk"}, {"bytes": 65536, "path": "chunks/189656da5129a9b9e3d18d5ce9b98d47bc274fc2c715b71788b866d2124e1f21.chunk"}, {"bytes": 65536, "path": "chunks/1a1895874ba300fec6c07254e067f5946b25f1c2a24d75a5d77f250a3901a24c.chunk"}, {"bytes": 65536, "path": "chunks/1bd39762c5890c2b5b67abfc0c4670e0e7252aa9953793eb310e55db27a1f8a9.chunk"}, {"bytes": 65536, "path": "chunks/1f2d41b212c74e121e69ba1f71cdf254ce7b478dfb675bca590a1bb9c952354f.chunk"}, {"bytes": 65536, "path": "chunks/21dd6b58bd7b45e63fbda4b84e5cb84a77fd46947f9605596673f82edd5516b8.chunk"}, {"bytes": 65536, "path": "chunks/2754bed448db681f347851c64b57b9c7d42ec1d25b8e72f3cffe8d335c765faf.chunk"}, {"bytes": 65536, "path": "chunks/3154f3b3626e8157ea3e822989dbceb5093863925f579b0b4101a7503f6338a0.chunk"}, {"bytes": 65536, "path": "chunks/3531e0b3e182f7552725ed223c216045a18d5d961cb7f33c89cc96d17b7caa3e.chunk"}, {"bytes": 65536, "path": "chunks/3d76c52a832a592595aea8741e6f982a7f1602f89de0b6be0f8f808112a6742b.chunk"}, {"bytes": 65536, "path": "chunks/462afdd5bd49ce180f4d3de648e634803bacee85bd4a92240530bf47351ff4a6.chunk"}, {"bytes": 65536, "path": "chunks/46beb4e8d2ddd89b103f1ba73d4ef1c7c2877ff9b42ab4f55afb3550cdb3de56.chunk"}, {"bytes": 65536, "path": "chunks/52a42966a84805c990a5c169fe730cf82fabf55a01d54c11534943046d2affb4.chunk"}, {"bytes": 65536, "path": "chunks/60e969db1a4fb6a687244ab368df52d4558ce71644cc896467986a6174c6862a.chunk"}, {"bytes": 65536, "path": "chunks/746b2d1f0bb869541a90c44d5b476506897e52692ce96629ee8ffb51242ac296.chunk"}, {"bytes": 65536, "path": "chunks/7e4d0214fa08fa66911f74263965974dab6aca3dfdc2de18735a526d4f9e883a.chunk"}, {"bytes": 65536, "path": "chunks/8d8a69fb669bb8e528e1927101fac51aa5a269840f422a28b4eb566b56799ec9.chunk"}, {"bytes": 65536, "path": "chunks/a1161f86dd9363d0519044fae6fa88b24087ad452cf98e1ee7e86104247506cc.chunk"}, {"bytes": 65536, "path": "chunks/a50b56b9ddad8f17e243409cbfd02bf644f7b26f784a18f7939b972cb1fd47b8.chunk"}, {"bytes": 65536, "path": "chunks/bde7586998bae9fa81887540a82fd3e168cb0b145924af934467393a6634369f.chunk"}, {"bytes": 65536, "path": "chunks/c78acf4b17a5c2ef451d778154e5de56992c69b7a012f6e2caac8c2a8134fb56.chunk"}, {"bytes": 65536, "path": "chunks/c7f198ceb4a854edaef7ae8f469fd9e76740c51f91802c3035489da2713e4e3a.chunk"}, {"bytes": 65536, "path": "chunks/cbe1f519576f96e19a5f55330a5ec36c97ad3b8e1fa1af38538d3e00a757e4f7.chunk"}, {"bytes": 65536, "path": "chunks/ce0b25310519b050cc9173bf10a039bcaca32dd0cf242266d6569d26b052500d.chunk"}, {"bytes": 65536, "path": "chunks/d75a2ebd38df29a3a8900a8d06c87a2d9a026ec5901debafb43ad2a0a6825876.chunk"}, {"bytes": 65536, "path": "chunks/ec6daa560f6344432254339508009083fd3b8a5c737dc2f389996b14c305600a.chunk"}, {"bytes": 65536, "path": "chunks/edfe303bf433a24559459661b741c3a545c3045c46025e5492dfe0d22ede18a7.chunk"}, {"bytes": 65536, "path": "chunks/ee9bcd54aec20d29d6637489ae7df3ce70e6e54600d63b01857d6e91efb567db.chunk"}, {"bytes": 65536, "path": "chunks/f5b5e271b402070914de57750ee41819d5b4dad4ec9e84d20fa89b5027b25bcd.chunk"}, {"bytes": 65536, "path": "chunks/fcde09f61a0fbf3a5017492857e99e321166ab1f341bf6fe82b5ec2672617c1d.chunk"}], "floor": 0, "head": 32, "keep_last": 32, "policy_id": "isolated-benchmark-window-32", "protected_generations": []}, "plan_digest": "65f3e412c88fb38ed87386715893da809ff034dc306ebc4398002f7838119bd1"}
+{"attempt": "chunks/086317bd0c9bcd77537c8a6cfe66f8e7dd84ded162673903b29f9b3f5e5ea244.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/086317bd0c9bcd77537c8a6cfe66f8e7dd84ded162673903b29f9b3f5e5ea244.chunk"}}
+{"attempt": "chunks/0e4019018cd2cc60b69331eb001098c67eb392f139d4aba856a9b98cdfd80231.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/0e4019018cd2cc60b69331eb001098c67eb392f139d4aba856a9b98cdfd80231.chunk"}}
+{"attempt": "chunks/183fc00e50b877b7aede0f1b3cb32becddcee33168226c42fa373a2946dda7f9.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/183fc00e50b877b7aede0f1b3cb32becddcee33168226c42fa373a2946dda7f9.chunk"}}
+{"attempt": "chunks/189656da5129a9b9e3d18d5ce9b98d47bc274fc2c715b71788b866d2124e1f21.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/189656da5129a9b9e3d18d5ce9b98d47bc274fc2c715b71788b866d2124e1f21.chunk"}}
+{"attempt": "chunks/1a1895874ba300fec6c07254e067f5946b25f1c2a24d75a5d77f250a3901a24c.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/1a1895874ba300fec6c07254e067f5946b25f1c2a24d75a5d77f250a3901a24c.chunk"}}
+{"attempt": "chunks/1bd39762c5890c2b5b67abfc0c4670e0e7252aa9953793eb310e55db27a1f8a9.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/1bd39762c5890c2b5b67abfc0c4670e0e7252aa9953793eb310e55db27a1f8a9.chunk"}}
+{"attempt": "chunks/1f2d41b212c74e121e69ba1f71cdf254ce7b478dfb675bca590a1bb9c952354f.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/1f2d41b212c74e121e69ba1f71cdf254ce7b478dfb675bca590a1bb9c952354f.chunk"}}
+{"attempt": "chunks/21dd6b58bd7b45e63fbda4b84e5cb84a77fd46947f9605596673f82edd5516b8.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/21dd6b58bd7b45e63fbda4b84e5cb84a77fd46947f9605596673f82edd5516b8.chunk"}}
+{"attempt": "chunks/2754bed448db681f347851c64b57b9c7d42ec1d25b8e72f3cffe8d335c765faf.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/2754bed448db681f347851c64b57b9c7d42ec1d25b8e72f3cffe8d335c765faf.chunk"}}
+{"attempt": "chunks/3154f3b3626e8157ea3e822989dbceb5093863925f579b0b4101a7503f6338a0.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/3154f3b3626e8157ea3e822989dbceb5093863925f579b0b4101a7503f6338a0.chunk"}}
+{"attempt": "chunks/3531e0b3e182f7552725ed223c216045a18d5d961cb7f33c89cc96d17b7caa3e.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/3531e0b3e182f7552725ed223c216045a18d5d961cb7f33c89cc96d17b7caa3e.chunk"}}
+{"attempt": "chunks/3d76c52a832a592595aea8741e6f982a7f1602f89de0b6be0f8f808112a6742b.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/3d76c52a832a592595aea8741e6f982a7f1602f89de0b6be0f8f808112a6742b.chunk"}}
+{"attempt": "chunks/462afdd5bd49ce180f4d3de648e634803bacee85bd4a92240530bf47351ff4a6.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/462afdd5bd49ce180f4d3de648e634803bacee85bd4a92240530bf47351ff4a6.chunk"}}
+{"attempt": "chunks/46beb4e8d2ddd89b103f1ba73d4ef1c7c2877ff9b42ab4f55afb3550cdb3de56.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/46beb4e8d2ddd89b103f1ba73d4ef1c7c2877ff9b42ab4f55afb3550cdb3de56.chunk"}}
+{"attempt": "chunks/52a42966a84805c990a5c169fe730cf82fabf55a01d54c11534943046d2affb4.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/52a42966a84805c990a5c169fe730cf82fabf55a01d54c11534943046d2affb4.chunk"}}
+{"attempt": "chunks/60e969db1a4fb6a687244ab368df52d4558ce71644cc896467986a6174c6862a.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/60e969db1a4fb6a687244ab368df52d4558ce71644cc896467986a6174c6862a.chunk"}}
+{"attempt": "chunks/746b2d1f0bb869541a90c44d5b476506897e52692ce96629ee8ffb51242ac296.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/746b2d1f0bb869541a90c44d5b476506897e52692ce96629ee8ffb51242ac296.chunk"}}
+{"attempt": "chunks/7e4d0214fa08fa66911f74263965974dab6aca3dfdc2de18735a526d4f9e883a.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/7e4d0214fa08fa66911f74263965974dab6aca3dfdc2de18735a526d4f9e883a.chunk"}}
+{"attempt": "chunks/8d8a69fb669bb8e528e1927101fac51aa5a269840f422a28b4eb566b56799ec9.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/8d8a69fb669bb8e528e1927101fac51aa5a269840f422a28b4eb566b56799ec9.chunk"}}
+{"attempt": "chunks/a1161f86dd9363d0519044fae6fa88b24087ad452cf98e1ee7e86104247506cc.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/a1161f86dd9363d0519044fae6fa88b24087ad452cf98e1ee7e86104247506cc.chunk"}}
+{"attempt": "chunks/a50b56b9ddad8f17e243409cbfd02bf644f7b26f784a18f7939b972cb1fd47b8.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/a50b56b9ddad8f17e243409cbfd02bf644f7b26f784a18f7939b972cb1fd47b8.chunk"}}
+{"attempt": "chunks/bde7586998bae9fa81887540a82fd3e168cb0b145924af934467393a6634369f.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/bde7586998bae9fa81887540a82fd3e168cb0b145924af934467393a6634369f.chunk"}}
+{"attempt": "chunks/c78acf4b17a5c2ef451d778154e5de56992c69b7a012f6e2caac8c2a8134fb56.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/c78acf4b17a5c2ef451d778154e5de56992c69b7a012f6e2caac8c2a8134fb56.chunk"}}
+{"attempt": "chunks/c7f198ceb4a854edaef7ae8f469fd9e76740c51f91802c3035489da2713e4e3a.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/c7f198ceb4a854edaef7ae8f469fd9e76740c51f91802c3035489da2713e4e3a.chunk"}}
+{"attempt": "chunks/cbe1f519576f96e19a5f55330a5ec36c97ad3b8e1fa1af38538d3e00a757e4f7.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/cbe1f519576f96e19a5f55330a5ec36c97ad3b8e1fa1af38538d3e00a757e4f7.chunk"}}
+{"attempt": "chunks/ce0b25310519b050cc9173bf10a039bcaca32dd0cf242266d6569d26b052500d.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/ce0b25310519b050cc9173bf10a039bcaca32dd0cf242266d6569d26b052500d.chunk"}}
+{"attempt": "chunks/d75a2ebd38df29a3a8900a8d06c87a2d9a026ec5901debafb43ad2a0a6825876.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/d75a2ebd38df29a3a8900a8d06c87a2d9a026ec5901debafb43ad2a0a6825876.chunk"}}
+{"attempt": "chunks/ec6daa560f6344432254339508009083fd3b8a5c737dc2f389996b14c305600a.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/ec6daa560f6344432254339508009083fd3b8a5c737dc2f389996b14c305600a.chunk"}}
+{"attempt": "chunks/edfe303bf433a24559459661b741c3a545c3045c46025e5492dfe0d22ede18a7.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/edfe303bf433a24559459661b741c3a545c3045c46025e5492dfe0d22ede18a7.chunk"}}
+{"attempt": "chunks/ee9bcd54aec20d29d6637489ae7df3ce70e6e54600d63b01857d6e91efb567db.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/ee9bcd54aec20d29d6637489ae7df3ce70e6e54600d63b01857d6e91efb567db.chunk"}}
+{"attempt": "chunks/f5b5e271b402070914de57750ee41819d5b4dad4ec9e84d20fa89b5027b25bcd.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/f5b5e271b402070914de57750ee41819d5b4dad4ec9e84d20fa89b5027b25bcd.chunk"}}
+{"attempt": "chunks/fcde09f61a0fbf3a5017492857e99e321166ab1f341bf6fe82b5ec2672617c1d.chunk"}
+{"removed": {"bytes": 65536, "path": "chunks/fcde09f61a0fbf3a5017492857e99e321166ab1f341bf6fe82b5ec2672617c1d.chunk"}}
+{"removed_bytes": 2097152, "removed_files": 32, "status": "complete"}

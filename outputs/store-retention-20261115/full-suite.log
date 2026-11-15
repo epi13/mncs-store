@@ -1,0 +1,20 @@
+........................................................................ [ 23%]
+........................................................................ [ 46%]
+........................................................................ [ 70%]
+........................................................................ [ 93%]
+....................                                                     [100%]
+------- generated xml file: /tmp/mncs-retention-20261115/full-suite.xml --------
+============================= slowest 12 durations =============================
+28.69s call     tests/test_mncs_corpora.py::test_cross_backend_agreement
+12.38s call     tests/test_phase2.py::test_general_blob_boundaries_roundtrip
+10.41s call     tests/test_mncs_corpora.py::test_corpus_on_backend[generation-corpus.json@mncs-portable-wasm-mvp]
+10.06s call     tests/test_native_substrate.py::test_relation_object_survives_store_commit_close_and_reopen
+8.04s call     tests/test_provider.py::test_provider_fresh_process_selective_read_and_plan_refusal
+7.00s call     tests/test_adaptive_store.py::test_rle_windows_chunk_across_batch_crossings
+6.21s call     tests/test_native_substrate.py::test_retained_session_reuses_one_admitted_artifact
+6.19s call     tests/test_native_substrate.py::test_native_publication_effect_is_explicitly_granted
+6.03s call     tests/test_retention.py::test_environment_snapshots_events_checkpoints_handoffs_and_binding_cache
+5.10s call     tests/test_lifecycle.py::test_u32_roundtrip_close_reopen
+5.06s call     tests/test_adaptive_store.py::test_plan_admission_and_block_checks
+4.33s call     tests/test_adaptive_store.py::test_adaptive_modules_agree_across_fast_backends
+308 passed in 225.23s (0:03:45)

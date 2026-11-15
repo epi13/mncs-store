@@ -1,0 +1,276 @@
+F...FFFF                                                                 [100%]
+=================================== FAILURES ===================================
+___ test_binding_directory_isolates_prefixes_malformed_and_unrelated_schemas ___
+
+    def test_binding_directory_isolates_prefixes_malformed_and_unrelated_schemas():
+        bindings = [
+            (SCHEMA_SNAPSHOT, b"ses_1:snap:0000000001"),
+            (SCHEMA_SNAPSHOT, b"ses_1:snap:0000000002"),
+            (SCHEMA_SNAPSHOT, b"ses_10:snap:0000000001"),
+            (SCHEMA_SNAPSHOT, b"ses_1:snap:bad-suffix"),
+            (b"other.schema/1", b"ses_1:snap:0000000099"),
+            (SCHEMA_SNAPSHOT, b"ses_1:chk:chk_a"),
+            (SCHEMA_SNAPSHOT, b"ses_10:chk:chk_b"),
+            (SCHEMA_EVENT, b"ses_1:evt:0000000001"),
+            (SCHEMA_EVENT, b"ses_1:evt:2"),  # unpadded non-canonical
+            (SCHEMA_EVENT, b"ses_10:evt:0000000001"),
+            (SCHEMA_CLAIM, b"claim:repo:with:colon:0000000001"),
+            (SCHEMA_CLAIM, b"claim:repo:with:colon:0000000002"),
+            (SCHEMA_PROJECTION, b"proj:a:0000000001"),
+            (SCHEMA_PROJECTION, b"proj:a:0000000003"),
+        ]
+        payloads = {
+            (SCHEMA_SNAPSHOT, b"ses_1:snap:0000000001"): json.dumps({"session_id": "ses_1", "snapshot_sequence": 1}).encode(),
+            (SCHEMA_SNAPSHOT, b"ses_1:snap:0000000002"): json.dumps({"session_id": "ses_1", "snapshot_sequence": 2}).encode(),
+            (SCHEMA_SNAPSHOT, b"ses_10:snap:0000000001"): json.dumps({"session_id": "ses_10", "snapshot_sequence": 1}).encode(),
+            (SCHEMA_SNAPSHOT, b"ses_1:chk:chk_a"): json.dumps({"session_id": "ses_1", "identity": "chk_a", "sequence": 1}).encode(),
+            (SCHEMA_SNAPSHOT, b"ses_10:chk:chk_b"): json.dumps({"session_id": "ses_10", "identity": "chk_b", "sequence": 1}).encode(),
+            (SCHEMA_EVENT, b"ses_1:evt:0000000001"): json.dumps({"session_id": "ses_1", "sequence": 1, "identity": "e1"}).encode(),
+            (SCHEMA_EVENT, b"ses_1:evt:2"): json.dumps({"session_id": "ses_1", "sequence": 2, "identity": "e2"}).encode(),
+            (SCHEMA_CLAIM, b"claim:repo:with:colon:0000000002"): json.dumps({"claim_id": "repo:with:colon", "version": 2}).encode(),
+            (SCHEMA_PROJECTION, b"proj:a:0000000003"): json.dumps({"ok": True}).encode(),
+        }
+        stub = _ExactLookupStub(7, bindings, payloads)
+        backend = StoreBackend.__new__(StoreBackend)
+        backend._store = stub
+
+        assert backend.list_sessions() == ["ses_1", "ses_10"]
+        assert backend.read_snapshot("ses_1") == {"session_id": "ses_1", "snapshot_sequence": 2}
+        assert backend.read_snapshot("ses_10") == {"session_id": "ses_10", "snapshot_sequence": 1}
+        assert backend.read_snapshot("ses_missing") is None
+        assert [c["identity"] for c in backend.list_checkpoints("ses_1")] == ["chk_a"]
+        page = backend.read_event_page("ses_1", limit=10)
+        assert page["event_count"] == 1
+        assert [e["identity"] for e in page["events"]] == ["e1"]
+        assert len(backend.read_events("ses_1")) == 2
+        assert backend.read_projection_versions() == {"proj:a": 3}
+        assert backend.read_projection_row("proj:a") == (3, {"ok": True})
+>       assert backend.read_latest_claims_for(["repo:with:colon"]) == [
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            {"claim_id": "repo:with:colon", "version": 2}
+        ]
+
+../../../mncs-environment/tests/test_store_session_lookup.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../mncs-environment/mncs_env/store_backend.py:1234: in read_latest_claims_for
+    record = self.get_record_strict(SCHEMA_CLAIM, identity)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../mncs-environment/mncs_env/store_backend.py:1274: in get_record_strict
+    _, StoreError, StoreResultCode = getattr(self, "_api", None) or _load_store_api()
+                                                                    ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store_package_dir = None
+
+    def _load_store_api(store_package_dir: str | Path | None = None):
+        package_dir = store_package_dir or os.environ.get("MNCS_STORE_PYTHON")
+        if not package_dir:
+            fallback = _workspace_store_package()
+            if fallback is not None:
+                package_dir = str(fallback)
+        if package_dir:
+            package_path = Path(package_dir).resolve()
+            if not (package_path / "mncs_store" / "__init__.py").is_file():
+                raise StoreUnavailable(
+                    f"selected mncs-store Python package is unavailable: {package_path}"
+                )
+            package_dir = str(package_path)
+            existing_package = sys.modules.get("mncs_store")
+            existing_file = getattr(existing_package, "__file__", None)
+            if existing_file and not Path(existing_file).resolve().is_relative_to(package_path):
+>               raise StoreUnavailable(
+                    "a different mncs-store checkout is already loaded in this process"
+                )
+E               mncs_env.store_backend.StoreUnavailable: a different mncs-store checkout is already loaded in this process
+
+../../../mncs-environment/mncs_env/store_backend.py:165: StoreUnavailable
+________ test_real_store_decomposed_fallback_and_integrity_preservation ________
+
+tmp_path = PosixPath('/tmp/pytest-of-epi13/pytest-70/test_real_store_decomposed_fal0')
+
+    def test_real_store_decomposed_fallback_and_integrity_preservation(tmp_path: Path):
+>       store = open_store(tmp_path / "state", "store", verify_on_open=False, defer_mutation=False)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+../../../mncs-environment/tests/test_store_session_lookup.py:198:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../mncs-environment/mncs_env/session_store.py:934: in open_store
+    return StoreSessionStore(
+../../../mncs-environment/mncs_env/session_store.py:677: in __init__
+    self.backend = StoreBackend(
+../../../mncs-environment/mncs_env/store_backend.py:447: in __init__
+    EmbeddedStore, StoreError, StoreResultCode = _load_store_api(store_package_dir)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store_package_dir = None
+
+    def _load_store_api(store_package_dir: str | Path | None = None):
+        package_dir = store_package_dir or os.environ.get("MNCS_STORE_PYTHON")
+        if not package_dir:
+            fallback = _workspace_store_package()
+            if fallback is not None:
+                package_dir = str(fallback)
+        if package_dir:
+            package_path = Path(package_dir).resolve()
+            if not (package_path / "mncs_store" / "__init__.py").is_file():
+                raise StoreUnavailable(
+                    f"selected mncs-store Python package is unavailable: {package_path}"
+                )
+            package_dir = str(package_path)
+            existing_package = sys.modules.get("mncs_store")
+            existing_file = getattr(existing_package, "__file__", None)
+            if existing_file and not Path(existing_file).resolve().is_relative_to(package_path):
+>               raise StoreUnavailable(
+                    "a different mncs-store checkout is already loaded in this process"
+                )
+E               mncs_env.store_backend.StoreUnavailable: a different mncs-store checkout is already loaded in this process
+
+../../../mncs-environment/mncs_env/store_backend.py:165: StoreUnavailable
+____ test_retained_reader_observes_external_writer_and_keeps_cache_bounded _____
+
+tmp_path = PosixPath('/tmp/pytest-of-epi13/pytest-70/test_retained_reader_observes_0')
+
+    def test_retained_reader_observes_external_writer_and_keeps_cache_bounded(tmp_path: Path):
+        state_dir = tmp_path / "shared"
+>       writer = open_store(state_dir, "store", verify_on_open=False, defer_mutation=False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+../../../mncs-environment/tests/test_store_session_lookup.py:262:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../mncs-environment/mncs_env/session_store.py:934: in open_store
+    return StoreSessionStore(
+../../../mncs-environment/mncs_env/session_store.py:677: in __init__
+    self.backend = StoreBackend(
+../../../mncs-environment/mncs_env/store_backend.py:447: in __init__
+    EmbeddedStore, StoreError, StoreResultCode = _load_store_api(store_package_dir)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store_package_dir = None
+
+    def _load_store_api(store_package_dir: str | Path | None = None):
+        package_dir = store_package_dir or os.environ.get("MNCS_STORE_PYTHON")
+        if not package_dir:
+            fallback = _workspace_store_package()
+            if fallback is not None:
+                package_dir = str(fallback)
+        if package_dir:
+            package_path = Path(package_dir).resolve()
+            if not (package_path / "mncs_store" / "__init__.py").is_file():
+                raise StoreUnavailable(
+                    f"selected mncs-store Python package is unavailable: {package_path}"
+                )
+            package_dir = str(package_path)
+            existing_package = sys.modules.get("mncs_store")
+            existing_file = getattr(existing_package, "__file__", None)
+            if existing_file and not Path(existing_file).resolve().is_relative_to(package_path):
+>               raise StoreUnavailable(
+                    "a different mncs-store checkout is already loaded in this process"
+                )
+E               mncs_env.store_backend.StoreUnavailable: a different mncs-store checkout is already loaded in this process
+
+../../../mncs-environment/mncs_env/store_backend.py:165: StoreUnavailable
+____ test_session_lookup_does_not_scale_with_sessions_times_bindings[8-24] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-epi13/pytest-70/test_session_lookup_does_not_s0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f325fe10d60>
+n_sessions = 8, n_unrelated = 24
+
+    @pytest.mark.parametrize(("n_sessions", "n_unrelated"), [(8, 24), (24, 96)])
+    def test_session_lookup_does_not_scale_with_sessions_times_bindings(
+        tmp_path: Path, monkeypatch, n_sessions: int, n_unrelated: int,
+    ):
+>       store = open_store(tmp_path / f"scale-{n_sessions}", "store", verify_on_open=False, defer_mutation=False)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+../../../mncs-environment/tests/test_store_session_lookup.py:343:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../mncs-environment/mncs_env/session_store.py:934: in open_store
+    return StoreSessionStore(
+../../../mncs-environment/mncs_env/session_store.py:677: in __init__
+    self.backend = StoreBackend(
+../../../mncs-environment/mncs_env/store_backend.py:447: in __init__
+    EmbeddedStore, StoreError, StoreResultCode = _load_store_api(store_package_dir)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store_package_dir = None
+
+    def _load_store_api(store_package_dir: str | Path | None = None):
+        package_dir = store_package_dir or os.environ.get("MNCS_STORE_PYTHON")
+        if not package_dir:
+            fallback = _workspace_store_package()
+            if fallback is not None:
+                package_dir = str(fallback)
+        if package_dir:
+            package_path = Path(package_dir).resolve()
+            if not (package_path / "mncs_store" / "__init__.py").is_file():
+                raise StoreUnavailable(
+                    f"selected mncs-store Python package is unavailable: {package_path}"
+                )
+            package_dir = str(package_path)
+            existing_package = sys.modules.get("mncs_store")
+            existing_file = getattr(existing_package, "__file__", None)
+            if existing_file and not Path(existing_file).resolve().is_relative_to(package_path):
+>               raise StoreUnavailable(
+                    "a different mncs-store checkout is already loaded in this process"
+                )
+E               mncs_env.store_backend.StoreUnavailable: a different mncs-store checkout is already loaded in this process
+
+../../../mncs-environment/mncs_env/store_backend.py:165: StoreUnavailable
+____ test_session_lookup_does_not_scale_with_sessions_times_bindings[24-96] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-epi13/pytest-70/test_session_lookup_does_not_s1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f325fbade00>
+n_sessions = 24, n_unrelated = 96
+
+    @pytest.mark.parametrize(("n_sessions", "n_unrelated"), [(8, 24), (24, 96)])
+    def test_session_lookup_does_not_scale_with_sessions_times_bindings(
+        tmp_path: Path, monkeypatch, n_sessions: int, n_unrelated: int,
+    ):
+>       store = open_store(tmp_path / f"scale-{n_sessions}", "store", verify_on_open=False, defer_mutation=False)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+../../../mncs-environment/tests/test_store_session_lookup.py:343:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../mncs-environment/mncs_env/session_store.py:934: in open_store
+    return StoreSessionStore(
+../../../mncs-environment/mncs_env/session_store.py:677: in __init__
+    self.backend = StoreBackend(
+../../../mncs-environment/mncs_env/store_backend.py:447: in __init__
+    EmbeddedStore, StoreError, StoreResultCode = _load_store_api(store_package_dir)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store_package_dir = None
+
+    def _load_store_api(store_package_dir: str | Path | None = None):
+        package_dir = store_package_dir or os.environ.get("MNCS_STORE_PYTHON")
+        if not package_dir:
+            fallback = _workspace_store_package()
+            if fallback is not None:
+                package_dir = str(fallback)
+        if package_dir:
+            package_path = Path(package_dir).resolve()
+            if not (package_path / "mncs_store" / "__init__.py").is_file():
+                raise StoreUnavailable(
+                    f"selected mncs-store Python package is unavailable: {package_path}"
+                )
+            package_dir = str(package_path)
+            existing_package = sys.modules.get("mncs_store")
+            existing_file = getattr(existing_package, "__file__", None)
+            if existing_file and not Path(existing_file).resolve().is_relative_to(package_path):
+>               raise StoreUnavailable(
+                    "a different mncs-store checkout is already loaded in this process"
+                )
+E               mncs_env.store_backend.StoreUnavailable: a different mncs-store checkout is already loaded in this process
+
+../../../mncs-environment/mncs_env/store_backend.py:165: StoreUnavailable
+=========================== short test summary info ============================
+FAILED ../../../mncs-environment/tests/test_store_session_lookup.py::test_binding_directory_isolates_prefixes_malformed_and_unrelated_schemas
+FAILED ../../../mncs-environment/tests/test_store_session_lookup.py::test_real_store_decomposed_fallback_and_integrity_preservation
+FAILED ../../../mncs-environment/tests/test_store_session_lookup.py::test_retained_reader_observes_external_writer_and_keeps_cache_bounded
+FAILED ../../../mncs-environment/tests/test_store_session_lookup.py::test_session_lookup_does_not_scale_with_sessions_times_bindings[8-24]
+FAILED ../../../mncs-environment/tests/test_store_session_lookup.py::test_session_lookup_does_not_scale_with_sessions_times_bindings[24-96]
+5 failed, 3 passed in 0.40s

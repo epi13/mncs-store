@@ -1,0 +1,25 @@
+{
+  "session_id": "ses_dfe7e716770e3f7c",
+  "entry": "standalone documented CLI fallback after MCP workspace grant denial",
+  "readiness": {
+    "status": "degraded",
+    "available_count": 39,
+    "unknown_count": 29,
+    "unavailable_count": 0
+  },
+  "claim_id": "claim:mncs-store:worktree:a5b5ed17a404",
+  "scope": {
+    "branch": "fix/store-retention-20261115",
+    "checkout": "/home/epi13/Documents/Projects/mncs-store/.worktrees/store-retention-20261115",
+    "checkout_identity": "checkout:5e7fcf062ddb55c0",
+    "exclusive": false,
+    "git_common_directory_identity": "git-common:38ab247aa209f6a0",
+    "kind": "worktree",
+    "manifest_identity": "c4f29e7709ab5605",
+    "paths": null,
+    "repository": "mncs-store"
+  },
+  "base_store_revision": "5464f04",
+  "environment_revision": "2a4d0ff",
+  "production_destructive_operations": 0
+}
