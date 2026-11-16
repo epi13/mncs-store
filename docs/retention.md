@@ -60,10 +60,26 @@ before allowing any unlink. Only generations and proven unreferenced chunks are
 collected. Other content, aliases, temporary transactions and sidecars are not
 guessed disposable. Existing recovery owns interrupted transactions.
 
-No durable mark/index is installed. A new invocation always proves a fresh
-plan. The external bounded JSONL audit records the plan, synced attempts and
-completed unlink barriers. An attempt without a completion receipt is UNKNOWN.
-Never replay an old audit as deletion authority.
+No durable in-Store mark/index becomes an independent source of truth.
+When `mark_path` is omitted, a single invocation proves a fresh plan and returns
+`status=unknown` if any resource ceiling is hit. When an explicit external
+`mark_path` (outside the Store) is supplied, `prune_generations` records
+self-verifying, crash-safe binary mark checkpoints bound to the Store's `meta`
+inode/digest, genesis, `floor`, `keep_last`, `protected_generations`, and
+`reclaim_chunks` flag across bounded slices without repeating finished phases or
+re-reading already-verified unique chunks/nodes. Any policy or floor shift
+invalidates stale progress; compatible `head` advancement under an unchanged
+floor extends incrementally and requires exclusive `maintenance=True` +
+nonblocking `publication.lock` revalidation (plus optional `expected_head` and
+`expected_plan_digest` guards) before any deletion. The external bounded JSONL
+audit records the plan, synced attempts and completed unlink barriers; an attempt
+without a completion receipt is UNKNOWN, and audits are never replayed as deletion
+authority.
+
+`EmbeddedStore.create_backup`, `EmbeddedStore.verify_backup`, and
+`EmbeddedStore.restore_backup` provide external SHA-256 manifest-sealed backup
+capture, isolated verification, and atomic staging restore. A full production-scale
+backup rehearsal has not yet been executed against the 31+ GB live Store.
 
 ## Read-only planning
 
@@ -158,14 +174,18 @@ while newer acknowledged writes exist.
 
 ## Automation readiness
 
-Store owns the mechanism. Environment can eventually request it through its
-existing maintenance boundary after composing consumer pins and draining idle
-providers. No background service is added. Its existing default dry-run wrapper
-continues to work; it does not bypass the new apply requirements.
+Store owns the mechanism (`EmbeddedStore.prune_generations`, backup/verify/restore).
+Environment can compose consumer replay pins (`StoreBackend.retention_pins`) and
+evaluate non-destructive dry-run readiness (`StoreBackend.maintenance_readiness`
+and `mncs-env store --inventory` / `--maintenance-readiness`) without inventing a
+retention window or spawning a new daemon. No automatic deletion is enabled.
 
-Automatic deletion remains disabled. The missing production decisions are
-retention/pin authority and an upgrade/maintenance window, not a guessed age
-threshold. Large content sweeps additionally need resumable bounded proof;
-adaptive/v3 reachability needs a verified collector. Until then, automatic work
-may inventory, plan conservatively, report storage pressure, and defer on busy
-leases, resource pressure, UNKNOWN proofs or corrupt state.
+Resumable bounded v2 chunk reachability (`mark_path`) and isolated backup/restore
+verification are implemented in Store, while adaptive/v3 content reclamation
+continues to fail closed and defer (`status=unknown`). The remaining production
+activation prerequisites are: explicit retention window/pin policy approval,
+consumer inventory and offline drain/upgrade of legacy handles, a production-scale
+verified backup and isolated restore rehearsal, and completing the resumable v2
+reachability sweep under the approved offline/maintenance window. Until then,
+automatic work may only inventory, plan dry-run, and defer on busy leases,
+active claims, pending recovery, resource pressure, UNKNOWN proofs, or corrupt state.

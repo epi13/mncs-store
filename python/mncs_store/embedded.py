@@ -22,6 +22,16 @@ from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
 from .errors import BatchCommitResult, CommitResult, StoreError, StoreIntegrityError, StoreResultCode
+from .reclamation import (
+    _ReclamationBudget,
+    _ReclamationIncomplete,
+    _prune_generations_resumable,
+    _validate_retained_generation_inventory,
+    _verify_object_dependencies,
+    create_backup as _create_backup,
+    restore_backup as _restore_backup,
+    verify_backup as _verify_backup,
+)
 from .session import STORE_CALL_BATCH_MAX, StoreSession, as_bytes, as_int, bytes_value, u32, u64, _returned
 
 
@@ -243,61 +253,6 @@ def _atomic_write(path: Path, value: bytes) -> None:
         temporary.unlink(missing_ok=True)
         raise
     _sync_directory(path.parent)
-
-
-class _ReclamationIncomplete(RuntimeError):
-    pass
-
-
-class _ReclamationBudget:
-    def __init__(self, root: Path, files: int, size: int, seconds: float):
-        self.root, self.max_files, self.max_bytes, self.seconds = root, files, size, seconds
-        self.files = self.bytes = 0
-        self.start = time.monotonic()
-        self.chunks: set[str] = set()
-
-    def tick(self, count: int = 1) -> None:
-        self.files += count
-        if self.files > self.max_files or time.monotonic() - self.start > self.seconds:
-            raise _ReclamationIncomplete("reclamation resource budget exhausted")
-
-    def read(self, path: Path) -> bytes:
-        self.tick()
-        size = path.lstat().st_size
-        if size > self.max_bytes - self.bytes:
-            raise _ReclamationIncomplete("reclamation byte budget exhausted")
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-        try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise StoreIntegrityError("reclamation encountered a non-regular artifact")
-            with os.fdopen(fd, "rb", closefd=False) as stream:
-                value = stream.read(size + 1)
-            if len(value) != size:
-                raise _ReclamationIncomplete("artifact changed during analysis")
-        finally:
-            os.close(fd)
-        self.bytes += size
-        if path.parent == self.root / "chunks":
-            self.chunks.add(path.name)
-        return value
-
-
-def _validate_retained_generation_inventory(
-    generations: dict[int, Path],
-    head: int,
-    floor: int,
-    pins: Sequence[int],
-) -> None:
-    """Validate O(len(generations)) coverage for genesis, pins, and [floor, head]."""
-    if head not in generations or 0 not in generations:
-        raise StoreIntegrityError("head or genesis generation is missing")
-    if floor < 0 or floor > head or floor not in generations:
-        raise StoreIntegrityError("retention checkpoint is missing")
-    for n in pins:
-        if n not in generations:
-            raise StoreIntegrityError(f"protected generation is missing: {n}")
-    if sum(1 for n in generations if n >= floor) != head - floor + 1:
-        raise StoreIntegrityError("retained generation history is incomplete in [floor, head]")
 
 
 class EmbeddedStore:
@@ -4112,14 +4067,18 @@ class EmbeddedStore:
             head, keep_last, GENERATION_CHECKPOINT_INTERVAL, min(pins) if pins else None,
         )
 
-    def generation_inventory(self, *, keep_last: int = 4096) -> dict[str, object]:
+    def generation_inventory(
+        self, *, keep_last: int = 4096, protected_generations: Sequence[int] = (),
+    ) -> dict[str, object]:
         """Bounded metadata classification, not a retained-data integrity proof."""
         head = self.current_generation
-        floor = self.retention_floor(keep_last=keep_last)
+        floor = self.retention_floor(keep_last=keep_last, protected_generations=protected_generations)
         report = dict(head=head, floor=floor, keep_last=keep_last,
+                      protected_generations=sorted(set(protected_generations)),
                       checkpoint_interval=GENERATION_CHECKPOINT_INTERVAL,
                       prunable_files=0, prunable_bytes=0, retained_files=0,
                       retained_bytes=0, unknown_files=0, complete=True)
+        pin_set = set(protected_generations)
         with os.scandir(self.path / "generations") as paths:
             for count, path in enumerate(paths):
                 if count >= 200000:
@@ -4134,7 +4093,7 @@ class EmbeddedStore:
                     report["unknown_files"] += 1
                     continue
                 size = path.stat(follow_symlinks=False).st_size
-                kind = "prunable" if 0 < generation < floor else "retained"
+                kind = "prunable" if (0 < generation < floor and generation not in pin_set) else "retained"
                 report[kind + "_files"] += 1
                 report[kind + "_bytes"] += size
         try:
@@ -4148,6 +4107,8 @@ class EmbeddedStore:
         self, *, keep_last: int = 4096, dry_run: bool = True,
         protected_generations: Sequence[int] = (), policy_id: str | None = None,
         reclaim_chunks: bool = False, audit_path: Path | None = None,
+        mark_path: Path | None = None,
+        expected_head: int | None = None, expected_plan_digest: str | None = None,
         max_files: int = 8192, max_bytes: int = 64 * 1024 * 1024,
         max_seconds: float = 30,
     ) -> dict[str, object]:
@@ -4157,6 +4118,9 @@ class EmbeddedStore:
         outside the retired interval are roots, including old checkpoints and
         physical versions. Only chunks and eligible generation files are
         reclaimed; unknown/adaptive formats, staging and exhausted budgets defer.
+        When ``mark_path`` is supplied (external to the Store), verified
+        progress checkpoints deterministically across bounded slices and
+        revalidates against head, floor, or policy changes before unlinking.
         The external audit is evidence, never replayed as deletion authority.
         """
         if self._closed or (not dry_run and self.read_only):
@@ -4171,7 +4135,36 @@ class EmbeddedStore:
                 or type(max_bytes) is not int or not 1 <= max_bytes <= 1024**3
                 or type(max_seconds) not in (int, float) or not 0 < max_seconds <= 900):
             raise StoreError(StoreResultCode.DENIED, "invalid reclamation budget")
+        if expected_head is not None and (type(expected_head) is not int or expected_head < 0):
+            raise StoreError(StoreResultCode.DENIED, "expected_head must be a non-negative integer")
+        if expected_plan_digest is not None and (
+            not isinstance(expected_plan_digest, str) or len(expected_plan_digest) != 64
+        ):
+            raise StoreError(StoreResultCode.DENIED, "expected_plan_digest must be a SHA-256 hex digest")
+
+        import sys
+        embedded_mod = sys.modules[__name__]
+        if mark_path is not None:
+            return _prune_generations_resumable(
+                self,
+                embedded_mod,
+                keep_last=keep_last,
+                dry_run=dry_run,
+                protected_generations=protected_generations,
+                policy_id=policy_id,
+                reclaim_chunks=reclaim_chunks,
+                audit_path=audit_path,
+                mark_path=mark_path,
+                expected_head=expected_head,
+                expected_plan_digest=expected_plan_digest,
+                max_files=max_files,
+                max_bytes=max_bytes,
+                max_seconds=max_seconds,
+            )
+
         head = self.current_generation
+        if expected_head is not None and head != expected_head:
+            raise StoreError(StoreResultCode.DENIED, "retention plan is stale: Store head changed")
         if not isinstance(protected_generations, (list, tuple, range)) or len(protected_generations) > 8192:
             raise StoreError(StoreResultCode.DENIED, "protected generations must be a bounded sequence")
         pins = tuple(protected_generations)
@@ -4216,6 +4209,9 @@ class EmbeddedStore:
             if floor > 0:
                 self._parse_generation_parts(budget.read(generations[floor]), floor)
             seen_roots: dict[bytes, _Entry] = {}
+            verified_descriptors: set[bytes] = set()
+            verified_nodes: set[bytes] = set()
+            verified_chunks: dict[bytes, int] = {}
             for n in sorted(generations):
                 if 0 < n < floor:
                     continue
@@ -4236,21 +4232,18 @@ class EmbeddedStore:
                             continue
                         budget.tick()
                         seen_roots[entry.representation_root] = entry
-                        manifest = self._read_manifest(entry)
-                        if manifest[-1] is not None:
-                            raise _ReclamationIncomplete("adaptive reachability requires a verified collector")
-                        total, chunks, depth = manifest[1:4]
-                        if chunks != max(1, (total + CHUNK_SIZE - 1) // CHUNK_SIZE):
-                            raise StoreIntegrityError("content geometry is inconsistent")
-                        capacity, expected_depth = FANOUT, 0
-                        while capacity < chunks:
-                            capacity *= FANOUT
-                            expected_depth += 1
-                        if depth != expected_depth:
-                            raise StoreIntegrityError("content depth is inconsistent")
-                        if total > budget.max_bytes - budget.bytes:
-                            raise _ReclamationIncomplete("payload exceeds reclamation byte budget")
-                        self._read_entry(entry, n, verify_payload=True)
+                        _verify_object_dependencies(
+                            self,
+                            entry,
+                            n,
+                            budget,
+                            verified_descriptors=verified_descriptors,
+                            verified_nodes=verified_nodes,
+                            verified_chunks=verified_chunks,
+                            node_append_buf=None,
+                            chunk_append_buf=None,
+                            embedded_module=embedded_mod,
+                        )
             if reclaim_chunks:
                 with os.scandir(self.path / "chunks") as paths:
                     for path in paths:
@@ -4273,11 +4266,15 @@ class EmbeddedStore:
             report.update(status="complete", candidates=items,
                           prunable_files=len(items), prunable_bytes=sum(size for _, size in candidates),
                           verified_physical_roots=len(seen_roots),
-                          referenced_chunks=len(budget.chunks) if reclaim_chunks else None)
+                          referenced_chunks=len(verified_chunks) if reclaim_chunks else None)
             plan = json.dumps({k: report[k] for k in (
                 "head", "floor", "keep_last", "policy_id", "protected_generations", "candidates"
             )}, sort_keys=True, separators=(",", ":")).encode()
             report["plan_digest"] = self._verify_digest(plan).hex()
+            if expected_head is not None and head != expected_head:
+                raise StoreError(StoreResultCode.DENIED, "retention plan is stale: Store head changed")
+            if expected_plan_digest is not None and report["plan_digest"] != expected_plan_digest:
+                raise StoreError(StoreResultCode.DENIED, "retention plan is stale: plan digest changed")
             if dry_run or not candidates:
                 return report
             if audit_path is None:
@@ -4334,6 +4331,47 @@ class EmbeddedStore:
                 publication_guard.__exit__(None, None, None)
             report.update(scanned_files=budget.files, read_bytes=budget.bytes,
                           elapsed_seconds=time.monotonic() - budget.start)
+
+    def create_backup(
+        self, destination: Path, *, verify_payloads: bool = False,
+    ) -> dict[str, object]:
+        """Create a consistent, SHA-256 manifest-sealed Store backup externally."""
+        import sys
+        return _create_backup(
+            self,
+            destination,
+            sys.modules[__name__],
+            verify_payloads=verify_payloads,
+        )
+
+    @classmethod
+    def verify_backup(
+        cls, backup_dir: Path, *, verify_payloads: bool = True, session: StoreSession | None = None,
+    ) -> dict[str, object]:
+        """Verify completeness, SHA-256 digests, and Store readability of a backup."""
+        import sys
+        return _verify_backup(
+            backup_dir,
+            cls,
+            sys.modules[__name__],
+            verify_payloads=verify_payloads,
+            session=session,
+        )
+
+    @classmethod
+    def restore_backup(
+        cls, backup_dir: Path, target_dir: Path, *, verify_payloads: bool = True, session: StoreSession | None = None,
+    ) -> dict[str, object]:
+        """Verify and restore a Store backup atomically into an isolated directory."""
+        import sys
+        return _restore_backup(
+            backup_dir,
+            target_dir,
+            cls,
+            sys.modules[__name__],
+            verify_payloads=verify_payloads,
+            session=session,
+        )
 
     def close(self) -> None:
         if self._closed:
