@@ -1,13 +1,13 @@
 {
   "name": "mncs-store-adaptive-development",
-  "workspace_root": "../..",
   "workspace_scope": {
     "kind": "workspace",
-    "repositories": ["mncs-environment", "mncs-language", "mncs-store"]
+    "repositories": ["mncs-store", "mncs-language"]
   },
   "intent": {
     "goal": "develop and use the selected adaptive Store through provider-owned operations",
     "repositories": ["mncs-store"],
+    "protected_repositories": ["mncs-language"],
     "constraints": ["preserve foreign work; acquire a worktree claim before Store writes"]
   },
   "required_capabilities": [

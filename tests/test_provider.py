@@ -163,3 +163,44 @@ def test_transport_bounds_and_absolute_paths_fail_explicitly(tmp_path):
         provider.bounded_file(path, 9)
     with pytest.raises(provider.RequestError, match="exactly one"):
         provider.bytes_input({"hex": "00", "utf8": "x"})
+
+
+def test_environment_definition_matches_project_scoped_authority():
+    """Project Environment definition must remain confined to mncs-store and declared toolchains."""
+    definition = json.loads((ROOT / ".mncs/environment.json").read_text())
+    manifest = json.loads((ROOT / ".mncs/project.json").read_text())
+
+    assert definition.get("workspace_root", ".") in (None, "", ".")
+    scope = definition["workspace_scope"]
+    intent = definition["intent"]
+    assert scope["kind"] == "workspace"
+    assert intent["repositories"] == ["mncs-store"]
+
+    repositories = scope["repositories"]
+    assert "mncs-store" in repositories
+    assert len(set(repositories)) == len(repositories)
+    extras = set(repositories) - {"mncs-store"}
+    protected = intent.get("protected_repositories", [])
+    assert len(set(protected)) == len(protected)
+    assert set(protected) == extras
+
+    contracts = manifest["contracts"]
+    invocations = [row.get("invocation") for row in contracts.get("provides", [])]
+    invocations.extend(row.get("command") for row in contracts.get("tests", []))
+    declared_toolchains = set()
+    for invocation in invocations:
+        if not isinstance(invocation, dict):
+            continue
+        candidates = []
+        if "toolchain" in invocation:
+            candidates.append(invocation["toolchain"])
+        if isinstance(invocation.get("toolchains"), dict):
+            candidates.extend(invocation["toolchains"].values())
+        for candidate in candidates:
+            if isinstance(candidate, dict) and candidate.get("repository"):
+                declared_toolchains.add(candidate["repository"])
+    declared_toolchains.discard("mncs-store")
+
+    assert extras <= declared_toolchains
+    assert "mncs-environment" not in repositories
+
